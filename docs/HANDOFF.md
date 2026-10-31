@@ -8,12 +8,11 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-The user resumed from the saved checkpoint. Exterior seams and the bounded
-Space Needle entrance/return below are implemented; no clarification or approval
-is pending. The subsequent small JSON/Trent conversation pilot is described
-below. The first-hire milestone is now complete; on resuming again, inspect status
-and continue the companion fallback/avoidance work described below.
-Do not assume prior runtime files persist.
+The user has paused work and asked to save the checkpoint for later. No
+clarification or approval is pending. Do not start new feature work until the user
+resumes. On resuming, inspect Git status and continue companion fallback/avoidance
+from the latest milestone below; do not restart completed ROM/map/hiring work.
+Do not assume prior runtime files outside Git persist.
 
 The user explicitly asked to introduce JSON **slowly** for recovered dialogue
 and quest logic. Keep the Rust engine and use small verified records; do not
@@ -23,12 +22,14 @@ migrate unrelated systems or invent missing quest rules.
 
 Repository: https://github.com/okcmallrat/Shadowrealm
 Branch: `main`
-Uploaded implementation checkpoint before these handoff notes:
-`b9b57485d83b6df4c6a430ea3831dac055c81241`.
+Latest implementation checkpoint: `e5979b9` — verified Ghidra reference and
+noncombat companion following. Its source, tests, tooling and refreshed Windows
+package have been pushed to `main`. The subsequent documentation-only pause
+checkpoint records this stopping point; see `git log` for its commit.
 
 Source, docs, scripts, validators, and the Windows package are on GitHub.
 The last checked working tree before preparing this handoff was clean.
-See `git log` for the subsequent handoff commit and any newer work.
+No source changes or running feature tasks were left unfinished at the pause.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
 SHA-256: `d164053effd042368680e1f4d8b9a3c9bda36afdff0338cbabf41dd311b96f30`.
@@ -241,6 +242,24 @@ combat targeting and the job/mission loop for earning money and resolving
 single-run contracts. Broader dialogue variants, other runners and dismissal/
 rehire history need their own recovered state.
 Keep JSON increments small and compare each operation with the original routines.
+
+Recommended resume sequence:
+
+1. Read `docs/companion-following.md`, `docs/ghidra-reference.md`, and
+   `src/followers.rs`; check whether the local toolchains and uploads still exist.
+2. Start from the bounded `1470e` wall-hugging fallback and the four currently
+   withheld boxed-in oracle cases. Use the Ghidra working copy/instruction views
+   and original-routine execution, rather than trusting untyped decompiled C.
+3. Extend the existing follower oracle and integration tests for one recovered
+   fallback path before enabling it. Then address `eb92/b49c` actor avoidance.
+4. After verified gameplay changes, rebuild/check the Windows package and update
+   its versioned ZIP/checksum. Windows GUI playtesting is still outstanding.
+
+Current quick checks after environment recovery are `cargo test --locked`, the
+explicit ROM-backed `--test followers --test transitions -- --ignored` checks,
+and `tools/validate_followers.py`. The saved result is 45 passing unit tests,
+nine ROM integration tests, and passing relevant original-routine comparisons.
+No game progress/save file is implied: native disk save/load is not implemented.
 
 Trace `1651e → 16608 → 167ae`: source descriptor offset 4e supplies target-location
 mapping; `16e30` saves the exterior map before the location reload. Trace spawn
