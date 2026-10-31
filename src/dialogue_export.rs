@@ -28,7 +28,7 @@ pub fn run(rom: &[u8], directory: &Path) -> Result<(), Box<dyn Error>> {
                 contacts: 0x10000000,
             };
             let next = dialogue.follow(rom, &catalog, slot, &mut knowledge)?;
-            edges.push(json!({"node":dialogue.node,"slot":slot,"next":next.map(|n|n.node),"runner_known":knowledge.runner_known,"contacts":knowledge.contacts}));
+            edges.push(json!({"node":dialogue.node,"slot":slot,"next":next.map(|n|n.node),"runner_known":knowledge.runner_known,"contacts":knowledge.contacts,"handled_by_game":catalog.trent.hiring.handles(dialogue.choices[slot].destination)}));
         }
     }
     let npc = npc::space_needle(rom)?.remove(0);
@@ -64,6 +64,9 @@ pub fn run(rom: &[u8], directory: &Path) -> Result<(), Box<dyn Error>> {
             &json!({"root":catalog.trent.root.0,"nodes":nodes,"edges":edges,"contacts":contacts}),
         )?,
     )?;
-    println!("Exported 12-node dialogue pilot, branch effects and contact boundaries");
+    println!(
+        "Exported {} dialogue node references, branch effects and contact boundaries",
+        catalog.trent.nodes.len()
+    );
     Ok(())
 }

@@ -7,8 +7,8 @@ portraits/equipment/meters, character animation, and environmental tile updates.
 Exterior seams between maps 0, 3 and 5 now work with fades and persistent party
 state. The Space Needle entrance now shows its ROM passage, loads the interior,
 and returns to the saved exterior formation. Trent now has a bounded conversation
-with recovered information/knowledge branches, using a small JSON pilot.
-General story/dialogue scripts,
+with recovered information/knowledge branches and a bounded first-hire flow,
+using a small Serde/JSON pilot. General story/dialogue scripts,
 combat, AI, saves and audio remain unfinished.
 
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
@@ -23,9 +23,15 @@ needed for the package. The ROM is not bundled.
 
 Arrow keys/WASD move, Tab switches runner, Enter/Z acknowledges the entrance
 passage or dialogue choice, Space pauses, R resets, Escape exits. During dialogue,
-Up/Down selects a choice and Left/Right pages long text. Hiring remains unavailable.
+Up/Down selects a choice and Left/Right pages long text. Trent can be hired when
+there is a free companion slot and sufficient nuyen.
 The roster is an explicit test setup using original Joshua/Ricky/Freya templates,
 not new-game recruitment. Unfinished interior entrances still stop movement.
+
+To test hiring with a free slot and explicitly seeded development funds, launch
+`Shadowrealm.exe --solo --nuyen 3000`. The normal fresh-session balance is 20,
+read from the original bootstrap. Earning money through missions is not implemented.
+See [hiring evidence and limits](docs/trent-hiring.md).
 
 The executable was cross-built and inspected here. Windows GUI/input testing
 has not yet been performed. See [build details and remaining milestones](docs/exploration-and-windows.md)
@@ -75,10 +81,10 @@ The `region-screen` command previews the mismatch screen using ROM text and font
 even when the ROM matches the console region. It writes a 320x224 PPM image.
 Its fixed asset offsets target the supplied revision, not arbitrary Genesis ROMs.
 
-Game hardware initialization, interrupt scheduling, audio, scripts, combat,
-UI state machines, saves, and playable scenes remain unimplemented. Native map,
-character, and HUD rendering components are available below. No title screen or gameplay
-has been reconstructed. See `docs/analysis.md` for evidence and next steps.
+Console hardware initialization, audio, general scripts, combat, saves and the
+title/new-game UI remain unfinished. Native exploration and bounded dialogue/
+hiring now use the map, character and HUD components below. The early reverse-
+engineering notes in `docs/analysis.md` predate those milestones.
 
 The supplied-ROM functional check is repeatable with:
 
@@ -207,6 +213,7 @@ SHADOWREALM_TEST_ROM=/path/to/Shadowrun.bin cargo test --locked --test transitio
 PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_transitions.py /path/to/Shadowrun.bin
 PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_interior.py /path/to/Shadowrun.bin
 PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_dialogue.py /path/to/Shadowrun.bin
+PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_hiring.py /path/to/Shadowrun.bin
 ```
 
 The ROM-backed checks drive round trips between the connected exterior maps and

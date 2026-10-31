@@ -36,7 +36,33 @@ fn main() {
 }
 fn run() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args_os().skip(1);
-    let rom_path = if let Some(path) = args.next() {
+    let mut positional = vec![];
+    let mut solo = false;
+    let mut funds = None;
+    while let Some(arg) = args.next() {
+        match arg.to_str() {
+            Some("--solo") => solo = true,
+            Some("--nuyen") => {
+                let amount: u32 = args
+                    .next()
+                    .ok_or("--nuyen needs an amount")?
+                    .to_string_lossy()
+                    .parse()?;
+                if amount > i32::MAX as u32 {
+                    return Err("--nuyen must be between 0 and 2147483647".into());
+                }
+                funds = Some(amount);
+            }
+            Some(flag) if flag.starts_with("--") => {
+                return Err(format!("Unknown option {flag}").into())
+            }
+            _ => positional.push(arg),
+        }
+    }
+    if positional.len() > 2 {
+        return Err("Usage: Shadowrealm.exe [ROM] [MAP] [--solo] [--nuyen AMOUNT]".into());
+    }
+    let rom_path = if let Some(path) = positional.first() {
         PathBuf::from(path)
     } else {
         std::env::current_exe()?
@@ -44,8 +70,8 @@ fn run() -> Result<(), Box<dyn Error>> {
             .ok_or("executable directory unavailable")?
             .join("Shadowrun.bin")
     };
-    let map_id: usize = args
-        .next()
+    let map_id: usize = positional
+        .get(1)
         .map(|v| v.to_string_lossy().parse())
         .transpose()?
         .unwrap_or(0);
@@ -54,7 +80,15 @@ fn run() -> Result<(), Box<dyn Error>> {
     if parsed.checksum() != parsed.stored_checksum() {
         return Err("ROM checksum mismatch".into());
     }
-    let mut game = Game::load(&rom, map_id, &[0, 3, 10])?;
+    let templates: &[usize] = if solo { &[0] } else { &[0, 3, 10] };
+    let load_session = || -> Result<Game, Box<dyn Error>> {
+        let mut g = Game::load(&rom, map_id, templates)?;
+        if let Some(amount) = funds {
+            g.nuyen = amount;
+        }
+        Ok(g)
+    };
+    let mut game = load_session()?;
     let mut window = Window::new(
         "Shadowrealm — Exploration build",
         320,
@@ -85,7 +119,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             game.select(&rom, selected)?;
         }
         if window.is_key_pressed(Key::R, KeyRepeat::No) {
-            game = Game::load(&rom, map_id, &[0, 3, 10])?;
+            game = load_session()?;
         }
         let mut held = 0;
         for (keys, button) in [

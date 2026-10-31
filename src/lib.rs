@@ -6,6 +6,7 @@ pub mod dialogue_data;
 pub mod environment;
 pub mod frame;
 pub mod game;
+pub mod hiring;
 pub mod hud;
 pub mod input;
 pub mod map_render;

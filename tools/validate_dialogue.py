@@ -63,7 +63,10 @@ with tempfile.TemporaryDirectory() as temp:
     transitions = 0
     for edge in data['edges']:
         if edge['next'] is None:
-            assert not nodes[edge['node']]['choices'][edge['slot']]['available']
+            if edge.get('handled_by_game'):
+                assert nodes[edge['node']]['choices'][edge['slot']]['destination'] == 3
+            else:
+                assert not nodes[edge['node']]['choices'][edge['slot']]['available']
             assert edge['runner_known'] == 0xa000 and edge['contacts'] == 0x10000000
             continue
         c = cpu()
@@ -106,4 +109,4 @@ with tempfile.TemporaryDirectory() as temp:
             assert getw(c, 0xfffc2a) == 4
             assert bytes(c.mem_read(0xfff0af, 1)) == b'\xff'
 
-print(f'PASS: {len(nodes)} JSON node/text records, {transitions} original branch/action executions, and {len(data["contacts"])} contact/gating cases; unknown hiring action remains unavailable')
+print(f'PASS: {len(nodes)} JSON node/text records, {transitions} original text/flag branch executions, and {len(data["contacts"])} contact/gating cases; context-dependent hiring checked separately')

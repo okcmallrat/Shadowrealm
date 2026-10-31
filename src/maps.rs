@@ -21,6 +21,7 @@ fn long(data: &[u8], offset: usize) -> Result<u32, RomError> {
         bytes(data, offset, 4)?.try_into().unwrap(),
     ))
 }
+#[derive(Clone)]
 pub struct MapDescriptor {
     pub id: usize,
     pub address: usize,

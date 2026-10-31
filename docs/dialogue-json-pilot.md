@@ -5,6 +5,9 @@ logic. This is one small pilot, not a migration of the engine or a general quest
 system. Rust still handles input, contact, rendering, state transitions and the
 supported operations. `data/dialogue/space-needle.json` records the existing
 entrance passage and a bounded Trent conversation.
+The subsequent [first-hire milestone](trent-hiring.md) extends this same file
+with contextual quotes/payment and three response nodes; historical counts and
+the unavailable-hiring description below refer to the initial pilot.
 
 ## JSON boundary
 
@@ -110,9 +113,9 @@ The suite has 42 passing unit tests and four ROM tests, run explicitly because
 the supplied ROM is not in Git. These fixtures do not establish full navigation
 from the new-game start, original AI behavior or Windows GUI playtesting.
 
-## Next bounded step
+## Subsequent bounded step
 
-Trace action 3 (`21226`) and its fee, party-capacity, opinion and recruitment
-effects before enabling hiring. Add only the verified records/operations to this
-pilot, with original-routine comparisons. Broader mission/dialogue variants,
-targeting, companion behavior and a Pocket Secretary remain subsequent work.
+The [first-hire milestone](trent-hiring.md) now covers action 3, its fee,
+party-capacity checks and payment/recruitment effects with original-routine
+comparisons. Broader mission/dialogue variants, targeting, companion behavior,
+contract completion and a Pocket Secretary remain subsequent work.

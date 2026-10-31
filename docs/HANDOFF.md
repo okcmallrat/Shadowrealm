@@ -11,7 +11,8 @@ executable is an exploration milestone, not the finished game.
 The user resumed from the saved checkpoint. Exterior seams and the bounded
 Space Needle entrance/return below are implemented; no clarification or approval
 is pending. The subsequent small JSON/Trent conversation pilot is described
-below. On resuming again, inspect status and trace the bounded hiring action.
+below. The first-hire milestone is now complete; on resuming again, inspect status
+and trace the hired companion's targeting/follower dispatch.
 Do not assume prior runtime files persist.
 
 The user explicitly asked to introduce JSON **slowly** for recovered dialogue
@@ -30,7 +31,7 @@ The last checked working tree before preparing this handoff was clean.
 See `git log` for the subsequent handoff commit and any newer work.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `7ac36f0324f99c2224b7e16b2c60d22a54b62f327d8948db88cba54fa396df56`.
+SHA-256: `67710273370c4ba59bda0452245b03070fc8419920d5983205045c8c826ce0d7`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -59,6 +60,9 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 - Contact with Trent in that interior opens recovered information branches,
   including biography, magic, contacts and goodbye. A small embedded JSON file
   holds references/actions; two recovered knowledge fields persist in session.
+- Trent first-hire: capacity, quoted single-run/permanent prices, payment/funds
+  refusal, member/HUD initialization, room-NPC removal and contract persistence.
+  Tab transfers the controlled-player flag, so hired/switched runners use doors.
 - Native desktop executable: WASD/arrows walk, Tab switches runner, Space pauses,
   Enter/Z acknowledges the entrance passage, R resets, Escape exits. Default map
   is 0; optional second CLI argument is map ID.
@@ -68,7 +72,8 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 
 Other interior doors/story transitions stop at a trigger. The Space Needle
 path implements its traced no-mission baseline; there is no quest-state VM yet.
-Combat, other branching dialogue/quest scripts, recruiting/payment, NPC and
+Combat, other branching dialogue/quest scripts, other recruiting, contract
+completion/dismissal/rehire history, NPC and
 follower AI, inventory/menu interactions, skills/magic, character creation,
 missions/story state, audio, and save/load are not implemented. The host camera
 is not the original look-ahead/hysteresis system. Original wall-sliding and other
@@ -118,7 +123,7 @@ input through entry/exit without assigning maps between legs. These are seeded
 boundary checks, not a complete new-game traversal. Starting directly at map 10
 does not execute the entrance or manufacture a return context.
 
-## Latest milestone: gradual JSON / Trent conversation pilot
+## Gradual JSON / Trent conversation pilot
 
 Read `docs/dialogue-json-pilot.md`. The user's JSON preference is also recorded
 in `AGENTS.md`. `data/dialogue/space-needle.json` contains the entrance reference
@@ -135,7 +140,7 @@ left/right pages long bodies. The host panel is not the original portrait UI.
 Actions 4 / BE / E5 resolve topic, biography and contact-information branches.
 `Game::knowledge` preserves original `fffc2a` (runner-known) and `fffc2c` (contacts)
 bits across reloads in memory. Pocket Secretary UI and disk saving are absent.
-Hiring action 3 and its upstream choice remain unavailable without mutation.
+The subsequent first-hire milestone enables action 3 and its purchase options.
 Other opinion/mission states, targeting and NPC AI are not implemented.
 
 42 unit tests and all four explicitly enabled ROM integration tests pass.
@@ -148,12 +153,51 @@ The Windows package is refreshed; actual Windows GUI testing remains outstanding
 Serde/serde_json are now pinned runtime dependencies; the default CLI is no
 longer dependency-free. New crate licenses are included by the Windows packager.
 
+## Latest milestone: Trent first-hire
+
+Read `docs/trent-hiring.md` and `src/hiring.rs`. The embedded JSON schema is now
+version 2, still parsed with pinned Serde/serde_json. Only this dialogue file is
+extended: three response nodes and contextual hiring/quote/source references.
+There is no generic quest/payment language or arbitrary ROM execution.
+
+Action 3 (`21226`) refuses when both companion slots are active; otherwise it
+quotes fees from `fe664`, opinion multipliers and leader stat bytes. Current
+zero-opinion Joshua quotes 285 / 2850 nuyen. Options at `ff958` omit a body-pointer
+slot; do not parse them as a normal node. Action 0 / 1 pays for single-run /
+permanent service. Insufficient funds returns `ff978` without mutation. Success
+uses Trent template 5, the first free companion graphics/identity slot, full
+health/condition, original contract byte `8f`, and the room NPC's coordinates.
+It removes that NPC and refreshes the HUD. The contract and wallet survive area
+reloads; original single-run expiry and rehire archives are not implemented.
+
+`Game` prepares all text/member/HUD/graphics before committing payment or NPC
+removal; an invalid-portrait test verifies rollback. Scene cloning preserves
+current map VRAM/environment state. Party selection now transfers raw bit 1 in
+entity byte `10` as `3992/39a8` do. This fixes switched/hired runners being unable
+to satisfy a door's controlled-player gate.
+
+Fresh exploration loads the original `7fc` bootstrap wallet (20 nuyen); this is
+not the original map-2 new-game/earning loop. Default desktop roster is unchanged
+(Joshua/Ricky/Freya), so hiring correctly gets the full-party refusal. Windows
+testing can use `Shadowrealm.exe --solo --nuyen 3000`: explicitly seeded
+development funds with Joshua alone. R restores the same selected fixture.
+
+43 unit tests and all six explicitly enabled ROM integration tests pass.
+`validate_hiring.py` compares 54 original fee quotes and 24 complete native
+capacity/funds-boundary/contract purchase cases, including full party records,
+money, recruit IDs and NPC removal. First-hire archive fixtures are explicit;
+the oracle skips UI/VDP-only calls and adjusts the native host animation rate.
+`hiring-data ROM NEW_DIRECTORY` exports those fixtures and selected quote/outcome
+frames. Older dialogue/interior/seam and world/HUD checks still pass.
+The Windows package is refreshed; actual Windows GUI playtesting remains pending.
+
 ## Best next milestone
 
-Trace action 3 (`21226`) and its fee, party-capacity, opinion and recruiting state
-changes before enabling hiring. Add only the verified JSON records/operations,
-with original-routine comparisons. Then connect targeting/follower/NPC dispatch
-and widen location coverage. Do not bypass unknown scripts with guessed rules.
+Trace targeting/follower dispatch (`ac84`, control-switch handoff around `1e540`)
+for the newly hired companion. Then connect the job/mission loop for earning
+money and resolving single-run contracts. Broader opinion/dialogue variants,
+other runners and dismissal/rehire history need their own recovered state.
+Keep JSON increments small and compare each operation with the original routines.
 
 Trace `1651e → 16608 → 167ae`: source descriptor offset 4e supplies target-location
 mapping; `16e30` saves the exterior map before the location reload. Trace spawn
@@ -174,6 +218,7 @@ own state model and script handling before entry can be enabled.
 | src/transitions.rs | Exterior routing, bounded interior entry and saved return |
 | src/dialogue.rs, src/npc.rs | Bounded exposition/font and fixed NPC initialization |
 | src/dialogue_data.rs, data/dialogue/space-needle.json | Validated embedded dialogue pilot and flag actions |
+| src/hiring.rs | Bounded Trent quote/payment/member initialization |
 | src/bin/game.rs | Native desktop window and keyboard/timing loop |
 | src/party.rs | Templates, identity/assets, equipment resolution, facing |
 | src/collision.rs | Rectangle raster and footprint/shape queries |
@@ -238,8 +283,10 @@ PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_render.py /path/to/S
 
 Run checks relevant to the change. Current completed evidence:
 
-- 42 Rust unit tests pass; four ROM-backed integration tests pass explicitly.
-- Trent dialogue pilot: 12 node/text records, 24 original branch/action executions
+- 43 Rust unit tests pass; six ROM-backed integration tests pass explicitly.
+- Trent first-hire: 54 original fee quotes and 24 complete purchase/capacity/funds
+  cases match (`tools/validate_hiring.py`).
+- Trent dialogue: 15 node/text records, 26 original text/flag branch executions
   and 69 contact/gating cases match (`tools/validate_dialogue.py`).
 - Space Needle entry gate/text/font, route/save/spawn/return and fixed NPC
   initialization match bounded original routines (`tools/validate_interior.py`).

@@ -10,6 +10,35 @@ fn rom() -> Vec<u8> {
         .expect("set SHADOWREALM_TEST_ROM for ROM-backed transition tests");
     std::fs::read(PathBuf::from(path)).expect("read the supplied ROM")
 }
+fn press(game: &mut Game, rom: &[u8], button: u8) {
+    game.update(rom, 0).unwrap();
+    game.update(rom, button).unwrap();
+}
+fn at_trent(rom: &[u8], templates: &[usize], nuyen: u32) -> Game {
+    let mut game = Game::load(rom, 0, templates).unwrap();
+    game.nuyen = nuyen;
+    game.party[0].set_position(528 * 16, 144 * 16);
+    game.party[0].set_word(0x2e, 0);
+    game.camera = (392, 32);
+    for _ in 0..20 {
+        game.update(rom, input::UP).unwrap();
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    press(&mut game, rom, input::A);
+    drive_until_settled(&mut game, rom, 0, 10);
+    game.party[0].set_position(112 * 16, 85 * 16);
+    game.party[0].set_word(0x2e, 0);
+    for _ in 0..8 {
+        game.update(rom, input::UP).unwrap();
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfeb4c);
+    game
+}
 fn drive_until_settled(game: &mut Game, rom: &[u8], held: u8, target: usize) {
     let before = game.completed_transitions;
     let mut reached = false;
@@ -251,12 +280,7 @@ fn trent_contact_choices_and_knowledge_flags() {
     assert_eq!(game.npcs[0].clock.frame, clock);
     game.select(&rom, 1).unwrap();
     assert_eq!(game.selected, 0);
-    press(&mut game, &rom, input::DOWN); // hiring option
-    assert!(!game.dialogue.as_ref().unwrap().choices[1].available);
-    press(&mut game, &rom, input::A);
-    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfeb4c);
     assert_eq!(game.knowledge.contacts, 0);
-    press(&mut game, &rom, input::UP);
     press(&mut game, &rom, input::A); // information
     assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfeba0);
     press(&mut game, &rom, input::A); // original action BE: biography and known bit
@@ -288,4 +312,124 @@ fn trent_contact_choices_and_knowledge_flags() {
     assert_eq!(game.knowledge.contacts, 1 << 12);
     game.update(&rom, 0).unwrap();
     assert!(game.dialogue.is_none()); // original scheduling cooldown
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn trent_hiring_payments_capacity_and_contracts() {
+    let rom = rom();
+    for (templates, funds, button, price, success) in [
+        (&[0][..], 285, input::A, 285, true),
+        (&[0, 3][..], 2850, input::B, 2850, true),
+        (&[0][..], 284, input::A, 285, false),
+        (&[0, 3][..], 2849, input::B, 2850, false),
+        (&[0, 3, 10][..], 99999, input::A, 285, false),
+    ] {
+        let mut game = at_trent(&rom, templates, funds);
+        game.party[0].raw[0x4c] = 7;
+        game.party[0].raw[0x4e] = 2;
+        let before: Vec<_> = game.party.iter().map(|r| r.raw).collect();
+        let npc = game.npcs[0].position();
+        press(&mut game, &rom, input::B);
+        assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfecfc);
+        press(&mut game, &rom, input::A);
+        assert_eq!(game.nuyen, funds);
+        assert_eq!(game.party.len(), templates.len());
+        if templates.len() == 3 {
+            assert_eq!(game.dialogue.as_ref().unwrap().node, 0xff988);
+        } else {
+            assert_eq!(game.dialogue.as_ref().unwrap().node, 0xff958);
+            assert!(game.dialogue.as_ref().unwrap().text.contains("2850"));
+            game.render(&rom).unwrap();
+            if button == input::B {
+                press(&mut game, &rom, input::DOWN);
+            }
+            press(&mut game, &rom, input::A); // same selector/confirm path as desktop
+        }
+        assert_eq!(game.party.len(), templates.len() + usize::from(success));
+        for (i, raw) in before.iter().enumerate() {
+            assert_eq!(&game.party[i].raw, raw);
+        }
+        if success {
+            assert_eq!(game.nuyen, funds - price);
+            assert!(game.npcs.is_empty());
+            let member = game.party.last().unwrap();
+            assert_eq!(member.name(), "Trent");
+            assert_eq!(member.position(), npc);
+            assert_eq!(member.raw[0x4c], 10);
+            assert_eq!(member.raw[0x9c], 10);
+            assert_eq!(member.raw[0x8f], if button == input::A { 0 } else { 255 });
+            let slot = game.party.len() - 1;
+            assert_eq!(member.word(0x3e), slot as u16);
+            assert_eq!(member.word(0x20), [1, 0x19, 0x31][slot]);
+            for _ in 0..8 {
+                game.update(&rom, input::A).unwrap();
+            }
+            assert_eq!(game.nuyen, funds - price);
+            press(&mut game, &rom, input::A); // acknowledge success
+            game.select(&rom, slot).unwrap();
+            assert_eq!(game.party[slot].raw[0x10] & 2, 2);
+            assert_eq!(game.party[0].raw[0x10] & 2, 0);
+            // Door navigation is seeded separately; the hired runner uses normal
+            // input to exit, and the next visit must not respawn recruited Trent.
+            game.party[slot].set_position(240 * 16, 204 * 16);
+            game.party[slot].set_word(0x2e, 0x8000);
+            drive_until_settled(&mut game, &rom, input::DOWN, 0);
+            assert_eq!(game.nuyen, funds - price);
+            assert_eq!(
+                game.party[slot].raw[0x8f],
+                if button == input::A { 0 } else { 255 }
+            );
+            game.select(&rom, 0).unwrap();
+            game.party[0].set_position(528 * 16, 144 * 16);
+            game.party[0].set_word(0x2e, 0);
+            game.camera = (392, 32);
+            for _ in 0..20 {
+                game.update(&rom, input::UP).unwrap();
+                if game.dialogue.is_some() {
+                    break;
+                }
+            }
+            press(&mut game, &rom, input::A);
+            drive_until_settled(&mut game, &rom, 0, 10);
+            assert!(game.npcs.is_empty());
+            game.render(&rom).unwrap();
+        } else {
+            assert_eq!(game.nuyen, funds);
+            assert_eq!(game.npcs.len(), 1);
+            if templates.len() < 3 {
+                assert_eq!(game.dialogue.as_ref().unwrap().node, 0xff978);
+            }
+        }
+    }
+    let mut game = at_trent(&rom, &[0], 3000);
+    press(&mut game, &rom, input::B);
+    press(&mut game, &rom, input::A);
+    press(&mut game, &rom, input::C);
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xff970);
+    assert_eq!(game.nuyen, 3000);
+    assert_eq!(game.party.len(), 1);
+    assert_eq!(game.npcs.len(), 1);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn failed_recruit_assets_do_not_charge_or_remove_npc() {
+    let rom = rom();
+    let mut game = at_trent(&rom, &[0], 3000);
+    press(&mut game, &rom, input::B);
+    press(&mut game, &rom, input::A);
+    let mut damaged = rom.clone();
+    let at = 0x7291a + 5 * 256 + 0x50;
+    damaged[at..at + 4].copy_from_slice(&u32::MAX.to_be_bytes());
+    game.update(&rom, 0).unwrap();
+    assert!(game.update(&damaged, input::A).is_err());
+    assert_eq!(game.nuyen, 3000);
+    assert_eq!(game.party.len(), 1);
+    assert_eq!(game.npcs.len(), 1);
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xff958);
+    press(&mut game, &rom, input::A);
+    assert_eq!(game.nuyen, 2715);
+    assert_eq!(game.party.len(), 2);
+    assert!(game.npcs.is_empty());
 }

@@ -1,5 +1,6 @@
 use shadowrealm::Rom;
 mod dialogue_export;
+mod hiring_export;
 mod interior_export;
 use std::{
     env,
@@ -24,6 +25,12 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = fs::read(&args[2])?;
     let rom = Rom::parse(&data)?;
     match args[1].as_str() {
+        "hiring-data" => {
+            if args.len() != 4 {
+                return Err("hiring-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            hiring_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
         "dialogue-data" => {
             if args.len() != 4 {
                 return Err("dialogue-data ROM NEW_OUTPUT_DIRECTORY".into());

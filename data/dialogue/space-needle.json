@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "scope": "Recovered Space Needle exposition and Trent interaction; zero-opinion baseline. Hiring remains unavailable. Text stays in the supplied ROM.",
+  "schema_version": 2,
+  "scope": "Space Needle / Trent first-hire and zero-opinion conversation subset. Rust executes verified actions; text stays in the supplied ROM.",
   "entrance": {
     "address": "0x110b5e",
     "text": "0x113dd6",
@@ -189,6 +189,21 @@
             "destination": "0x000004"
           }
         ]
+      },
+      {
+        "address": "0x0ff988",
+        "text": "0x0ffaff",
+        "choices": []
+      },
+      {
+        "address": "0x0ff978",
+        "text": "0x0ffa50",
+        "choices": []
+      },
+      {
+        "address": "0x0ff980",
+        "text": "0x0ffad5",
+        "choices": []
       }
     ],
     "actions": [
@@ -220,6 +235,43 @@
           }
         ]
       }
-    ]
+    ],
+    "hiring": {
+      "quote_action": {
+        "id": 3,
+        "routine": "0x021226"
+      },
+      "short_term_action": {
+        "id": 0,
+        "routine": "0x021326"
+      },
+      "permanent_action": {
+        "id": 1,
+        "routine": "0x021332"
+      },
+      "fee_record": "0x0fe664",
+      "opinion_multipliers": "0x12ca54",
+      "offer": {
+        "options_address": "0x0ff958",
+        "quote_text": "0x0ff9bd",
+        "choices": [
+          {
+            "text": "0x0ffb6a",
+            "destination": "0x000000"
+          },
+          {
+            "text": "0x0ffba3",
+            "destination": "0x000001"
+          },
+          {
+            "text": "0x104feb",
+            "destination": "0x0ff970"
+          }
+        ]
+      },
+      "full_party": "0x0ff988",
+      "insufficient_funds": "0x0ff978",
+      "success": "0x0ff980"
+    }
   }
 }

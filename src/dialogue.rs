@@ -20,6 +20,7 @@ pub struct Dialogue {
     pub selected: usize,
     pub page: usize,
     pub caption: &'static str,
+    pub funds: Option<u32>,
 }
 
 #[cfg(test)]
@@ -80,6 +81,7 @@ impl Dialogue {
             selected: 0,
             page: 0,
             caption: "LOCATION",
+            funds: None,
         })
     }
     pub fn from_record(
@@ -99,8 +101,36 @@ impl Dialogue {
         }
         Ok(result)
     }
+    pub fn hiring_offer(
+        rom: &[u8],
+        catalog: &Catalog,
+        quote: crate::hiring::Quote,
+        balance: u32,
+    ) -> Result<Self, RomError> {
+        let offer = &catalog.trent.hiring.offer;
+        let mut result = Self::build(rom, offer.options_address.0, offer.quote_text.0)?;
+        if result.text.matches("      $").count() != 2 {
+            return Err(RomError("hiring quote placeholders differ from traced ROM"));
+        }
+        result.text = result
+            .text
+            .replacen("      $", &format!(" {} $", quote.short_term), 1)
+            .replacen("      $", &format!(" {} $", quote.permanent), 1);
+        result.caption = "TRENT";
+        result.funds = Some(balance);
+        for c in &offer.choices {
+            result.choices.push(Choice {
+                text_address: c.text.0,
+                text: Self::read_text(rom, c.text.0)?,
+                destination: c.destination.0,
+                available: catalog.can_follow(c.destination.0),
+            });
+        }
+        Ok(result)
+    }
     /// Prepare the next page before committing any recovered flag side effects.
-    /// Unknown actions (including hiring) leave both conversation and state intact.
+    /// Context-dependent hiring is handled by Game. This text-only method never
+    /// charges money or changes the roster, even for a known hiring action.
     pub fn follow(
         &self,
         rom: &[u8],
@@ -112,6 +142,9 @@ impl Dialogue {
             return Ok(None);
         };
         let action = catalog.action(choice.destination);
+        if choice.destination < 250 && action.is_none() {
+            return Ok(None);
+        }
         let destination = action.map(|a| a.next.0).unwrap_or(choice.destination);
         let next = Self::from_record(
             rom,
@@ -212,6 +245,9 @@ impl Dialogue {
             }
         }
         self.draw(rom, pixels, self.caption, 12, 38)?;
+        if let Some(balance) = self.funds {
+            self.draw(rom, pixels, &format!("NUYEN {balance}"), 160, 38)?;
+        }
         let lines = Self::wrap(&self.text, 37)?;
         let page_height = if self.choices.is_empty() { 14 } else { 8 };
         let start = self.page.min((lines.len().max(1) - 1) / page_height) * page_height;

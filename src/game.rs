@@ -7,6 +7,7 @@ use crate::{
     dialogue::Dialogue,
     dialogue_data::{Catalog, Knowledge},
     environment::Environment,
+    hiring::{self, Contract, Outcome, Quote},
     hud::Hud,
     input::Controller,
     map_render::MapScene,
@@ -26,7 +27,9 @@ pub struct Game {
     pub dialogue: Option<Dialogue>,
     pub saved_exterior: Option<ExteriorReturn>,
     pub knowledge: Knowledge,
+    pub nuyen: u32,
     catalog: Catalog,
+    hiring_quote: Option<Quote>,
     npc_dialogue_cooldown: u8,
     dialogue_target: Option<TransitionPlan>,
     pub selected: usize,
@@ -67,6 +70,8 @@ impl Game {
                 u16::from_be_bytes([map.raw[offset + 2], map.raw[offset + 3]]),
             );
             runner.set_word(0xca, 30);
+            // $595b2/$595ba: only the initially controlled runner owns bit 1.
+            runner.raw[0x10] = (runner.raw[0x10] & !2) | if slot == 0 { 2 } else { 0 };
             party.push(runner);
         }
         let hud = Hud::load(rom, &mut scene)?;
@@ -77,6 +82,8 @@ impl Game {
             dialogue: None,
             saved_exterior: None,
             knowledge: Knowledge::default(),
+            nuyen: hiring::initial_balance(rom)?,
+            hiring_quote: None,
             catalog,
             npc_dialogue_cooldown: 0,
             dialogue_target: None,
@@ -98,6 +105,114 @@ impl Game {
     }
     pub fn map_id(&self) -> usize {
         self.map.id
+    }
+    fn follow_dialogue(&mut self, rom: &[u8], slot: usize) -> Result<(), RomError> {
+        let dialogue = self
+            .dialogue
+            .as_ref()
+            .ok_or(RomError("no active conversation"))?;
+        let Some(choice) = dialogue.choices.get(slot).filter(|c| c.available) else {
+            return Ok(());
+        };
+        let hire = &self.catalog.trent.hiring;
+        if choice.destination == hire.quote_action.id {
+            if self.party.len() >= 3 {
+                self.dialogue = Some(Dialogue::from_record(
+                    rom,
+                    self.catalog
+                        .node(hire.full_party.0)
+                        .ok_or(RomError("missing full-party response"))?,
+                    &self.catalog,
+                )?);
+                self.hiring_quote = None;
+            } else {
+                let quote = hiring::quote(rom, hire, &self.party[0], self.catalog.trent.opinion)?;
+                self.dialogue = Some(Dialogue::hiring_offer(
+                    rom,
+                    &self.catalog,
+                    quote,
+                    self.nuyen,
+                )?);
+                self.hiring_quote = Some(quote);
+            }
+            return Ok(());
+        }
+        if choice.destination == hire.short_term_action.id
+            || choice.destination == hire.permanent_action.id
+        {
+            if dialogue.node != hire.offer.options_address.0 {
+                return Err(RomError("purchase outside hiring offer"));
+            }
+            let quote = self
+                .hiring_quote
+                .ok_or(RomError("purchase without a quoted price"))?;
+            let npc_index = self
+                .npcs
+                .iter()
+                .position(|n| n.template == 0x171a2)
+                .ok_or(RomError("hiring NPC no longer present"))?;
+            let contract = if choice.destination == hire.short_term_action.id {
+                Contract::SingleRun
+            } else {
+                Contract::Permanent
+            };
+            let outcome = hiring::prepare(
+                rom,
+                &self.party,
+                &self.npcs[npc_index],
+                self.nuyen,
+                quote,
+                contract,
+            )?;
+            let response = match &outcome {
+                Outcome::FullParty => hire.full_party,
+                Outcome::InsufficientFunds => hire.insufficient_funds,
+                Outcome::Hired { .. } => hire.success,
+            };
+            let mut next = Dialogue::from_record(
+                rom,
+                self.catalog
+                    .node(response.0)
+                    .ok_or(RomError("missing hiring outcome"))?,
+                &self.catalog,
+            )?;
+            if let Outcome::Hired { member, balance } = outcome {
+                let mut party = self.party.clone();
+                party.push(*member);
+                // Prepare HUD/graphics on a copy: a failed asset load must not
+                // deduct money, add a partial actor or remove the NPC.
+                let mut scene = self.scene.clone();
+                let mut hud = Hud::load(rom, &mut scene)?;
+                hud.select(rom, self.selected)?;
+                for (i, r) in party.iter().enumerate() {
+                    r.update_hud(rom, &mut scene, &mut hud, i)?;
+                    hud.condition(
+                        rom,
+                        i,
+                        if (r.raw[0x9c] as i8) > 0 {
+                            r.raw[0x9c].min(10)
+                        } else {
+                            0
+                        },
+                        i == self.selected,
+                    )?;
+                }
+                self.party = party;
+                self.scene = scene;
+                self.hud = hud;
+                self.nuyen = balance;
+                self.npcs.remove(npc_index);
+            }
+            next.funds = Some(self.nuyen);
+            self.dialogue = Some(next);
+            self.hiring_quote = None;
+            return Ok(());
+        }
+        if let Some(next) = dialogue.follow(rom, &self.catalog, slot, &mut self.knowledge)? {
+            self.dialogue = Some(next);
+            self.hiring_quote = None;
+        }
+        Ok(())
     }
     fn apply_transition(&mut self, rom: &[u8], plan: TransitionPlan) -> Result<(), RomError> {
         // Prepare every fallible asset before replacing the active scene.
@@ -215,6 +330,11 @@ impl Game {
             return Ok(());
         }
         self.selected = slot;
+        // $3992/$39a8 transfers the controlled-player bit. Without this, a
+        // switched or newly hired runner could walk but could not use doors.
+        for (i, runner) in self.party.iter_mut().enumerate() {
+            runner.raw[0x10] = (runner.raw[0x10] & !2) | if i == slot { 2 } else { 0 };
+        }
         self.pending_transition = None;
         self.refresh_hud(rom)
     }
@@ -265,11 +385,7 @@ impl Game {
                     None
                 };
                 if let Some(slot) = choice {
-                    if let Some(next) =
-                        dialogue.follow(rom, &self.catalog, slot, &mut self.knowledge)?
-                    {
-                        self.dialogue = Some(next);
-                    }
+                    self.follow_dialogue(rom, slot)?;
                 }
             }
             return Ok(());

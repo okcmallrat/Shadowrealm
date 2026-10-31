@@ -20,7 +20,7 @@ Arrow keys or WASD: move the selected runner.
 Tab: select the next runner (also selects its HUD panel).
 Enter or Z: acknowledge the Space Needle entrance passage.
 During dialogue: Up/Down chooses an option, Enter/Z selects it, Left/Right pages
-long text. An asterisk marks hiring as unavailable in this build.
+long text.
 Space: pause/resume simulation.
 R: reset this exploration session.
 Escape: exit.
@@ -29,10 +29,15 @@ Resize the window to enlarge the view; aspect ratio is preserved.
 OPTIONAL COMMAND LINE
 
 Shadowrealm.exe "C:\Games\Shadowrun.bin" 5
+Shadowrealm.exe --solo --nuyen 3000
 
 The final number selects a map record (0..55); the default is 0. Map 5 has a
 recovered environmental tile animation. Coordinates, room names, and transitions
 are still under reconstruction; not every map is an independently playable room.
+--solo starts the development roster with Joshua alone, leaving companion slots
+free. --nuyen explicitly seeds development funds. Without it, fresh exploration
+sessions use the original bootstrap's 20 nuyen. These options do not implement a
+new-game/earning loop. R resets to the same chosen roster and starting funds.
 
 CURRENT BEHAVIOR
 
@@ -50,14 +55,21 @@ exterior camera/party formation when leaving through the room's lower exit.
 Walking into Trent's contact area opens a limited recovered conversation about
 his background, magic and local contacts. The knowledge flags persist during the
 session. Saying goodbye and acknowledging the closing passage resumes walking.
-The NPC has idle animation; NPC movement AI and hiring are not implemented.
+Trent's hire pitch checks capacity, quotes single-run/permanent prices, and checks
+funds before charging and joining the party. At the current Joshua stats, the
+prices are 285 and 2850 nuyen. A full party or insufficient funds causes no loss.
+On success, his HUD panel appears, the room NPC disappears, and Tab can select
+Trent to walk or leave the room. Money and the contract persist across area
+reloads for this session. Single-run expiry requires the unfinished mission loop.
+The NPC has idle animation; NPC movement/follower AI is not implemented.
 The host camera follows the controlled runner; exact original
 camera look-ahead behavior is not yet reconstructed.
 
 NOT YET IMPLEMENTED
 
 Other interior doors and story transitions still stop at their trigger. Combat,
-other conversations/quest scripts, recruiting/payment, NPC/companion AI,
+other conversations/quest scripts, other recruitment, contract completion,
+NPC/companion AI,
 inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
 

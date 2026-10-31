@@ -1,5 +1,5 @@
-//! Small, embedded JSON pilot. It records verified ROM references and three
-//! translated actions, not copied text or a general-purpose quest interpreter.
+//! Small, embedded Serde/JSON pilot. It records verified ROM references, flag
+//! actions and a bounded hiring layout, not a general-purpose quest interpreter.
 use crate::RomError;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -50,12 +50,51 @@ pub struct ActionRecord {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct HiringAction {
+    pub id: usize,
+    pub routine: Address,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OfferRecord {
+    pub options_address: Address,
+    pub quote_text: Address,
+    pub choices: Vec<ChoiceRecord>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HiringRecord {
+    pub quote_action: HiringAction,
+    pub short_term_action: HiringAction,
+    pub permanent_action: HiringAction,
+    pub fee_record: Address,
+    pub opinion_multipliers: Address,
+    pub offer: OfferRecord,
+    pub full_party: Address,
+    pub insufficient_funds: Address,
+    pub success: Address,
+}
+impl HiringRecord {
+    pub fn actions(&self) -> [&HiringAction; 3] {
+        [
+            &self.quote_action,
+            &self.short_term_action,
+            &self.permanent_action,
+        ]
+    }
+    pub fn handles(&self, id: usize) -> bool {
+        self.actions().iter().any(|a| a.id == id)
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Conversation {
     pub runner_index: u8,
     pub opinion: i8,
     pub root: Address,
     pub nodes: Vec<NodeRecord>,
     pub actions: Vec<ActionRecord>,
+    pub hiring: HiringRecord,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -93,7 +132,7 @@ impl Catalog {
     pub const JSON: &'static str = include_str!("../data/dialogue/space-needle.json");
     pub fn parse(json: &str) -> Result<Self, RomError> {
         let c: Self = serde_json::from_str(json).map_err(|_| RomError("invalid dialogue JSON"))?;
-        if c.schema_version != 1
+        if c.schema_version != 2
             || c.trent.runner_index != 2
             || c.trent.opinion != 0
             || c.trent.nodes.len() > 128
@@ -123,6 +162,25 @@ impl Catalog {
                 }
             }
         }
+        let h = &c.trent.hiring;
+        if h.actions().map(|a| a.id) != [3, 0, 1] || h.offer.choices.len() != 3 {
+            return Err(RomError("unsupported hiring action/offer layout"));
+        }
+        for action in h.actions() {
+            if !actions.insert(action.id) {
+                return Err(RomError("duplicate hiring action"));
+            }
+        }
+        for node in [h.full_party, h.insufficient_funds, h.success] {
+            if c.node(node.0).is_none() {
+                return Err(RomError("missing hiring response"));
+            }
+        }
+        for choice in &h.offer.choices {
+            if choice.destination.0 >= 250 && c.node(choice.destination.0).is_none() {
+                return Err(RomError("missing hiring offer destination"));
+            }
+        }
         if c.node(c.trent.root.0).is_none() {
             return Err(RomError("missing conversation root"));
         }
@@ -148,13 +206,13 @@ impl Catalog {
     }
     pub fn can_follow(&self, destination: usize) -> bool {
         if destination < 250 {
-            return self.action(destination).is_some();
+            return self.action(destination).is_some() || self.trent.hiring.handles(destination);
         }
         self.node(destination).is_some_and(|n| {
             n.choices.is_empty()
                 || n.choices
                     .iter()
-                    .any(|c| c.destination.0 >= 250 || self.action(c.destination.0).is_some())
+                    .any(|c| c.destination.0 >= 250 || self.can_follow(c.destination.0))
         })
     }
     pub fn validate(&self, rom: &[u8]) -> Result<(), RomError> {
@@ -188,6 +246,33 @@ impl Catalog {
                 return Err(RomError("JSON action source differs from ROM"));
             }
         }
+        let h = &self.trent.hiring;
+        for a in h.actions() {
+            if long(rom, 0x12ccb4 + a.id * 4)? != a.routine.0 {
+                return Err(RomError("JSON hiring action differs from ROM"));
+            }
+        }
+        for (reference, source) in [
+            (h.offer.options_address, 0x2130a),
+            (h.offer.quote_text, 0x2124c),
+            (h.full_party, 0x21240),
+            (h.insufficient_funds, 0x21348),
+            (h.success, 0x213c4),
+            (h.opinion_multipliers, 0x2127e),
+        ] {
+            if long(rom, source)? != reference.0 {
+                return Err(RomError("JSON hiring reference differs from ROM"));
+            }
+        }
+        if h.fee_record.0 != long(rom, 0x21276)? + usize::from(self.trent.runner_index) * 16 + 4 {
+            return Err(RomError("JSON hire fee record differs from ROM"));
+        }
+        for (i, c) in h.offer.choices.iter().enumerate() {
+            let p = h.offer.options_address.0;
+            if long(rom, p + i * 4)? != c.text.0 || long(rom, p + 12 + i * 4)? != c.destination.0 {
+                return Err(RomError("JSON hire offer choice differs from ROM"));
+            }
+        }
         Ok(())
     }
 }
@@ -198,15 +283,16 @@ mod tests {
     fn schema_and_references_fail_closed() {
         let json = Catalog::JSON;
         assert!(
-            Catalog::parse(&json.replace("\"schema_version\": 1", "\"schema_version\": 2"))
+            Catalog::parse(&json.replace("\"schema_version\": 2", "\"schema_version\": 99"))
                 .is_err()
         );
         assert!(Catalog::parse(&json.replace("\"bit\": 12", "\"bit\": 32")).is_err());
         assert!(Catalog::parse(&json.replacen("0x0feba0", "0x123456", 1)).is_err());
         let c = Catalog::parse(json).unwrap();
         assert!(c.validate(&[]).is_err());
-        assert!(!c.can_follow(3));
-        assert!(!c.can_follow(0xfecfc));
+        assert!(c.can_follow(3));
+        assert!(c.can_follow(0xfecfc));
+        assert!(!c.can_follow(2)); // free permanent hire remains outside this subset
         assert!(c.can_follow(190));
         assert!(Catalog::parse(&json.replace("\"contacts\"", "\"untraced_operation\"")).is_err());
     }

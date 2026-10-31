@@ -24,3 +24,5 @@ Read `docs/HANDOFF.md` first, then the linked implementation/validation notes.
 - Introduce JSON gradually for recovered dialogue and quest logic, as requested
   by the user. Start with small verified records; keep the Rust engine and avoid
   broad migrations or speculative quest rules.
+- Use Serde and serde_json for JSON, with typed records and explicit validation;
+  the user confirmed this preference. Do not replace them with a hand-written parser.

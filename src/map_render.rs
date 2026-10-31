@@ -42,6 +42,7 @@ fn composite(samples: [(u16, u8); 2], palette: &[u16; 64], backdrop: usize) -> [
     }
     rgb(color)
 }
+#[derive(Clone)]
 pub struct MapScene {
     descriptor: MapDescriptor,
     grids: [Vec<u8>; 2],
