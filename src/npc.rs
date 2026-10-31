@@ -1,6 +1,29 @@
 //! Fixed NPC spawn record used by the traced Space Needle entry. AI, recruiting
 //! and conversation behavior are not replaced with guessed actions.
 use crate::{actors::AnimationClock, party::Runner, RomError};
+/// $eb92/$eccc, for this fixed recruitable NPC with no selected target.
+/// Bounds are asymmetric: lower included, upper excluded, in 1/16 pixels.
+pub fn trent_contact(player: &Runner, npc: &Runner) -> bool {
+    if player.raw[0x10] & 0x42 != 2 || npc.raw[0x10] & 0x41 != 1 || npc.raw[0x9e] & 0x10 == 0 {
+        return false;
+    }
+    // Selected-target links use a wider original collision window. The native
+    // targeting system is not implemented yet, so support only the unlinked case.
+    if player.raw[0xa2..0xa6]
+        .iter()
+        .chain(&player.raw[0xac..0xb0])
+        .any(|b| *b != 0)
+    {
+        return false;
+    }
+    let radius = 0x40;
+    let (x, y) = player.position();
+    let (nx, ny) = npc.position();
+    x >= nx.wrapping_sub(radius)
+        && x < nx.wrapping_add(radius)
+        && y >= ny.wrapping_sub(radius)
+        && y < ny.wrapping_add(radius)
+}
 fn bytes(b: &[u8], p: usize, n: usize) -> Result<&[u8], RomError> {
     b.get(p..p + n).ok_or(RomError("NPC data outside ROM"))
 }

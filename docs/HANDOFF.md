@@ -10,8 +10,13 @@ executable is an exploration milestone, not the finished game.
 
 The user resumed from the saved checkpoint. Exterior seams and the bounded
 Space Needle entrance/return below are implemented; no clarification or approval
-is pending. On resuming again, inspect repository status and continue NPC
-interaction/branching dialogue. Do not assume prior runtime files persist.
+is pending. The subsequent small JSON/Trent conversation pilot is described
+below. On resuming again, inspect status and trace the bounded hiring action.
+Do not assume prior runtime files persist.
+
+The user explicitly asked to introduce JSON **slowly** for recovered dialogue
+and quest logic. Keep the Rust engine and use small verified records; do not
+migrate unrelated systems or invent missing quest rules.
 
 ## Durable checkpoint
 
@@ -25,7 +30,7 @@ The last checked working tree before preparing this handoff was clean.
 See `git log` for the subsequent handoff commit and any newer work.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `778c53a03c45771a9ffbb5a83f1ed128237f57f205a717b33244139f39a1ca7e`.
+SHA-256: `7ac36f0324f99c2224b7e16b2c60d22a54b62f327d8948db88cba54fa396df56`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -51,6 +56,9 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 - Exterior seams 0 ↔ 3/5 with ROM spawn/camera data and palette fades.
 - Map 0 Space Needle entrance: original text/font, acknowledgement, map 10
   arrival and fixed idle NPC, then saved exterior camera/formation on exit.
+- Contact with Trent in that interior opens recovered information branches,
+  including biography, magic, contacts and goodbye. A small embedded JSON file
+  holds references/actions; two recovered knowledge fields persist in session.
 - Native desktop executable: WASD/arrows walk, Tab switches runner, Space pauses,
   Enter/Z acknowledges the entrance passage, R resets, Escape exits. Default map
   is 0; optional second CLI argument is map ID.
@@ -60,7 +68,7 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 
 Other interior doors/story transitions stop at a trigger. The Space Needle
 path implements its traced no-mission baseline; there is no quest-state VM yet.
-Combat, branching dialogue, NPC and
+Combat, other branching dialogue/quest scripts, recruiting/payment, NPC and
 follower AI, inventory/menu interactions, skills/magic, character creation,
 missions/story state, audio, and save/load are not implemented. The host camera
 is not the original look-ahead/hysteresis system. Original wall-sliding and other
@@ -84,7 +92,7 @@ visible map width is 272 pixels with the HUD; arrival cameras can extend plane-B
 fetches into the next linear grid row beneath the window. Do not restore the old
 320-pixel validation/clamp in the composed game frame.
 
-## Latest resumed milestone: Space Needle interior
+## Space Needle interior milestone
 
 Read `docs/interior-transitions.md`, `src/dialogue.rs` and `src/npc.rs`.
 Map 0 trigger C6 resolves map 10 after acknowledging node `110b5e`. The native
@@ -95,8 +103,8 @@ cleared on return. Two successive visits pass through the same game core,
 including a controller-only turning/approach route after the first return.
 
 The fixed NPC comes from script `17018`/prototype `171a2`, using `44bc` compact
-fields and byte overrides. It is rendered/idly animated only: no AI, conversation
-or recruitment behavior. No original random behavior timers are simulated.
+fields and byte overrides. The subsequent JSON pilot adds a bounded conversation;
+AI and recruitment/payment remain absent. No original random timers are simulated.
 
 The ordinary suite has 41 passing unit tests; all three ROM-backed integration
 tests pass explicitly. `tools/validate_interior.py` matches the original baseline
@@ -110,12 +118,42 @@ input through entry/exit without assigning maps between legs. These are seeded
 boundary checks, not a complete new-game traversal. Starting directly at map 10
 does not execute the entrance or manufacture a return context.
 
+## Latest milestone: gradual JSON / Trent conversation pilot
+
+Read `docs/dialogue-json-pilot.md`. The user's JSON preference is also recorded
+in `AGENTS.md`. `data/dialogue/space-needle.json` contains the entrance reference
+and 12 Trent node references with three translated action records. Text/font
+remain in the ROM. JSON is embedded in the EXE; no new user-side files are needed.
+`Catalog::load` validates schema/links/flag widths and pointers against the ROM.
+
+`eb92/eccc` contact with the unlinked fixed NPC schedules `21174`, selects Trent
+(index 2) for the traced map/entrance, and opens `feb4c` in the zero-opinion scope.
+Native code sets the original known-runner flag and 60-tick contact cooldown.
+Dialogue freezes the world/selection. Up/down chooses, Enter/Z confirms,
+left/right pages long bodies. The host panel is not the original portrait UI.
+
+Actions 4 / BE / E5 resolve topic, biography and contact-information branches.
+`Game::knowledge` preserves original `fffc2a` (runner-known) and `fffc2c` (contacts)
+bits across reloads in memory. Pocket Secretary UI and disk saving are absent.
+Hiring action 3 and its upstream choice remain unavailable without mutation.
+Other opinion/mission states, targeting and NPC AI are not implemented.
+
+42 unit tests and all four explicitly enabled ROM integration tests pass.
+`tools/validate_dialogue.py` matches 12 node/text records, 24 original branch/action
+executions and 69 NPC contact/gating cases. The interaction fixture seeds a
+player near the NPC after normal door entry; this is not a complete walking route
+from the original new-game start. Earlier seam/interior oracles still pass.
+The Windows package is refreshed; actual Windows GUI testing remains outstanding.
+
+Serde/serde_json are now pinned runtime dependencies; the default CLI is no
+longer dependency-free. New crate licenses are included by the Windows packager.
+
 ## Best next milestone
 
-Trace targeting/interaction dispatch for the Space Needle's fixed NPC and one
-real branching dialogue, including selection and resulting state changes. Then
-connect follower/NPC dispatch and widen location coverage. Do not turn the
-bounded exposition reader into a generic dialogue-script bypass.
+Trace action 3 (`21226`) and its fee, party-capacity, opinion and recruiting state
+changes before enabling hiring. Add only the verified JSON records/operations,
+with original-routine comparisons. Then connect targeting/follower/NPC dispatch
+and widen location coverage. Do not bypass unknown scripts with guessed rules.
 
 Trace `1651e → 16608 → 167ae`: source descriptor offset 4e supplies target-location
 mapping; `16e30` saves the exterior map before the location reload. Trace spawn
@@ -135,6 +173,7 @@ own state model and script handling before entry can be enabled.
 | src/game.rs | Persistent exploration and transition phase integration |
 | src/transitions.rs | Exterior routing, bounded interior entry and saved return |
 | src/dialogue.rs, src/npc.rs | Bounded exposition/font and fixed NPC initialization |
+| src/dialogue_data.rs, data/dialogue/space-needle.json | Validated embedded dialogue pilot and flag actions |
 | src/bin/game.rs | Native desktop window and keyboard/timing loop |
 | src/party.rs | Templates, identity/assets, equipment resolution, facing |
 | src/collision.rs | Rectangle raster and footprint/shape queries |
@@ -179,7 +218,8 @@ Rust 1.99.1 was used. Fresh machines need stable Rust plus the desktop C toolcha
 Python validation dependencies in the prior runtime were installed under
 `/workspace/.reverse-tools`: Capstone 5.0.9, Unicorn 2.1.4. Pillow converts
 native PPM output to shareable PNG/GIF. These tools are not game runtime dependencies.
-The desktop feature uses pinned minifb 0.28.0; the default CLI remains dependency-free.
+The desktop feature uses pinned minifb 0.28.0; JSON support uses pinned serde
+1.0.229 and serde_json 1.0.154. All runtime code remains native Rust.
 
 Read the cloud runtime skill and network policy before network/setup work in a
 managed environment. GitHub authentication was supplied by the existing HTTPS
@@ -198,7 +238,9 @@ PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_render.py /path/to/S
 
 Run checks relevant to the change. Current completed evidence:
 
-- 41 Rust unit tests pass; three ROM-backed transition tests pass explicitly.
+- 42 Rust unit tests pass; four ROM-backed integration tests pass explicitly.
+- Trent dialogue pilot: 12 node/text records, 24 original branch/action executions
+  and 69 contact/gating cases match (`tools/validate_dialogue.py`).
 - Space Needle entry gate/text/font, route/save/spawn/return and fixed NPC
   initialization match bounded original routines (`tools/validate_interior.py`).
 - All 56 collision rasters, 7,168 query samples, and 16 VRAM steps per map

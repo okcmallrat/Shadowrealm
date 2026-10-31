@@ -2,6 +2,7 @@ pub mod actors;
 pub mod boot;
 pub mod collision;
 pub mod dialogue;
+pub mod dialogue_data;
 pub mod environment;
 pub mod frame;
 pub mod game;

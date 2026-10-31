@@ -116,7 +116,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         let status = if paused {
             "Paused"
         } else if game.dialogue.is_some() {
-            "Enter / Z: continue"
+            "Up/Down: choice | Left/Right: page | Enter/Z: select"
         } else if game.transition.is_some() {
             "Travelling…"
         } else if game.pending_transition.is_some() {

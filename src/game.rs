@@ -5,6 +5,7 @@ use crate::{
     actors::{project, ActorFrame},
     collision::{Collision, Contact},
     dialogue::Dialogue,
+    dialogue_data::{Catalog, Knowledge},
     environment::Environment,
     hud::Hud,
     input::Controller,
@@ -24,6 +25,9 @@ pub struct Game {
     pub npcs: Vec<Runner>,
     pub dialogue: Option<Dialogue>,
     pub saved_exterior: Option<ExteriorReturn>,
+    pub knowledge: Knowledge,
+    catalog: Catalog,
+    npc_dialogue_cooldown: u8,
     dialogue_target: Option<TransitionPlan>,
     pub selected: usize,
     pub camera: (u16, u16),
@@ -45,6 +49,7 @@ impl Game {
             return Err(RomError("party must contain one to three runners"));
         }
         let map = MapDescriptor::read(rom, map_id)?;
+        let catalog = Catalog::load(rom)?;
         let mut scene = MapScene::load(rom, map_id)?;
         let collision = Collision::load(rom, &map)?;
         scene.apply_collision_overflow(&collision.overflow_writes)?;
@@ -71,6 +76,9 @@ impl Game {
             npcs: vec![],
             dialogue: None,
             saved_exterior: None,
+            knowledge: Knowledge::default(),
+            catalog,
+            npc_dialogue_cooldown: 0,
             dialogue_target: None,
             selected: 0,
             camera,
@@ -216,27 +224,80 @@ impl Game {
         if self.transition.is_some() {
             return self.advance_transition(rom);
         }
-        if self.dialogue.is_some() {
-            if self.input.pressed
-                & (crate::input::A | crate::input::B | crate::input::C | crate::input::START)
-                != 0
-            {
-                let plan = self
-                    .dialogue_target
-                    .take()
-                    .ok_or(RomError("exposition has no continuation"))?;
-                self.dialogue = None;
-                self.transition = Some(ActiveTransition {
-                    plan,
-                    stage: TransitionStage::FadeOut,
-                    ticks: 0,
-                    target_palette: self.scene.palette,
-                });
+        if let Some(dialogue) = &mut self.dialogue {
+            let pressed = self.input.pressed;
+            if pressed & crate::input::LEFT != 0 {
+                dialogue.change_page(-1)?;
+            }
+            if pressed & crate::input::RIGHT != 0 {
+                dialogue.change_page(1)?;
+            }
+            if dialogue.choices.is_empty() {
+                if pressed
+                    & (crate::input::A | crate::input::B | crate::input::C | crate::input::START)
+                    != 0
+                {
+                    self.dialogue = None;
+                    if let Some(plan) = self.dialogue_target.take() {
+                        self.transition = Some(ActiveTransition {
+                            plan,
+                            stage: TransitionStage::FadeOut,
+                            ticks: 0,
+                            target_palette: self.scene.palette,
+                        });
+                    }
+                }
+            } else {
+                let count = dialogue.choices.len();
+                if pressed & crate::input::UP != 0 {
+                    dialogue.selected = (dialogue.selected + count - 1) % count;
+                }
+                if pressed & crate::input::DOWN != 0 {
+                    dialogue.selected = (dialogue.selected + 1) % count;
+                }
+                let choice = if pressed & crate::input::B != 0 {
+                    Some(1)
+                } else if pressed & crate::input::C != 0 {
+                    Some(2)
+                } else if pressed & (crate::input::A | crate::input::START) != 0 {
+                    Some(dialogue.selected)
+                } else {
+                    None
+                };
+                if let Some(slot) = choice {
+                    if let Some(next) =
+                        dialogue.follow(rom, &self.catalog, slot, &mut self.knowledge)?
+                    {
+                        self.dialogue = Some(next);
+                    }
+                }
             }
             return Ok(());
         }
         self.blocked = false;
         self.pending_transition = None;
+        if self.npc_dialogue_cooldown > 0 {
+            self.npc_dialogue_cooldown -= 1;
+        }
+        if self.map.id == 10
+            && self.saved_exterior.is_some()
+            && self.npc_dialogue_cooldown == 0
+            && self
+                .npcs
+                .iter()
+                .any(|n| npc::trent_contact(&self.party[self.selected], n))
+        {
+            self.dialogue = Some(Dialogue::from_record(
+                rom,
+                self.catalog
+                    .node(self.catalog.trent.root.0)
+                    .ok_or(RomError("missing Trent conversation"))?,
+                &self.catalog,
+            )?);
+            self.knowledge.runner_known |= 1 << self.catalog.trent.runner_index;
+            self.npc_dialogue_cooldown = 60;
+            return Ok(());
+        }
         let heading = self.input.direction();
         let source_map = self.map.id;
         let camera_fixed_x = self.camera.0.wrapping_mul(16);
@@ -294,7 +355,7 @@ impl Game {
         runner.select_motion(moved);
         if let Some(plan) = plan {
             if plan.kind == TransitionKind::EnterSpaceNeedle {
-                self.dialogue = Some(Dialogue::exposition(rom, 0x110b5e)?);
+                self.dialogue = Some(Dialogue::exposition(rom, self.catalog.entrance.address.0)?);
                 self.dialogue_target = Some(plan);
                 self.blocked = false;
                 return Ok(());

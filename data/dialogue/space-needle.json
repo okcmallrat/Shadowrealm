@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "scope": "Recovered Space Needle exposition and Trent interaction; zero-opinion baseline. Hiring remains unavailable. Text stays in the supplied ROM.",
+  "entrance": {
+    "address": "0x110b5e",
+    "text": "0x113dd6",
+    "choices": []
+  },
+  "trent": {
+    "runner_index": 2,
+    "opinion": 0,
+    "root": "0x0feb4c",
+    "nodes": [
+      {
+        "address": "0x0feb4c",
+        "text": "0x100a0c",
+        "choices": [
+          {
+            "text": "0x104051",
+            "destination": "0x0feba0"
+          },
+          {
+            "text": "0x103c5b",
+            "destination": "0x0fecfc"
+          },
+          {
+            "text": "0x104feb",
+            "destination": "0x0ff970"
+          }
+        ]
+      },
+      {
+        "address": "0x0feba0",
+        "text": "0x100af8",
+        "choices": [
+          {
+            "text": "0x104035",
+            "destination": "0x0000be"
+          },
+          {
+            "text": "0x1047d4",
+            "destination": "0x0fec78"
+          },
+          {
+            "text": "0x104817",
+            "destination": "0x000004"
+          }
+        ]
+      },
+      {
+        "address": "0x0fecfc",
+        "text": "0x100f5e",
+        "choices": [
+          {
+            "text": "0x0fe5bf",
+            "destination": "0x000003"
+          }
+        ]
+      },
+      {
+        "address": "0x0ff970",
+        "text": "0x0ff990",
+        "choices": []
+      },
+      {
+        "address": "0x0fec48",
+        "text": "0x100b59",
+        "choices": [
+          {
+            "text": "0x0fe5bf",
+            "destination": "0x0fec5c"
+          }
+        ]
+      },
+      {
+        "address": "0x0fec78",
+        "text": "0x100c82",
+        "choices": [
+          {
+            "text": "0x104cd6",
+            "destination": "0x0fec94"
+          },
+          {
+            "text": "0x104666",
+            "destination": "0x0000e5"
+          },
+          {
+            "text": "0x105009",
+            "destination": "0x0fece0"
+          }
+        ]
+      },
+      {
+        "address": "0x0febf4",
+        "text": "0x100af8",
+        "choices": [
+          {
+            "text": "0x104051",
+            "destination": "0x0feba0"
+          },
+          {
+            "text": "0x103c5b",
+            "destination": "0x0fecfc"
+          },
+          {
+            "text": "0x104feb",
+            "destination": "0x0ff970"
+          }
+        ]
+      },
+      {
+        "address": "0x0fec5c",
+        "text": "0x100c27",
+        "choices": [
+          {
+            "text": "0x104035",
+            "destination": "0x0000be"
+          },
+          {
+            "text": "0x1047d4",
+            "destination": "0x0fec78"
+          },
+          {
+            "text": "0x104817",
+            "destination": "0x000004"
+          }
+        ]
+      },
+      {
+        "address": "0x0fec94",
+        "text": "0x100c92",
+        "choices": [
+          {
+            "text": "0x0fe5bf",
+            "destination": "0x0feca8"
+          }
+        ]
+      },
+      {
+        "address": "0x0fecc4",
+        "text": "0x100dbe",
+        "choices": [
+          {
+            "text": "0x104035",
+            "destination": "0x0000be"
+          },
+          {
+            "text": "0x1047d4",
+            "destination": "0x0fec78"
+          },
+          {
+            "text": "0x104817",
+            "destination": "0x000004"
+          }
+        ]
+      },
+      {
+        "address": "0x0fece0",
+        "text": "0x100eb2",
+        "choices": [
+          {
+            "text": "0x104035",
+            "destination": "0x0000be"
+          },
+          {
+            "text": "0x1047d4",
+            "destination": "0x0fec78"
+          },
+          {
+            "text": "0x104817",
+            "destination": "0x000004"
+          }
+        ]
+      },
+      {
+        "address": "0x0feca8",
+        "text": "0x100d62",
+        "choices": [
+          {
+            "text": "0x104035",
+            "destination": "0x0000be"
+          },
+          {
+            "text": "0x1047d4",
+            "destination": "0x0fec78"
+          },
+          {
+            "text": "0x104817",
+            "destination": "0x000004"
+          }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": 4,
+        "routine": "0x0211e8",
+        "next": "0x0febf4",
+        "effects": []
+      },
+      {
+        "id": 190,
+        "routine": "0x02404c",
+        "next": "0x0fec48",
+        "effects": [
+          {
+            "field": "runner_known",
+            "bit": 2
+          }
+        ]
+      },
+      {
+        "id": 229,
+        "routine": "0x024964",
+        "next": "0x0fecc4",
+        "effects": [
+          {
+            "field": "contacts",
+            "bit": 12
+          }
+        ]
+      }
+    ]
+  }
+}

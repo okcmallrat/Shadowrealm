@@ -19,6 +19,8 @@ CONTROLS
 Arrow keys or WASD: move the selected runner.
 Tab: select the next runner (also selects its HUD panel).
 Enter or Z: acknowledge the Space Needle entrance passage.
+During dialogue: Up/Down chooses an option, Enter/Z selects it, Left/Right pages
+long text. An asterisk marks hiring as unavailable in this build.
 Space: pause/resume simulation.
 R: reset this exploration session.
 Escape: exit.
@@ -45,14 +47,17 @@ recovered map 0 ↔ 3/5 exterior seams are connected. Those seams include fades 
 party spawning. Map 0's Space Needle entrance displays its original text, waits
 for acknowledgement, loads the bar and a fixed NPC, and restores the saved
 exterior camera/party formation when leaving through the room's lower exit.
-The NPC has idle animation; AI and interaction are not implemented.
+Walking into Trent's contact area opens a limited recovered conversation about
+his background, magic and local contacts. The knowledge flags persist during the
+session. Saying goodbye and acknowledging the closing passage resumes walking.
+The NPC has idle animation; NPC movement AI and hiring are not implemented.
 The host camera follows the controlled runner; exact original
 camera look-ahead behavior is not yet reconstructed.
 
 NOT YET IMPLEMENTED
 
 Other interior doors and story transitions still stop at their trigger. Combat,
-branching conversations, NPC/companion AI,
+other conversations/quest scripts, recruiting/payment, NPC/companion AI,
 inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
 

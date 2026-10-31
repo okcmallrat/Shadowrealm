@@ -21,3 +21,6 @@ Read `docs/HANDOFF.md` first, then the linked implementation/validation notes.
   validated Linux-to-Windows build. Use `x86_64-pc-windows-gnullvm` with LLVM-MinGW.
 - Keep handoff/status notes current after substantive milestones. Do not silently
   overwrite the versioned Windows ZIP with a stale or unverified build.
+- Introduce JSON gradually for recovered dialogue and quest logic, as requested
+  by the user. Start with small verified records; keep the Rust engine and avoid
+  broad migrations or speculative quest rules.

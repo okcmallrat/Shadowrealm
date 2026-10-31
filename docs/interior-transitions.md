@@ -49,8 +49,9 @@ destination `0920` (`1a342`, `1a2cc`). The record is omitted if the selected tes
 roster already contains Trent's template, corresponding to the original recruit
 check for this spawn. This is not a new recruitment/save system.
 
-The record is rendered and idly animated. NPC AI, random behavior timers,
-interactions and recruitment dialogue are still absent. The idle facing/rate
+The record is rendered and idly animated. The subsequent
+[dialogue JSON pilot](dialogue-json-pilot.md) adds a bounded contact/conversation.
+NPC AI, random behavior timers and hiring remain absent. The idle facing/rate
 selection is a native presentation choice; those updates are not presented as
 an equivalent original NPC dispatcher.
 
@@ -90,7 +91,6 @@ conditions or story gates. Starting directly on map 10 does not manufacture a
 saved exterior or execute this entrance script. Original camera tracking,
 follower/NPC AI, dynamic world persistence and sound remain separate work.
 
-Next trace the interaction dispatcher for this room's fixed NPC, including how
-the player targets it, reaches the conversation node and processes choices.
-Translate one real branching interaction with its state changes before widening
-door coverage. Then connect follower dispatch and additional location types.
+The subsequent pilot traces the fixed NPC contact dispatcher and a bounded set of
+branching dialogue/state changes. Next recover its hiring action and targeting,
+then connect follower dispatch and additional location types.

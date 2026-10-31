@@ -16,7 +16,9 @@ shutil.copy2(root/'docs/WINDOWS-README.txt',output/'README.txt')
 # Include the licenses of the Rust desktop dependencies, preserving original text.
 cargo_home=Path(__import__('os').environ.get('CARGO_HOME',str(Path.home()/'.cargo')))
 licenses=output/'licenses';licenses.mkdir(exist_ok=True)
-for crate in ['minifb-0.28.0','winapi-0.3.9','raw-window-handle-0.6.2']:
+for crate in ['minifb-0.28.0','winapi-0.3.9','raw-window-handle-0.6.2',
+              'serde-1.0.229','serde_core-1.0.229','serde_json-1.0.154',
+              'itoa-1.0.18','memchr-2.8.3','zmij-1.0.23']:
     found=list((cargo_home/'registry/src').glob(f'*/{crate}'))
     if not found:p.error(f'license source missing for {crate}')
     for source in found[0].glob('LICENSE*'):

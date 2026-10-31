@@ -122,6 +122,10 @@ fn space_needle_exposition_entry_and_return_preserve_state() {
     game.camera = (392, 32);
     game.party[0].raw[0x4c] = 7;
     game.party[1].raw[0x4e] = 2;
+    game.knowledge = shadowrealm::dialogue_data::Knowledge {
+        runner_known: 4,
+        contacts: 1 << 12,
+    };
     let stats: Vec<_> = game.party.iter().map(|r| r.raw[0x4c..].to_vec()).collect();
     for _ in 0..20 {
         game.update(&rom, input::UP).unwrap();
@@ -197,4 +201,91 @@ fn space_needle_exposition_entry_and_return_preserve_state() {
     drive_until_settled(&mut game, &rom, input::DOWN, 0);
     assert_eq!(game.completed_transitions, 4);
     assert!(game.saved_exterior.is_none());
+    assert_eq!(
+        game.knowledge,
+        shadowrealm::dialogue_data::Knowledge {
+            runner_known: 4,
+            contacts: 1 << 12
+        }
+    );
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn trent_contact_choices_and_knowledge_flags() {
+    fn press(game: &mut Game, rom: &[u8], button: u8) {
+        game.update(rom, 0).unwrap();
+        game.update(rom, button).unwrap();
+    }
+    let rom = rom();
+    let mut game = Game::load(&rom, 0, &[0, 3, 10]).unwrap();
+    game.party[0].set_position(528 * 16, 144 * 16);
+    game.party[0].set_word(0x2e, 0);
+    game.camera = (392, 32);
+    for _ in 0..20 {
+        game.update(&rom, input::UP).unwrap();
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    press(&mut game, &rom, input::A);
+    drive_until_settled(&mut game, &rom, 0, 10);
+    // Seed just outside the real unlinked NPC contact radius, then walk in.
+    // Entry/exit navigation is covered independently; this is an interaction fixture.
+    game.party[0].set_position(112 * 16, 85 * 16);
+    game.party[0].set_word(0x2e, 0);
+    for _ in 0..8 {
+        game.update(&rom, input::UP).unwrap();
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfeb4c);
+    assert_eq!(game.knowledge.runner_known, 4);
+    let position = game.party[0].position();
+    let clock = game.npcs[0].clock.frame;
+    for _ in 0..8 {
+        game.update(&rom, input::UP).unwrap();
+    }
+    assert_eq!(game.party[0].position(), position);
+    assert_eq!(game.npcs[0].clock.frame, clock);
+    game.select(&rom, 1).unwrap();
+    assert_eq!(game.selected, 0);
+    press(&mut game, &rom, input::DOWN); // hiring option
+    assert!(!game.dialogue.as_ref().unwrap().choices[1].available);
+    press(&mut game, &rom, input::A);
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfeb4c);
+    assert_eq!(game.knowledge.contacts, 0);
+    press(&mut game, &rom, input::UP);
+    press(&mut game, &rom, input::A); // information
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfeba0);
+    press(&mut game, &rom, input::A); // original action BE: biography and known bit
+    assert!(game
+        .dialogue
+        .as_ref()
+        .unwrap()
+        .text
+        .contains("My name is Trent"));
+    game.render(&rom).unwrap();
+    press(&mut game, &rom, input::RIGHT);
+    game.render(&rom).unwrap();
+    press(&mut game, &rom, input::A);
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfec5c);
+    press(&mut game, &rom, input::B); // questions, slot 2
+    press(&mut game, &rom, input::B); // original action E5: contact knowledge
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfecc4);
+    assert_eq!(game.knowledge.contacts, 1 << 12);
+    assert_eq!(game.knowledge.runner_known, 4);
+    game.render(&rom).unwrap();
+    press(&mut game, &rom, input::C); // original action 4: topic menu, opinion zero
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfebf4);
+    press(&mut game, &rom, input::C);
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xff970);
+    press(&mut game, &rom, input::A);
+    assert!(game.dialogue.is_none());
+    assert!(game.transition.is_none());
+    assert_eq!(game.map_id(), 10);
+    assert_eq!(game.knowledge.contacts, 1 << 12);
+    game.update(&rom, 0).unwrap();
+    assert!(game.dialogue.is_none()); // original scheduling cooldown
 }
