@@ -2,7 +2,9 @@
 
 This documents the original exploration checkpoint. The subsequent
 [exterior-seam milestone](area-transitions.md) adds map 0 ↔ 3/5 transitions
-and updates the test counts; interior/story transitions remain unfinished.
+and updates the test counts. The [Space Needle milestone](interior-transitions.md)
+adds one interior entrance, its exposition and exterior return. General location
+and story scripts remain unfinished.
 
 The project now has a native desktop entry point, `src/bin/game.rs`, backed by
 `src/game.rs`. The Windows target is an x86-64 PE GUI executable, not a renamed

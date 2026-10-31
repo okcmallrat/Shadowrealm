@@ -111,3 +111,90 @@ fn unsupported_door_does_not_start_a_transition() {
     assert_eq!(game.completed_transitions, 0);
     assert_eq!(game.map_id(), 0);
 }
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn space_needle_exposition_entry_and_return_preserve_state() {
+    let rom = rom();
+    let mut game = Game::load(&rom, 0, &[0, 3, 10]).unwrap();
+    game.party[0].set_position(528 * 16, 144 * 16);
+    game.party[0].set_word(0x2e, 0);
+    game.camera = (392, 32);
+    game.party[0].raw[0x4c] = 7;
+    game.party[1].raw[0x4e] = 2;
+    let stats: Vec<_> = game.party.iter().map(|r| r.raw[0x4c..].to_vec()).collect();
+    for _ in 0..20 {
+        game.update(&rom, input::UP).unwrap();
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    let exposition = game
+        .dialogue
+        .as_ref()
+        .expect("Space Needle entry exposition");
+    assert_eq!(exposition.node, 0x110b5e);
+    assert!(exposition.text.contains("Space Needle"));
+    let return_plan = TransitionPlan::space_needle(
+        &rom,
+        &shadowrealm::maps::MapDescriptor::read(&rom, 0).unwrap(),
+        0xc6,
+        (game.camera.0 * 16, game.camera.1 * 16),
+        game.party[0].position(),
+    )
+    .unwrap()
+    .unwrap()
+    .exterior_return
+    .unwrap();
+    let before = game.party[0].position();
+    for _ in 0..8 {
+        game.update(&rom, input::UP).unwrap();
+    }
+    assert_eq!(game.party[0].position(), before);
+    assert_eq!(game.map_id(), 0);
+    game.render(&rom).unwrap();
+    game.select(&rom, 1).unwrap();
+    assert_eq!(game.selected, 0);
+    game.update(&rom, input::A).unwrap();
+    assert!(game.dialogue.is_none());
+    drive_until_settled(&mut game, &rom, 0, 10);
+    assert_eq!(game.npcs.len(), 1);
+    assert_eq!(game.npcs[0].position(), (0x700, 0x500));
+    game.render(&rom).unwrap();
+    drive_until_settled(&mut game, &rom, input::DOWN, 0);
+    assert!(game.saved_exterior.is_none());
+    assert!(game.npcs.is_empty());
+    assert_eq!(
+        game.camera,
+        (
+            return_plan.camera_fixed.0 >> 4,
+            return_plan.camera_fixed.1 >> 4
+        )
+    );
+    for ((runner, position), expected) in game.party.iter().zip(return_plan.positions).zip(&stats) {
+        assert_eq!(runner.position(), position);
+        assert_eq!(&runner.raw[0x4c..], expected);
+    }
+    // Reusing the door must ask again and create a fresh return context.
+    // Turning also walks. Curve back from the south-facing arrival, then align
+    // with the door, using only controller input (no pose/map reassignment).
+    for (count, held) in [(16, input::UP), (11, input::RIGHT), (30, input::UP)] {
+        for _ in 0..count {
+            game.update(&rom, held).unwrap();
+            if game.dialogue.is_some() {
+                break;
+            }
+        }
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    assert!(game.dialogue.is_some());
+    assert!(game.transition.is_none());
+    game.update(&rom, input::A).unwrap();
+    drive_until_settled(&mut game, &rom, 0, 10);
+    assert_eq!(game.npcs.len(), 1);
+    drive_until_settled(&mut game, &rom, input::DOWN, 0);
+    assert_eq!(game.completed_transitions, 4);
+    assert!(game.saved_exterior.is_none());
+}

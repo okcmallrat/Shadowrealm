@@ -1,6 +1,7 @@
 pub mod actors;
 pub mod boot;
 pub mod collision;
+pub mod dialogue;
 pub mod environment;
 pub mod frame;
 pub mod game;
@@ -8,6 +9,7 @@ pub mod hud;
 pub mod input;
 pub mod map_render;
 pub mod maps;
+pub mod npc;
 pub mod party;
 pub mod scene;
 pub mod transitions;

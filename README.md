@@ -5,7 +5,9 @@ complete Windows PC game. The current milestone is a **Windows exploration
 build**, with a desktop window, persistent party state, collision-aware movement,
 portraits/equipment/meters, character animation, and environmental tile updates.
 Exterior seams between maps 0, 3 and 5 now work with fades and persistent party
-state. Interior/story transitions, combat, dialogue, AI, saves and audio remain unfinished.
+state. The Space Needle entrance now shows its ROM passage, loads the interior,
+and returns to the saved exterior formation. General story/dialogue scripts,
+combat, AI, saves and audio remain unfinished.
 
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
 Optional improvements are collected in [project ideas](docs/PROJECT_IDEAS.md).
@@ -17,7 +19,8 @@ Download and extract [`Shadowrealm-windows-x64-exploration.zip`](releases/Shadow
 and launch the EXE on Windows 10/11 x64. No Rust/Python/emulator installation is
 needed for the package. The ROM is not bundled.
 
-Arrow keys/WASD move, Tab switches runner, Space pauses, R resets, Escape exits.
+Arrow keys/WASD move, Tab switches runner, Enter/Z acknowledges the entrance
+passage, Space pauses, R resets, Escape exits.
 The roster is an explicit test setup using original Joshua/Ricky/Freya templates,
 not new-game recruitment. Unfinished interior entrances still stop movement.
 
@@ -194,14 +197,16 @@ cargo build --release --locked --features desktop --bin shadowrealm-game
 The default CLI binary remains `shadowrealm`; desktop dependencies are optional.
 
 
-## Exterior transition checks
+## Transition checks
 
 ```sh
 SHADOWREALM_TEST_ROM=/path/to/Shadowrun.bin cargo test --locked --test transitions -- --ignored
 PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_transitions.py /path/to/Shadowrun.bin
+PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_interior.py /path/to/Shadowrun.bin
 ```
 
 The ROM-backed checks drive round trips between the connected exterior maps and
-verify source-derived routing/spawns against original 68000 routines. See
-[area-transition evidence and limits](docs/area-transitions.md). Default unit
+and through the Space Needle entrance, verifying source-derived behavior against
+original 68000 routines. See [exterior evidence](docs/area-transitions.md) and
+[interior evidence and limits](docs/interior-transitions.md). Default unit
 tests leave the ROM-backed tests ignored; execute the command above explicitly.

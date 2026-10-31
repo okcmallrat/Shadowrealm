@@ -8,9 +8,10 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-The user resumed from the saved checkpoint. The exterior seam milestone below
-is now implemented; no clarification or approval is pending. On resuming again,
-inspect repository status and continue the next interior-transition milestone. Do not assume that the prior runtime/processes/files outside Git persist.
+The user resumed from the saved checkpoint. Exterior seams and the bounded
+Space Needle entrance/return below are implemented; no clarification or approval
+is pending. On resuming again, inspect repository status and continue NPC
+interaction/branching dialogue. Do not assume prior runtime files persist.
 
 ## Durable checkpoint
 
@@ -24,7 +25,7 @@ The last checked working tree before preparing this handoff was clean.
 See `git log` for the subsequent handoff commit and any newer work.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `d4d8d39000d7360833d3e1c6bc550c3aac048eecf800a5aefa8b655df4693f22`.
+SHA-256: `778c53a03c45771a9ffbb5a83f1ed128237f57f205a717b33244139f39a1ca7e`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -47,14 +48,19 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 - Persistent exploration state, directional input, turning, walking/idle state
   selection, static collision, controlled-runner switching and a host camera.
 - Environmental tile animation on 24 map records, connected to the native VRAM.
+- Exterior seams 0 ↔ 3/5 with ROM spawn/camera data and palette fades.
+- Map 0 Space Needle entrance: original text/font, acknowledgement, map 10
+  arrival and fixed idle NPC, then saved exterior camera/formation on exit.
 - Native desktop executable: WASD/arrows walk, Tab switches runner, Space pauses,
-  R resets, Escape exits. Default map is 0; optional second CLI argument is map ID.
+  Enter/Z acknowledges the entrance passage, R resets, Escape exits. Default map
+  is 0; optional second CLI argument is map ID.
 - Scripted integration replay uses the same game core as the desktop binary.
 
 ## What is NOT complete
 
-Interior doors/story transitions currently stop at a trigger. Exterior seams
-0 ↔ 3/5 are implemented, as described in the latest milestone. Combat, dialogue, NPC and
+Other interior doors/story transitions stop at a trigger. The Space Needle
+path implements its traced no-mission baseline; there is no quest-state VM yet.
+Combat, branching dialogue, NPC and
 follower AI, inventory/menu interactions, skills/magic, character creation,
 missions/story state, audio, and save/load are not implemented. The host camera
 is not the original look-ahead/hysteresis system. Original wall-sliding and other
@@ -64,7 +70,7 @@ playtested on a Windows PC or Wine in this environment.
 Do not describe any of those as complete because its graphics/animation assets
 can be rendered. Full-game dynamic traces and scene comparisons remain needed.
 
-## Latest resumed milestone: exterior seams
+## Exterior milestone
 
 Read `docs/area-transitions.md` and `src/transitions.rs`. Native gameplay now links
 0 ↔ 3 and 0 ↔ 5 through the original seam triggers, with party-state preservation,
@@ -78,11 +84,38 @@ visible map width is 272 pixels with the HUD; arrival cameras can extend plane-B
 fetches into the next linear grid row beneath the window. Do not restore the old
 320-pixel validation/clamp in the composed game frame.
 
+## Latest resumed milestone: Space Needle interior
+
+Read `docs/interior-transitions.md`, `src/dialogue.rs` and `src/npc.rs`.
+Map 0 trigger C6 resolves map 10 after acknowledging node `110b5e`. The native
+panel uses exact text `113dd6` and original font, with a host layout. Entry saves
+the 96-byte exterior descriptor/map ID, camera and `bc36/bc66` return formation;
+room 10's `80` exit restores them. Party state survives and the fixed NPC is
+cleared on return. Two successive visits pass through the same game core,
+including a controller-only turning/approach route after the first return.
+
+The fixed NPC comes from script `17018`/prototype `171a2`, using `44bc` compact
+fields and byte overrides. It is rendered/idly animated only: no AI, conversation
+or recruitment behavior. No original random behavior timers are simulated.
+
+The ordinary suite has 41 passing unit tests; all three ROM-backed integration
+tests pass explicitly. `tools/validate_interior.py` matches the original baseline
+entry gate/node/text/font, route/save/spawn, return formation/restore blocks and
+NPC initialization. The older 54-route/36-spawn seam oracle still passes.
+The Windows package is refreshed; actual Windows GUI testing remains pending.
+
+Generate captures/oracle data with `interior-data ROM NEW_OUTPUT_DIRECTORY`.
+It seeds the player outside the real entrance at (528,144), then uses normal
+input through entry/exit without assigning maps between legs. These are seeded
+boundary checks, not a complete new-game traversal. Starting directly at map 10
+does not execute the entrance or manufacture a return context.
+
 ## Best next milestone
 
-Implement one ordinary interior door AND its return path, preserving the exterior
-map and formation. Current tests seed a player just outside a real exterior seam;
-they are not a complete new-game traversal or an interior-door implementation.
+Trace targeting/interaction dispatch for the Space Needle's fixed NPC and one
+real branching dialogue, including selection and resulting state changes. Then
+connect follower/NPC dispatch and widen location coverage. Do not turn the
+bounded exposition reader into a generic dialogue-script bypass.
 
 Trace `1651e → 16608 → 167ae`: source descriptor offset 4e supplies target-location
 mapping; `16e30` saves the exterior map before the location reload. Trace spawn
@@ -90,16 +123,18 @@ selection and side effects for one bounded location type, then `2f32` exterior
 restore and `bc36/bc66` return-formation data. Avoid bypassing dialogue/mission
 requirements by mapping every trigger byte directly to a map ID.
 
-Existing native code still reports unsupported interior triggers. Start from
-`docs/area-transitions.md`, `docs/main-loop-and-maps.md`, and the original routine
-listings. Then restore NPC/companion dispatcher and interaction/dialogue logic.
+Existing native code still reports other unsupported interior triggers. Start
+from `docs/interior-transitions.md`, `docs/area-transitions.md`, the main-loop
+notes and original routine listings. Mission/fee/conditional doors need their
+own state model and script handling before entry can be enabled.
 
 ## Code map
 
 | Path | Responsibility |
 | --- | --- |
 | src/game.rs | Persistent exploration and transition phase integration |
-| src/transitions.rs | ROM exterior route and spawn records |
+| src/transitions.rs | Exterior routing, bounded interior entry and saved return |
+| src/dialogue.rs, src/npc.rs | Bounded exposition/font and fixed NPC initialization |
 | src/bin/game.rs | Native desktop window and keyboard/timing loop |
 | src/party.rs | Templates, identity/assets, equipment resolution, facing |
 | src/collision.rs | Rectangle raster and footprint/shape queries |
@@ -163,7 +198,9 @@ PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_render.py /path/to/S
 
 Run checks relevant to the change. Current completed evidence:
 
-- 40 Rust unit tests pass; both ROM-backed transition tests also pass when explicitly enabled.
+- 41 Rust unit tests pass; three ROM-backed transition tests pass explicitly.
+- Space Needle entry gate/text/font, route/save/spawn/return and fixed NPC
+  initialization match bounded original routines (`tools/validate_interior.py`).
 - All 56 collision rasters, 7,168 query samples, and 16 VRAM steps per map
   match original routines, including 24 maps with animations.
 - Populated party HUD matches original `334c → 3404 → 39f2` output.

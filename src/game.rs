@@ -1,21 +1,30 @@
 //! Stateful exploration integration. Uses recovered templates, collision and
-//! animation assets; story/combat/transition handlers are not yet reconstructed.
+//! animation assets and traced area transitions. General story/combat handlers
+//! are not yet reconstructed.
 use crate::{
     actors::{project, ActorFrame},
     collision::{Collision, Contact},
+    dialogue::Dialogue,
     environment::Environment,
     hud::Hud,
     input::Controller,
     map_render::MapScene,
     maps::MapDescriptor,
+    npc,
     party::Runner,
     scene::{self, PlacedActor},
-    transitions::{ActiveTransition, TransitionPlan, TransitionStage},
+    transitions::{
+        ActiveTransition, ExteriorReturn, TransitionKind, TransitionPlan, TransitionStage,
+    },
     video, RomError,
 };
 pub struct Game {
     pub scene: MapScene,
     pub party: Vec<Runner>,
+    pub npcs: Vec<Runner>,
+    pub dialogue: Option<Dialogue>,
+    pub saved_exterior: Option<ExteriorReturn>,
+    dialogue_target: Option<TransitionPlan>,
     pub selected: usize,
     pub camera: (u16, u16),
     pub collision: Collision,
@@ -59,6 +68,10 @@ impl Game {
         let mut result = Self {
             scene,
             party,
+            npcs: vec![],
+            dialogue: None,
+            saved_exterior: None,
+            dialogue_target: None,
             selected: 0,
             camera,
             collision,
@@ -80,7 +93,13 @@ impl Game {
     }
     fn apply_transition(&mut self, rom: &[u8], plan: TransitionPlan) -> Result<(), RomError> {
         // Prepare every fallible asset before replacing the active scene.
-        let map = MapDescriptor::read(rom, plan.target_map)?;
+        let mut map = MapDescriptor::read(rom, plan.target_map)?;
+        if plan.kind == TransitionKind::ReturnToExterior {
+            map.raw = plan
+                .exterior_return
+                .ok_or(RomError("missing exterior return state"))?
+                .descriptor;
+        }
         let mut scene = MapScene::load(rom, map.id)?;
         let collision = Collision::load(rom, &map)?;
         scene.apply_collision_overflow(&collision.overflow_writes)?;
@@ -101,6 +120,19 @@ impl Game {
             };
             hud.condition(rom, slot, level, slot == self.selected)?;
         }
+        let npcs = if plan.kind == TransitionKind::EnterSpaceNeedle
+            && !party.iter().any(|r| r.template == 5)
+        {
+            npc::space_needle(rom)?
+        } else {
+            vec![]
+        };
+        self.saved_exterior = match plan.kind {
+            TransitionKind::EnterSpaceNeedle => plan.exterior_return,
+            TransitionKind::ReturnToExterior => None,
+            TransitionKind::Exterior => self.saved_exterior,
+        };
+        self.npcs = npcs;
         self.map = map;
         self.scene = scene;
         self.collision = collision;
@@ -130,7 +162,7 @@ impl Game {
                 }
             }
             TransitionStage::Warmup => {
-                for runner in &mut self.party {
+                for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
                     runner.tick_animation(rom)?;
                 }
                 self.environment.tick(rom, &mut self.scene)?;
@@ -171,7 +203,7 @@ impl Game {
         if slot >= self.party.len() {
             return Err(RomError("party slot is inactive"));
         }
-        if self.transition.is_some() {
+        if self.transition.is_some() || self.dialogue.is_some() {
             return Ok(());
         }
         self.selected = slot;
@@ -183,6 +215,25 @@ impl Game {
         self.input.update(buttons);
         if self.transition.is_some() {
             return self.advance_transition(rom);
+        }
+        if self.dialogue.is_some() {
+            if self.input.pressed
+                & (crate::input::A | crate::input::B | crate::input::C | crate::input::START)
+                != 0
+            {
+                let plan = self
+                    .dialogue_target
+                    .take()
+                    .ok_or(RomError("exposition has no continuation"))?;
+                self.dialogue = None;
+                self.transition = Some(ActiveTransition {
+                    plan,
+                    stage: TransitionStage::FadeOut,
+                    ticks: 0,
+                    target_palette: self.scene.palette,
+                });
+            }
+            return Ok(());
         }
         self.blocked = false;
         self.pending_transition = None;
@@ -223,12 +274,31 @@ impl Game {
                     self.blocked = true;
                     if runner.raw[0x10] & 2 != 0 && self.collision.trigger_corners(candidate) >= 2 {
                         plan = TransitionPlan::exterior(rom, source_map, code, camera_fixed_x)?;
+                        if plan.is_none() {
+                            if let Some(saved) = self.saved_exterior {
+                                plan = TransitionPlan::leave_interior(source_map, code, saved);
+                            } else {
+                                plan = TransitionPlan::space_needle(
+                                    rom,
+                                    &self.map,
+                                    code,
+                                    (camera_fixed_x, self.camera.1.wrapping_mul(16)),
+                                    runner.position(),
+                                )?;
+                            }
+                        }
                     }
                 }
             }
         }
         runner.select_motion(moved);
         if let Some(plan) = plan {
+            if plan.kind == TransitionKind::EnterSpaceNeedle {
+                self.dialogue = Some(Dialogue::exposition(rom, 0x110b5e)?);
+                self.dialogue_target = Some(plan);
+                self.blocked = false;
+                return Ok(());
+            }
             self.transition = Some(ActiveTransition {
                 plan,
                 stage: TransitionStage::FadeOut,
@@ -238,7 +308,7 @@ impl Game {
             self.blocked = false;
             return Ok(());
         }
-        for runner in &mut self.party {
+        for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
             runner.tick_animation(rom)?;
         }
         self.environment.tick(rom, &mut self.scene)?;
@@ -267,8 +337,9 @@ impl Game {
         Ok(())
     }
     pub fn render(&mut self, rom: &[u8]) -> Result<Vec<u8>, RomError> {
-        let mut frames = Vec::with_capacity(self.party.len());
-        for runner in &self.party {
+        let actors: Vec<&Runner> = self.party.iter().chain(self.npcs.iter()).collect();
+        let mut frames = Vec::with_capacity(actors.len());
+        for runner in &actors {
             let seq = runner.sequence(rom)?;
             let index = (runner.clock.frame as usize).min(seq.frames.len() - 1);
             frames.push(ActorFrame::load(
@@ -279,11 +350,11 @@ impl Game {
                 runner.palette(),
             )?);
         }
-        let mut order: Vec<usize> = (0..self.party.len()).collect();
-        order.sort_by_key(|i| std::cmp::Reverse(self.party[*i].position().1));
+        let mut order: Vec<usize> = (0..actors.len()).collect();
+        order.sort_by_key(|i| std::cmp::Reverse(actors[*i].position().1));
         let mut placed = Vec::new();
         for i in order {
-            let runner = &self.party[i];
+            let runner = actors[i];
             if let Some((x, y)) = project(
                 runner.position(),
                 (
@@ -300,6 +371,10 @@ impl Game {
                 });
             }
         }
-        scene::render(&self.scene, self.camera, &placed, Some(&self.hud))
+        let mut pixels = scene::render(&self.scene, self.camera, &placed, Some(&self.hud))?;
+        if let Some(dialogue) = &self.dialogue {
+            dialogue.render(rom, &mut pixels)?;
+        }
+        Ok(pixels)
     }
 }

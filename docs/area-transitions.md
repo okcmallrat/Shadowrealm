@@ -2,7 +2,8 @@
 
 The native Windows/game core now traverses the ROM's exterior seams linking map
 0 with maps 3 and 5. These are source-derived area links, not newly authored doors.
-Interior/story transitions remain a separate, unimplemented script path.
+The subsequent [Space Needle milestone](interior-transitions.md) adds one
+bounded interior path. Other interior/story scripts remain unfinished.
 
 ## Recovered behavior
 
@@ -83,12 +84,12 @@ The ordinary suite now has 40 passing unit tests. Its two ignored ROM tests were
 also run separately and both pass. The Windows package cross-builds; an actual
 Windows GUI/playtest is still outstanding.
 
-## Next investigation
+## Subsequent investigation
 
 Ordinary doors proceed through `1651e → 16608` and the main-loop dispatch to
 `167ae`. That path saves the exterior map via `16e30`, resolves target location
 from descriptor offset `4e`, selects location mode and scripts, then reloads.
 Some room types use `ffe114` spawn records; other types select procedural room
 state. The exit path uses the saved exterior descriptor and return formation
-(`bc36/bc66`, `2f32`). Implement one bounded interior type plus return before
-expanding into all location scripts or missions.
+(`bc36/bc66`, `2f32`). The [Space Needle implementation](interior-transitions.md)
+now supplies a bounded entrance and return; general location scripts remain next.

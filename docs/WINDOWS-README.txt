@@ -18,6 +18,7 @@ CONTROLS
 
 Arrow keys or WASD: move the selected runner.
 Tab: select the next runner (also selects its HUD panel).
+Enter or Z: acknowledge the Space Needle entrance passage.
 Space: pause/resume simulation.
 R: reset this exploration session.
 Escape: exit.
@@ -41,13 +42,17 @@ and switch runners independently. There is no follower AI yet.
 Static map collision, turning, sprite animation, sprite depth sorting, camera
 tracking, HUD portraits/equipment/meters, environmental tile animations, and the
 recovered map 0 ↔ 3/5 exterior seams are connected. Those seams include fades and
-party spawning. The host camera follows the controlled runner; exact original
+party spawning. Map 0's Space Needle entrance displays its original text, waits
+for acknowledgement, loads the bar and a fixed NPC, and restores the saved
+exterior camera/party formation when leaving through the room's lower exit.
+The NPC has idle animation; AI and interaction are not implemented.
+The host camera follows the controlled runner; exact original
 camera look-ahead behavior is not yet reconstructed.
 
 NOT YET IMPLEMENTED
 
-Interior doors and other story transitions still stop at their trigger, rather
-than entering an unfinished room script. Combat, dialogue, NPC/companion AI,
+Other interior doors and story transitions still stop at their trigger. Combat,
+branching conversations, NPC/companion AI,
 inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
 

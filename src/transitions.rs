@@ -1,8 +1,23 @@
-//! Exterior seam routing at $3168 and spawn application at $2b78.
-//! Scripted interior doors are a separate path and remain unsupported.
+//! Exterior seam routing and the bounded map 0 / Space Needle round trip.
+//! Other scripted doors remain unsupported.
 use crate::RomError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransitionKind {
+    Exterior,
+    EnterSpaceNeedle,
+    ReturnToExterior,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExteriorReturn {
+    pub map_id: usize,
+    pub descriptor: [u8; 96],
+    pub camera_fixed: (u16, u16),
+    pub positions: [(u16, u16); 3],
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TransitionPlan {
+    pub kind: TransitionKind,
+    pub exterior_return: Option<ExteriorReturn>,
     pub source_map: usize,
     pub target_map: usize,
     pub spawn_address: usize,
@@ -16,6 +31,77 @@ fn word(rom: &[u8], p: usize) -> Result<u16, RomError> {
     Ok(u16::from_be_bytes([b[0], b[1]]))
 }
 impl TransitionPlan {
+    pub fn space_needle(
+        rom: &[u8],
+        map: &crate::maps::MapDescriptor,
+        trigger: u8,
+        camera_fixed: (u16, u16),
+        player: (u16, u16),
+    ) -> Result<Option<Self>, RomError> {
+        if map.id != 0 || trigger != 0xc6 {
+            return Ok(None);
+        }
+        let table = u32::from_be_bytes(map.raw[0x4e..0x52].try_into().unwrap()) as usize;
+        let target = *rom
+            .get(table + usize::from(trigger & 31))
+            .ok_or(RomError("location route outside ROM"))? as usize;
+        if target != 10 {
+            return Err(RomError(
+                "Space Needle location target differs from traced ROM",
+            ));
+        }
+        let descriptor = crate::maps::MapDescriptor::read(rom, target)?;
+        let mut positions = [(0, 0); 3];
+        let mut return_positions = [(0, 0); 3];
+        // $bc36 chooses orientation from the first negative footprint code.
+        let orientation = usize::from(trigger.rotate_left(3) & 3);
+        for slot in 0..3 {
+            positions[slot] = (
+                word(&descriptor.raw, 0x42 + slot * 4)?,
+                word(&descriptor.raw, 0x44 + slot * 4)?,
+            );
+            let base = 0xbd34 + orientation * 12 + slot * 4;
+            return_positions[slot] = (
+                player.0.wrapping_add(word(rom, base)?),
+                player.1.wrapping_add(word(rom, base + 2)?),
+            );
+        }
+        let mut saved_descriptor = map.raw;
+        saved_descriptor[..2].copy_from_slice(&camera_fixed.0.to_be_bytes());
+        saved_descriptor[2..4].copy_from_slice(&camera_fixed.1.to_be_bytes());
+        let saved = ExteriorReturn {
+            map_id: map.id,
+            descriptor: saved_descriptor,
+            camera_fixed,
+            positions: return_positions,
+        };
+        Ok(Some(Self {
+            kind: TransitionKind::EnterSpaceNeedle,
+            exterior_return: Some(saved),
+            source_map: map.id,
+            target_map: target,
+            spawn_address: descriptor.address,
+            camera_fixed: (
+                word(&descriptor.raw, 0)? & 0xff80,
+                word(&descriptor.raw, 2)? & 0xff80,
+            ),
+            positions,
+        }))
+    }
+    pub fn leave_interior(map: usize, trigger: u8, saved: ExteriorReturn) -> Option<Self> {
+        if map != 10 || trigger != 0x80 {
+            return None;
+        }
+        Some(Self {
+            kind: TransitionKind::ReturnToExterior,
+            exterior_return: Some(saved),
+            source_map: map,
+            target_map: saved.map_id,
+            spawn_address: 0,
+            camera_fixed: saved.camera_fixed,
+            positions: saved.positions,
+        })
+    }
     /// The $3168 decision searches on low trigger bits, then uses the original
     /// fixed-point camera X to distinguish map 0's west/east exits.
     pub fn exterior(
@@ -45,6 +131,8 @@ impl TransitionPlan {
             );
         }
         Ok(Some(Self {
+            kind: TransitionKind::Exterior,
+            exterior_return: None,
             source_map: map,
             target_map,
             spawn_address,

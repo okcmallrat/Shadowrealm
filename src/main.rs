@@ -1,4 +1,5 @@
 use shadowrealm::Rom;
+mod interior_export;
 use std::{
     env,
     error::Error,
@@ -22,6 +23,12 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = fs::read(&args[2])?;
     let rom = Rom::parse(&data)?;
     match args[1].as_str() {
+        "interior-data" => {
+            if args.len() != 4 {
+                return Err("interior-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            interior_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
         "inspect" => {
             println!(
                 "Title: {}\nProduct: {}\nBytes: {}",
