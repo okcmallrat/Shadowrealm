@@ -4,6 +4,7 @@ pub mod collision;
 pub mod dialogue;
 pub mod dialogue_data;
 pub mod environment;
+pub mod followers;
 pub mod frame;
 pub mod game;
 pub mod hiring;

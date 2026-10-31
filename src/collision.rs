@@ -28,6 +28,15 @@ pub enum Contact {
     Trigger(u8),
 }
 impl Collision {
+    pub fn footprint_samples(&self, world: (u16, u16)) -> [u8; 4] {
+        let (x, y) = (world.0 >> 4, world.1 >> 4);
+        [(-12i16, -7i16), (12, -7), (-12, 7), (12, 7)].map(|(dx, dy)| {
+            let px = x.wrapping_add(dx as u16);
+            let py = y.wrapping_add(dy as u16);
+            let offset = ((py.wrapping_mul(2) & 0xffc0).wrapping_add(px >> 5)) as usize;
+            self.cells.get(offset).copied().unwrap_or(0x7f)
+        })
+    }
     pub fn load(rom: &[u8], map: &MapDescriptor) -> Result<Self, RomError> {
         let mut p = u32::from_be_bytes(map.raw[0x26..0x2a].try_into().unwrap()) as usize;
         let mut cells = vec![0; 4096];

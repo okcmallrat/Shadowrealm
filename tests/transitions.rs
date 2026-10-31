@@ -10,6 +10,17 @@ fn rom() -> Vec<u8> {
         .expect("set SHADOWREALM_TEST_ROM for ROM-backed transition tests");
     std::fs::read(PathBuf::from(path)).expect("read the supplied ROM")
 }
+fn persistent_state(r: &shadowrealm::party::Runner) -> Vec<u8> {
+    // Compact save fields plus portrait/identity data. Navigation targets,
+    // timers and collision samples are working state and now change while walking.
+    r.raw[0xe..0x10]
+        .iter()
+        .chain(&r.raw[0x2c..0x2e])
+        .chain(&r.raw[0x4c..0x92])
+        .chain(&r.raw[0x9a..0xa2])
+        .copied()
+        .collect()
+}
 fn press(game: &mut Game, rom: &[u8], button: u8) {
     game.update(rom, 0).unwrap();
     game.update(rom, button).unwrap();
@@ -104,13 +115,13 @@ fn exterior_round_trips_preserve_party_and_reset_assets() {
             game.collision.contact(game.party[0].position()).unwrap(),
             Contact::Clear
         );
-        let stats: Vec<_> = game.party.iter().map(|r| r.raw[0x4c..].to_vec()).collect();
+        let stats: Vec<_> = game.party.iter().map(persistent_state).collect();
         drive_until_settled(&mut game, &rom, outward, target);
         drive_until_settled(&mut game, &rom, inward, 0);
         assert_eq!(game.completed_transitions, 2);
         assert_eq!(game.selected, 0);
         for (runner, expected) in game.party.iter().zip(&stats) {
-            assert_eq!(&runner.raw[0x4c..], expected);
+            assert_eq!(&persistent_state(runner), expected);
         }
     }
 }
@@ -155,7 +166,7 @@ fn space_needle_exposition_entry_and_return_preserve_state() {
         runner_known: 4,
         contacts: 1 << 12,
     };
-    let stats: Vec<_> = game.party.iter().map(|r| r.raw[0x4c..].to_vec()).collect();
+    let stats: Vec<_> = game.party.iter().map(persistent_state).collect();
     for _ in 0..20 {
         game.update(&rom, input::UP).unwrap();
         if game.dialogue.is_some() {
@@ -206,7 +217,7 @@ fn space_needle_exposition_entry_and_return_preserve_state() {
     );
     for ((runner, position), expected) in game.party.iter().zip(return_plan.positions).zip(&stats) {
         assert_eq!(runner.position(), position);
-        assert_eq!(&runner.raw[0x4c..], expected);
+        assert_eq!(&persistent_state(runner), expected);
     }
     // Reusing the door must ask again and create a fresh return context.
     // Turning also walks. Curve back from the south-facing arrival, then align
@@ -432,4 +443,77 @@ fn failed_recruit_assets_do_not_charge_or_remove_npc() {
     assert_eq!(game.nuyen, 2715);
     assert_eq!(game.party.len(), 2);
     assert!(game.npcs.is_empty());
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn hired_companion_follows_and_changes_leader() {
+    let rom = rom();
+    let mut game = at_trent(&rom, &[0], 3000);
+    press(&mut game, &rom, input::B);
+    press(&mut game, &rom, input::A);
+    press(&mut game, &rom, input::A);
+    press(&mut game, &rom, input::A);
+    assert_eq!(game.party[1].name(), "Trent");
+    assert_eq!(game.nuyen, 2715);
+    game.party[0].set_position(240 * 16, 204 * 16);
+    game.party[0].set_word(0x2e, 0x8000);
+    drive_until_settled(&mut game, &rom, input::DOWN, 0);
+    let before = game.party[1].position();
+    for _ in 0..90 {
+        game.update(&rom, input::LEFT).unwrap();
+    }
+    assert_ne!(
+        game.party[1].position(),
+        before,
+        "hired runner must follow automatically"
+    );
+    assert!(game.party[1].position().0 < before.0);
+    // Original 21-tick decisions and gradual turning allow lag during a turn.
+    // Stop the leader and require the companion to catch up without teleporting.
+    for _ in 0..300 {
+        game.update(&rom, 0).unwrap();
+        if shadowrealm::followers::distance(game.party[0].position(), game.party[1].position())
+            < 0x400
+        {
+            break;
+        }
+    }
+    assert!(
+        shadowrealm::followers::distance(game.party[0].position(), game.party[1].position())
+            < 0x400
+    );
+    for r in &game.party {
+        assert_eq!(
+            game.collision.contact(r.position()).unwrap(),
+            Contact::Clear
+        );
+    }
+    game.select(&rom, 1).unwrap();
+    let previous = game.party[0].position();
+    for _ in 0..90 {
+        game.update(&rom, input::RIGHT).unwrap();
+    }
+    for _ in 0..300 {
+        game.update(&rom, 0).unwrap();
+        if shadowrealm::followers::distance(game.party[0].position(), game.party[1].position())
+            < 0x400
+        {
+            break;
+        }
+    }
+    assert_ne!(
+        game.party[0].position(),
+        previous,
+        "old leader must become a follower"
+    );
+    assert!(
+        shadowrealm::followers::distance(game.party[0].position(), game.party[1].position())
+            < 0x400
+    );
+    assert_eq!(game.party[1].raw[0x10] & 2, 2);
+    assert_eq!(game.party[0].raw[0x10] & 2, 0);
+    assert_eq!(game.nuyen, 2715);
+    assert_eq!(game.party[1].raw[0x8f], 0);
+    game.render(&rom).unwrap();
 }

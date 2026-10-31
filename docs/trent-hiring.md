@@ -3,6 +3,8 @@
 The Space Needle conversation now supports its recovered hiring path. This adds
 one bounded recruitment flow; other runners, job completion, dismissal, rehire
 history, companion AI and the original new-game progression remain unfinished.
+The subsequent [companion milestone](companion-following.md) now adds bounded
+noncombat following and control handoff; its limits supersede the AI status here.
 Addresses below are hexadecimal unless explicitly marked decimal.
 
 ## Recovered behavior

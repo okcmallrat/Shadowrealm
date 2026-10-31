@@ -43,8 +43,9 @@ CURRENT BEHAVIOR
 
 Real ROM party templates for Joshua, Ricky, and Freya supply names, portraits,
 health and equipment. This test roster does not represent a new-game recruitment
-state or a saved game. Spawns come from the selected map descriptor. You can move
-and switch runners independently. There is no follower AI yet.
+state or a saved game. Spawns come from the selected map descriptor. You control
+one runner; other healthy party members follow in the recovered noncombat subset.
+Tab changes the leader, with the old leader becoming a follower.
 
 Static map collision, turning, sprite animation, sprite depth sorting, camera
 tracking, HUD portraits/equipment/meters, environmental tile animations, and the
@@ -61,7 +62,11 @@ prices are 285 and 2850 nuyen. A full party or insufficient funds causes no loss
 On success, his HUD panel appears, the room NPC disappears, and Tab can select
 Trent to walk or leave the room. Money and the contract persist across area
 reloads for this session. Single-run expiry requires the unfinished mission loop.
-The NPC has idle animation; NPC movement/follower AI is not implemented.
+Companions use formation, distance/visibility-based speed, gradual turning,
+regular corner routes and static wall sliding. Some complex layouts still need
+the original fallback wall-hugging path, so a follower can stop there. Followers
+cannot cross area triggers independently. Sharp turns can create lag; stopping
+the leader gives them time to catch up. The room NPC remains idly animated.
 The host camera follows the controlled runner; exact original
 camera look-ahead behavior is not yet reconstructed.
 
@@ -69,7 +74,7 @@ NOT YET IMPLEMENTED
 
 Other interior doors and story transitions still stop at their trigger. Combat,
 other conversations/quest scripts, other recruitment, contract completion,
-NPC/companion AI,
+other NPC AI, combat targeting, dynamic actor avoidance, fallback wall hugging,
 inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
 

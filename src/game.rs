@@ -7,6 +7,7 @@ use crate::{
     dialogue::Dialogue,
     dialogue_data::{Catalog, Knowledge},
     environment::Environment,
+    followers,
     hiring::{self, Contract, Outcome, Quote},
     hud::Hud,
     input::Controller,
@@ -101,10 +102,23 @@ impl Game {
             input: Controller::default(),
         };
         result.refresh_hud(rom)?;
+        result.sync_projections();
         Ok(result)
     }
     pub fn map_id(&self) -> usize {
         self.map.id
+    }
+    fn sync_projections(&mut self) {
+        let camera = (
+            self.camera.0.wrapping_mul(16),
+            self.camera.1.wrapping_mul(16),
+        );
+        for r in self.party.iter_mut().chain(self.npcs.iter_mut()) {
+            let origin = crate::actors::project_origin(r.position(), camera, r.word(8) as i16);
+            let visible = project(r.position(), camera, r.word(8) as i16, false).is_some();
+            r.set_word(0xa, origin.0);
+            r.set_word(0xc, if visible { origin.1 } else { 0 });
+        }
     }
     fn follow_dialogue(&mut self, rom: &[u8], slot: usize) -> Result<(), RomError> {
         let dialogue = self
@@ -263,6 +277,7 @@ impl Game {
         self.party = party;
         self.hud = hud;
         self.camera = (plan.camera_fixed.0 >> 4, plan.camera_fixed.1 >> 4);
+        self.sync_projections();
         self.completed_transitions += 1;
         self.pending_transition = None;
         self.blocked = false;
@@ -285,6 +300,7 @@ impl Game {
                 }
             }
             TransitionStage::Warmup => {
+                followers::warmup(rom, &self.collision, &mut self.party, self.selected)?;
                 for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
                     runner.tick_animation(rom)?;
                 }
@@ -414,6 +430,7 @@ impl Game {
             self.npc_dialogue_cooldown = 60;
             return Ok(());
         }
+        let previous_leader = self.party[self.selected].clone();
         let heading = self.input.direction();
         let source_map = self.map.id;
         let camera_fixed_x = self.camera.0.wrapping_mul(16);
@@ -469,6 +486,13 @@ impl Game {
             }
         }
         runner.select_motion(moved);
+        runner.raw[0x3a..0x3e]
+            .copy_from_slice(&(if moved { 0xb574u32 } else { 0xb45c }).to_be_bytes());
+        runner.set_word(0x38, if moved { 1 } else { 0 });
+        if heading.is_some() {
+            runner.set_word(0xb8, if moved { 0x1000 } else { 0xffff });
+            runner.set_word(0xca, 30);
+        }
         if let Some(plan) = plan {
             if plan.kind == TransitionKind::EnterSpaceNeedle {
                 self.dialogue = Some(Dialogue::exposition(rom, self.catalog.entrance.address.0)?);
@@ -485,6 +509,13 @@ impl Game {
             self.blocked = false;
             return Ok(());
         }
+        followers::tick(
+            rom,
+            &self.collision,
+            &mut self.party,
+            self.selected,
+            &previous_leader,
+        )?;
         for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
             runner.tick_animation(rom)?;
         }
@@ -511,6 +542,7 @@ impl Game {
             .camera
             .1
             .min(self.collision.bounds[3].saturating_sub(224));
+        self.sync_projections();
         Ok(())
     }
     pub fn render(&mut self, rom: &[u8]) -> Result<Vec<u8>, RomError> {

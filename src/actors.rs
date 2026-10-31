@@ -289,6 +289,16 @@ pub fn project(
     height_offset: i16,
     wide_culling: bool,
 ) -> Option<(i32, i32)> {
+    let (x, y) = project_origin(world, camera, height_offset);
+    let visible = if wide_culling {
+        x < 512 && y < 416
+    } else {
+        (112..=429).contains(&x) && (99..378).contains(&y)
+    };
+    visible.then_some((i32::from(x) - 128, i32::from(y) - 128))
+}
+/// Original biased screen words, used by the next AI tick's visibility gate.
+pub fn project_origin(world: (u16, u16), camera: (u16, u16), height_offset: i16) -> (u16, u16) {
     fn axis(world: u16, camera: u16) -> u16 {
         let delta = world.wrapping_sub(camera);
         let mut pixel = ((delta as i16) >> 4) as u16;
@@ -299,12 +309,7 @@ pub fn project(
     }
     let x = axis(world.0, camera.0);
     let y = axis(world.1, camera.1).wrapping_add(height_offset as u16);
-    let visible = if wide_culling {
-        x < 512 && y < 416
-    } else {
-        (112..=429).contains(&x) && (99..378).contains(&y)
-    };
-    visible.then_some((i32::from(x) - 128, i32::from(y) - 128))
+    (x, y)
 }
 #[cfg(test)]
 mod projection_tests {

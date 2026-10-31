@@ -48,7 +48,9 @@ during the transition.
 
 This preserves the recovered palette loops and warm-up count. It does not claim
 the original full dispatcher/AI or instruction-exact timing runs during warm-up;
-the native subset advances animation and freezes world positions. Sound and all
+the native subset advances animation and freezes world positions. The subsequent
+[companion milestone](companion-following.md) also advances follower decisions
+while forcing idle movement, recovering the original warm-up gate. Sound and all
 other scripted transition side effects remain unimplemented.
 
 Some original arrival cameras put the map's right edge underneath the 48-pixel

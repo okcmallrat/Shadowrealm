@@ -26,3 +26,6 @@ Read `docs/HANDOFF.md` first, then the linked implementation/validation notes.
   broad migrations or speculative quest rules.
 - Use Serde and serde_json for JSON, with typed records and explicit validation;
   the user confirmed this preference. Do not replace them with a hand-written parser.
+- Use the user's verified `ShadowRunBin.gzf` as a Ghidra analysis reference alongside
+  the ROM (see `docs/ghidra-reference.md`). Keep GZF/project databases and generated
+  decompilation out of Git; verify behavior with original-routine comparisons.

@@ -12,7 +12,7 @@ The user resumed from the saved checkpoint. Exterior seams and the bounded
 Space Needle entrance/return below are implemented; no clarification or approval
 is pending. The subsequent small JSON/Trent conversation pilot is described
 below. The first-hire milestone is now complete; on resuming again, inspect status
-and trace the hired companion's targeting/follower dispatch.
+and continue the companion fallback/avoidance work described below.
 Do not assume prior runtime files persist.
 
 The user explicitly asked to introduce JSON **slowly** for recovered dialogue
@@ -31,7 +31,7 @@ The last checked working tree before preparing this handoff was clean.
 See `git log` for the subsequent handoff commit and any newer work.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `67710273370c4ba59bda0452245b03070fc8419920d5983205045c8c826ce0d7`.
+SHA-256: `d164053effd042368680e1f4d8b9a3c9bda36afdff0338cbabf41dd311b96f30`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -63,6 +63,9 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 - Trent first-hire: capacity, quoted single-run/permanent prices, payment/funds
   refusal, member/HUD initialization, room-NPC removal and contract persistence.
   Tab transfers the controlled-player flag, so hired/switched runners use doors.
+- Bounded noncombat following: formation, 21-tick decision scheduling, regular
+  grid corner routes, distance/visibility speeds, gradual turning and static wall
+  sliding. The old leader follows after Tab switches control.
 - Native desktop executable: WASD/arrows walk, Tab switches runner, Space pauses,
   Enter/Z acknowledges the entrance passage, R resets, Escape exits. Default map
   is 0; optional second CLI argument is map ID.
@@ -73,8 +76,8 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 Other interior doors/story transitions stop at a trigger. The Space Needle
 path implements its traced no-mission baseline; there is no quest-state VM yet.
 Combat, other branching dialogue/quest scripts, other recruiting, contract
-completion/dismissal/rehire history, NPC and
-follower AI, inventory/menu interactions, skills/magic, character creation,
+completion/dismissal/rehire history, other NPC/combat AI, fallback wall hugging,
+dynamic actor avoidance, inventory/menu interactions, skills/magic, character creation,
 missions/story state, audio, and save/load are not implemented. The host camera
 is not the original look-ahead/hysteresis system. Original wall-sliding and other
 special movement cases are not ported. The Windows GUI has **not** been run or
@@ -153,7 +156,7 @@ The Windows package is refreshed; actual Windows GUI testing remains outstanding
 Serde/serde_json are now pinned runtime dependencies; the default CLI is no
 longer dependency-free. New crate licenses are included by the Windows packager.
 
-## Latest milestone: Trent first-hire
+## Trent first-hire milestone
 
 Read `docs/trent-hiring.md` and `src/hiring.rs`. The embedded JSON schema is now
 version 2, still parsed with pinned Serde/serde_json. Only this dialogue file is
@@ -191,12 +194,52 @@ the oracle skips UI/VDP-only calls and adjusts the native host animation rate.
 frames. Older dialogue/interior/seam and world/HUD checks still pass.
 The Windows package is refreshed; actual Windows GUI playtesting remains pending.
 
+## Latest milestone: Ghidra reference and noncombat following
+
+The user supplied the corrected `ShadowRunBin.gzf` and explicitly asked to use it
+going forward. Read `docs/ghidra-reference.md`: it records the upload/file ID,
+checksums, official Ghidra 12.2 / Java 25 toolchain and reproduction command.
+The GZF opened successfully with 607 existing functions; hashing actual program
+memory confirms all 2 MB match the supplied ROM. `tools/ghidra/ExportCompanion.java`
+exports targeted function views into ignored artifacts from a private working
+copy. Keep GZF/project databases/decompiled game code out of Git. Ghidra's untyped
+register calling conventions can yield misleading C; verify with instructions
+and the original-routine oracle.
+
+Read `docs/companion-following.md` and `src/followers.rs`. Healthy non-selected
+party runners now use `ac84/138b8` scheduling, `14508` formation, original angle/
+distance tables, regular `14682/149c0` corner routes and `b574/bade` walking/sliding.
+The `1470e` fallback and original scans outside the collision raster stop safely
+instead of inventing a replacement path. Dynamic actor avoidance and combat
+targeting remain unimplemented. Do not claim all-room robust navigation.
+
+Screen projection words `a/c` are maintained at tick end for the next tick's
+on/offscreen velocity choice. AI does not depend on render-call frequency. Party
+slots before the selected slot use its pre-movement pose; later slots use its
+updated pose. The camera is still the host implementation.
+
+Warm-up now runs follower decisions but forces idle using `ac9e/ae5e`. This is
+essential: leaving decisions frozen kept stale interior waypoints after exit.
+Arrival positions still remain fixed. Tests compare persistent identity/stats/
+equipment/contract fields, not AI targets/timers/samples, across transitions.
+
+45 unit tests and nine explicitly enabled ROM integration tests pass. The new
+oracle compares 1024 heading/distance pairs, 768 formation goals, 762 supported
+decisions, 6 explicitly withheld raster routes, 4 guarded wall-hugging requests,
+1024 movement/slide records and a 900-tick
+three-runner scheduler/warm-up/wall-route trace against original execution.
+`follower-data ROM NEW_DIRECTORY` also captures a 540-tick seeded desktop-core
+replay with leader switching, frames and a state trace. An actual hire → exit →
+follow → leader-switch integration test passes. Earlier oracles still pass.
+The Windows package is refreshed; actual Windows GUI testing remains pending.
+
 ## Best next milestone
 
-Trace targeting/follower dispatch (`ac84`, control-switch handoff around `1e540`)
-for the newly hired companion. Then connect the job/mission loop for earning
-money and resolving single-run contracts. Broader opinion/dialogue variants,
-other runners and dismissal/rehire history need their own recovered state.
+Recover fallback wall hugging (`1470e` onward) and dynamic actor avoidance
+(`eb92/b49c`) before claiming robust following in complex rooms. Then connect
+combat targeting and the job/mission loop for earning money and resolving
+single-run contracts. Broader dialogue variants, other runners and dismissal/
+rehire history need their own recovered state.
 Keep JSON increments small and compare each operation with the original routines.
 
 Trace `1651e → 16608 → 167ae`: source descriptor offset 4e supplies target-location
@@ -219,6 +262,8 @@ own state model and script handling before entry can be enabled.
 | src/dialogue.rs, src/npc.rs | Bounded exposition/font and fixed NPC initialization |
 | src/dialogue_data.rs, data/dialogue/space-needle.json | Validated embedded dialogue pilot and flag actions |
 | src/hiring.rs | Bounded Trent quote/payment/member initialization |
+| src/followers.rs | Bounded noncombat scheduler, formation, regular routes and walking |
+| tools/ghidra/ExportCompanion.java | Targeted views from the uploaded analysis reference |
 | src/bin/game.rs | Native desktop window and keyboard/timing loop |
 | src/party.rs | Templates, identity/assets, equipment resolution, facing |
 | src/collision.rs | Rectangle raster and footprint/shape queries |
@@ -249,6 +294,9 @@ Prior runtime path (check existence; do not assume it survives):
 If needed, use the upload download tool with the original file ID. Ask the user
 to attach it again only if it cannot be recovered. Do not obtain a different ROM
 from the Internet or commit this one to GitHub.
+
+Corrected Ghidra upload: `sediment://file_00000000181881f5a9d1370f120f2f2a`.
+See `docs/ghidra-reference.md` for its verified digest and workspace/tool paths.
 
 Prior checkout: `/workspace/Shadowrealm`.
 Prior Rust installation (not in Git):
@@ -283,7 +331,11 @@ PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_render.py /path/to/S
 
 Run checks relevant to the change. Current completed evidence:
 
-- 43 Rust unit tests pass; six ROM-backed integration tests pass explicitly.
+- 45 Rust unit tests pass; nine ROM-backed integration tests pass explicitly.
+- Noncombat followers: 1024 math pairs, 768 goals / 762 supported decisions,
+  1024 movement records and 900 scheduler/warm-up ticks match; 6 out-of-scope
+  raster routes and 4 wall-hugging requests are explicitly withheld
+  (`tools/validate_followers.py`).
 - Trent first-hire: 54 original fee quotes and 24 complete purchase/capacity/funds
   cases match (`tools/validate_hiring.py`).
 - Trent dialogue: 15 node/text records, 26 original text/flag branch executions

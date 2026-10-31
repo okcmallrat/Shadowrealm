@@ -10,8 +10,13 @@ and returns to the saved exterior formation. Trent now has a bounded conversatio
 with recovered information/knowledge branches and a bounded first-hire flow,
 using a small Serde/JSON pilot. General story/dialogue scripts,
 combat, AI, saves and audio remain unfinished.
+Non-selected companions now perform bounded noncombat following, formation and
+static wall sliding. Complex fallback navigation and combat AI remain unfinished;
+see [companion behavior and limits](docs/companion-following.md).
 
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
+The corrected uploaded [Ghidra analysis reference](docs/ghidra-reference.md) is now
+part of the reverse-engineering workflow; the desktop runtime remains native Rust.
 Optional improvements are collected in [project ideas](docs/PROJECT_IDEAS.md).
 
 ## Run the Windows build
@@ -214,6 +219,8 @@ PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_transitions.py /path
 PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_interior.py /path/to/Shadowrun.bin
 PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_dialogue.py /path/to/Shadowrun.bin
 PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_hiring.py /path/to/Shadowrun.bin
+SHADOWREALM_TEST_ROM=/path/to/Shadowrun.bin cargo test --locked --test followers -- --ignored
+PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_followers.py /path/to/Shadowrun.bin
 ```
 
 The ROM-backed checks drive round trips between the connected exterior maps and
