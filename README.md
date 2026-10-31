@@ -6,6 +6,9 @@ build**, with a desktop window, persistent party state, collision-aware movement
 portraits/equipment/meters, character animation, and environmental tile updates.
 Story transitions, combat, dialogue, AI, saves and audio are still unfinished.
 
+For resuming development, start with [the project handoff](docs/HANDOFF.md).
+Optional improvements are collected in [project ideas](docs/PROJECT_IDEAS.md).
+
 ## Run the Windows build
 
 Download and extract [`Shadowrealm-windows-x64-exploration.zip`](releases/Shadowrealm-windows-x64-exploration.zip), put your
