@@ -1,0 +1,6 @@
+0566c2  41f90018ac56             lea.l        $18ac56.l, a0
+0566c8  43f900ffd91e             lea.l        $ffd91e.l, a1
+0566ce  7017                     moveq        #$17, d0
+0566d0  22d8                     move.l       (a0)+, (a1)+
+0566d2  51c8fffc                 dbra         d0, $566d0
+0566d6  4e75                     rts

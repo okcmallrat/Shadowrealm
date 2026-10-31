@@ -1,0 +1,115 @@
+0006c6  4bfafbfc                 lea.l        $2c4(pc), a5
+0006ca  4c9d00e0                 movem.w      (a5)+, d5-d7
+0006ce  4cdd1f00                 movem.l      (a5)+, a0-a4
+0006d2  3014                     move.w       (a4), d0
+0006d4  7000                     moveq        #$0, d0
+0006d6  2c40                     movea.l      d0, a6
+0006d8  4e66                     move         a6, usp
+0006da  7217                     moveq        #$17, d1
+0006dc  1a1d                     move.b       (a5)+, d5
+0006de  3885                     move.w       d5, (a4)
+0006e0  da47                     add.w        d7, d5
+0006e2  51c9fff8                 dbra         d1, $6dc
+0006e6  289d                     move.l       (a5)+, (a4)
+0006e8  3680                     move.w       d0, (a3)
+0006ea  2c3c00003ffe             move.l       #$3ffe, d6
+0006f0  2c7c00000000             movea.l      #$0, a6
+0006f6  4280                     clr.l        d0
+0006f8  598e                     subq.l       #$4, a6
+0006fa  51cefffc                 dbra         d6, $6f8
+0006fe  3287                     move.w       d7, (a1)
+000700  3487                     move.w       d7, (a2)
+000702  2a7c00000320             movea.l      #$320, a5
+000708  289d                     move.l       (a5)+, (a4)
+00070a  289d                     move.l       (a5)+, (a4)
+00070c  761f                     moveq        #$1f, d3
+00070e  2680                     move.l       d0, (a3)
+000710  51cbfffc                 dbra         d3, $70e
+000714  289d                     move.l       (a5)+, (a4)
+000716  7813                     moveq        #$13, d4
+000718  2680                     move.l       d0, (a3)
+00071a  51ccfffc                 dbra         d4, $718
+00071e  7a03                     moveq        #$3, d5
+000720  175d0011                 move.b       (a5)+, $11(a3)
+000724  51cdfffa                 dbra         d5, $720
+000728  46fc2700                 move.w       #$2700, sr
+00072c  7c0a                     moveq        #$a, d6
+00072e  4eb90000073a             jsr          $73a.l
+000734  4ef90000075e             jmp          $75e.l
+00073a  3e3c0fff                 move.w       #$fff, d7
+00073e  4e71                     nop
+000740  51cffffc                 dbra         d7, $73e
+000744  51cefff4                 dbra         d6, $73a
+000748  0839000300c00005         btst.b       #$3, $c00005.l
+000750  67f6                     beq.b        $748
+000752  3e3c00ff                 move.w       #$ff, d7
+000756  4e71                     nop
+000758  51cffffc                 dbra         d7, $756
+00075c  4e75                     rts
+00075e  4eb900000c2c             jsr          $c2c.l
+000764  46fc2300                 move.w       #$2300, sr
+000768  4eb90005d746             jsr          $5d746.l
+00076e  0cb91234567800fff9e8     cmpi.l       #$12345678, $fff9e8.l
+000778  6700000c                 beq.w        $786
+00077c  23fc1234567800fff9e8     move.l       #$12345678, $fff9e8.l
+000786  6000000e                 bra.w        $796
+00078a  4eb90000131c             jsr          $131c.l
+000790  4ef9000002c2             jmp          $2c2.l
+000796  203900fff9ec             move.l       $fff9ec.l, d0
+00079c  d17900fff9f8             add.w        d0, $fff9f8.l
+0007a2  33fc000100fffc08         move.w       #$1, $fffc08.l
+0007aa  33fc000100fffc0a         move.w       #$1, $fffc0a.l
+0007b2  33fcffff00ffdfe8         move.w       #$ffff, $ffdfe8.l
+0007ba  4eb900001a9e             jsr          $1a9e.l
+0007c0  4eb900053126             jsr          $53126.l
+0007c6  4a7900ffddc0             tst.w        $ffddc0.l
+0007cc  67bc                     beq.b        $78a
+0007ce  4eb900059318             jsr          $59318.l
+0007d4  4eb900059092             jsr          $59092.l
+0007da  4eb90000131c             jsr          $131c.l
+0007e0  4a7900ffe108             tst.w        $ffe108.l
+0007e6  66000008                 bne.w        $7f0
+0007ea  4eb900059c5e             jsr          $59c5e.l
+0007f0  4eb900053126             jsr          $53126.l
+0007f6  4eb900053290             jsr          $53290.l
+0007fc  23fc0000001400fffbfe     move.l       #$14, $fffbfe.l
+000806  42b900fffc12             clr.l        $fffc12.l
+00080c  42b900fffc16             clr.l        $fffc16.l
+000812  42b900fffc1a             clr.l        $fffc1a.l
+000818  42b900fffc1e             clr.l        $fffc1e.l
+00081e  42b900fffc22             clr.l        $fffc22.l
+000824  423900fffc26             clr.b        $fffc26.l
+00082a  423900fffc27             clr.b        $fffc27.l
+000830  427900fffc28             clr.w        $fffc28.l
+000836  427900fffc2a             clr.w        $fffc2a.l
+00083c  42b900fffc2c             clr.l        $fffc2c.l
+000842  42b900fffc34             clr.l        $fffc34.l
+000848  42b900fffc38             clr.l        $fffc38.l
+00084e  23fc0000000100fffc30     move.l       #$1, $fffc30.l
+000858  33fc000200ffddc4         move.w       #$2, $ffddc4.l
+000860  13fc000200fffbf8         move.b       #$2, $fffbf8.l
+000868  4eb900003084             jsr          $3084.l
+00086e  33fcffff00ffdfe8         move.w       #$ffff, $ffdfe8.l
+000876  13fc00ff00fff0a0         move.b       #$ff, $fff0a0.l
+00087e  4eb90000a7b4             jsr          $a7b4.l
+000884  4eb90001e68c             jsr          $1e68c.l
+00088a  4eb9000566a2             jsr          $566a2.l
+000890  4eb900026938             jsr          $26938.l
+000896  4eb90000281e             jsr          $281e.l
+00089c  4a7900ffe108             tst.w        $ffe108.l
+0008a2  6700001c                 beq.w        $8c0
+0008a6  4240                     clr.w        d0
+0008a8  4eb9000042b0             jsr          $42b0.l
+0008ae  4eb9000594e0             jsr          $594e0.l
+0008b4  4eb9000028c2             jsr          $28c2.l
+0008ba  427900ffe108             clr.w        $ffe108.l
+0008c0  3e3c001e                 move.w       #$1e, d7
+0008c4  427900ffdfe8             clr.w        $ffdfe8.l
+0008ca  13fc000100ffe18a         move.b       #$1, $ffe18a.l
+0008d2  427900ffdd22             clr.w        $ffdd22.l
+0008d8  427900ffdd26             clr.w        $ffdd26.l
+0008de  33fcffff00ffdd04         move.w       #$ffff, $ffdd04.l
+0008e6  33fcffff00ffdd06         move.w       #$ffff, $ffdd06.l
+0008ee  3f07                     move.w       d7, -(a7)
+0008f0  4eb90000a8ea             jsr          $a8ea.l
+0008f6  4eb900003a1c             jsr          $3a1c.l

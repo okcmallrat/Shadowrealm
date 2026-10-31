@@ -1,0 +1,21 @@
+002c6c  4eb900001406             jsr          $1406.l
+002c72  4eb9000566c2             jsr          $566c2.l
+002c78  0c79000200ffdf40         cmpi.w       #$2, $ffdf40.l
+002c80  66000008                 bne.w        $2c8a
+002c84  4eb900016afa             jsr          $16afa.l
+002c8a  61000006                 bsr.w        $2c92
+002c8e  60000022                 bra.w        $2cb2
+002c92  427900ffe100             clr.w        $ffe100.l
+002c98  3a3900ffdd14             move.w       $ffdd14.l, d5
+002c9e  207900ffddde             movea.l      $ffddde.l, a0
+002ca4  43f900ff2700             lea.l        $ff2700.l, a1
+002caa  4eb900003d18             jsr          $3d18.l
+002cb0  4e75                     rts
+002cb2  427900ffe102             clr.w        $ffe102.l
+002cb8  3a3900ffdd16             move.w       $ffdd16.l, d5
+002cbe  207900ffdde6             movea.l      $ffdde6.l, a0
+002cc4  43f900ff4700             lea.l        $ff4700.l, a1
+002cca  33fc800000ffdf58         move.w       #$8000, $ffdf58.l
+002cd2  4eb900003d18             jsr          $3d18.l
+002cd8  427900ffdf58             clr.w        $ffdf58.l
+002cde  4e75                     rts

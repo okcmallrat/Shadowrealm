@@ -1,0 +1,5 @@
+001368  43f900ffd8fe             lea.l        $ffd8fe.l, a1
+00136e  701f                     moveq        #$1f, d0
+001370  22d8                     move.l       (a0)+, (a1)+
+001372  51c8fffc                 dbra         d0, $1370
+001376  4e75                     rts

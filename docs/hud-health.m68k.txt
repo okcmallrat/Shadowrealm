@@ -1,0 +1,31 @@
+003674  48e7ffc0                 movem.l      d0-d7/a0-a1, -(a7)
+003678  4a68003e                 tst.w        $3e(a0)
+00367c  6600000c                 bne.w        $368a
+003680  283c0000f1c4             move.l       #$f1c4, d4
+003686  6000001c                 bra.w        $36a4
+00368a  0c680001003e             cmpi.w       #$1, $3e(a0)
+003690  6600000c                 bne.w        $369e
+003694  283c0000f5c4             move.l       #$f5c4, d4
+00369a  60000008                 bra.w        $36a4
+00369e  283c0000f9c4             move.l       #$f9c4, d4
+0036a4  082800000010             btst.b       #$0, $10(a0)
+0036aa  6700000a                 beq.w        $36b6
+0036ae  d328004c                 add.b        d1, $4c(a0)
+0036b2  6e000010                 bgt.w        $36c4
+0036b6  4228004c                 clr.b        $4c(a0)
+0036ba  43f90006ab3e             lea.l        $6ab3e.l, a1
+0036c0  60000022                 bra.w        $36e4
+0036c4  0c28000a004c             cmpi.b       #$a, $4c(a0)
+0036ca  6f000008                 ble.w        $36d4
+0036ce  117c000a004c             move.b       #$a, $4c(a0)
+0036d4  43f90006ab3e             lea.l        $6ab3e.l, a1
+0036da  4282                     clr.l        d2
+0036dc  1428004c                 move.b       $4c(a0), d2
+0036e0  e74a                     lsl.w        #$3, d2
+0036e2  d3c2                     adda.l       d2, a1
+0036e4  3e3c0000                 move.w       #$0, d7
+0036e8  323c0003                 move.w       #$3, d1
+0036ec  343c6000                 move.w       #$6000, d2
+0036f0  4eb900001232             jsr          $1232.l
+0036f6  4cdf03ff                 movem.l      (a7)+, d0-d7/a0-a1
+0036fa  4e75                     rts

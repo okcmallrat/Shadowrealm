@@ -1,0 +1,25 @@
+00334c  203c0006a5be             move.l       #$6a5be, d0
+003352  223c0000dac0             move.l       #$dac0, d1
+003358  243c000004c0             move.l       #$4c0, d2
+00335e  4eb900000f5c             jsr          $f5c.l
+003364  383cf044                 move.w       #$f044, d4
+003368  43f90006ace2             lea.l        $6ace2.l, a1
+00336e  3e3c0005                 move.w       #$5, d7
+003372  323c0001                 move.w       #$1, d1
+003376  343c6000                 move.w       #$6000, d2
+00337a  4eb900001232             jsr          $1232.l
+003380  383cfd44                 move.w       #$fd44, d4
+003384  4eb900001232             jsr          $1232.l
+00338a  383cf144                 move.w       #$f144, d4
+00338e  43f90006aa7e             lea.l        $6aa7e.l, a1
+003394  61000014                 bsr.w        $33aa
+003398  383cf544                 move.w       #$f544, d4
+00339c  6100000c                 bsr.w        $33aa
+0033a0  383cf944                 move.w       #$f944, d4
+0033a4  61000004                 bsr.w        $33aa
+0033a8  4e75                     rts
+0033aa  3e3c0005                 move.w       #$5, d7
+0033ae  323c0007                 move.w       #$7, d1
+0033b2  343c6000                 move.w       #$6000, d2
+0033b6  4eb900001232             jsr          $1232.l
+0033bc  4e75                     rts

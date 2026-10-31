@@ -1,0 +1,8 @@
+000cec  33d800ffdd16             move.w       (a0)+, $ffdd16.l
+000cf2  33d800ffdd14             move.w       (a0)+, $ffdd14.l
+000cf8  33d800ffdd10             move.w       (a0)+, $ffdd10.l
+000cfe  33d800ffdd12             move.w       (a0)+, $ffdd12.l
+000d04  3e3c000e                 move.w       #$e, d7
+000d08  33d800c00004             move.w       (a0)+, $c00004.l
+000d0e  51cffff8                 dbra         d7, $d08
+000d12  4e75                     rts

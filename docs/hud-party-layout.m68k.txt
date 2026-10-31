@@ -1,0 +1,75 @@
+003548  48e7ffc0                 movem.l      d0-d7/a0-a1, -(a7)
+00354c  7002                     moveq        #$2, d0
+00354e  2f00                     move.l       d0, -(a7)
+003550  6100000e                 bsr.w        $3560
+003554  201f                     move.l       (a7)+, d0
+003556  5bc8fff6                 dbmi         d0, $354e
+00355a  4cdf03ff                 movem.l      (a7)+, d0-d7/a0-a1
+00355e  4e75                     rts
+003560  66000024                 bne.w        $3586
+003564  41f900ff0100             lea.l        $ff0100.l, a0
+00356a  3a3c86a4                 move.w       #$86a4, d5
+00356e  283c0000f448             move.l       #$f448, d4
+003574  48e70c00                 movem.l      d4-d5, -(a7)
+003578  3a3c8694                 move.w       #$8694, d5
+00357c  283c0000f1c6             move.l       #$f1c6, d4
+003582  60000050                 bra.w        $35d4
+003586  41f900ff0100             lea.l        $ff0100.l, a0
+00358c  0c400001                 cmpi.w       #$1, d0
+003590  66000024                 bne.w        $35b6
+003594  d1fc00000100             adda.l       #$100, a0
+00359a  3a3c86ba                 move.w       #$86ba, d5
+00359e  283c0000f848             move.l       #$f848, d4
+0035a4  48e70c00                 movem.l      d4-d5, -(a7)
+0035a8  3a3c86aa                 move.w       #$86aa, d5
+0035ac  283c0000f5c6             move.l       #$f5c6, d4
+0035b2  60000020                 bra.w        $35d4
+0035b6  d1fc00000200             adda.l       #$200, a0
+0035bc  3a3c86d0                 move.w       #$86d0, d5
+0035c0  283c0000fc48             move.l       #$fc48, d4
+0035c6  48e70c00                 movem.l      d4-d5, -(a7)
+0035ca  3a3c86c0                 move.w       #$86c0, d5
+0035ce  283c0000f9c6             move.l       #$f9c6, d4
+0035d4  3e3c0003                 move.w       #$3, d7
+0035d8  323c0003                 move.w       #$3, d1
+0035dc  3428002c                 move.w       $2c(a0), d2
+0035e0  66000006                 bne.w        $35e8
+0035e4  343c2000                 move.w       #$2000, d2
+0035e8  6100005e                 bsr.w        $3648
+0035ec  4cdf0030                 movem.l      (a7)+, d4-d5
+0035f0  3e3c0002                 move.w       #$2, d7
+0035f4  323c0001                 move.w       #$1, d1
+0035f8  61000008                 bsr.w        $3602
+0035fc  6100004a                 bsr.w        $3648
+003600  4e75                     rts
+003602  4a280057                 tst.b        $57(a0)
+003606  6700002c                 beq.w        $3634
+00360a  0c280002009b             cmpi.b       #$2, $9b(a0)
+003610  6a000018                 bpl.w        $362a
+003614  4a280056                 tst.b        $56(a0)
+003618  6a000010                 bpl.w        $362a
+00361c  0c2800060057             cmpi.b       #$6, $57(a0)
+003622  6a00001a                 bpl.w        $363e
+003626  6000000c                 bra.w        $3634
+00362a  0c28000f0057             cmpi.b       #$f, $57(a0)
+003630  6b00000c                 bmi.w        $363e
+003634  243c00002000             move.l       #$2000, d2
+00363a  60000008                 bra.w        $3644
+00363e  243c00006000             move.l       #$6000, d2
+003644  2c02                     move.l       d2, d6
+003646  4e75                     rts
+003648  40e7                     move.w       sr, -(a7)
+00364a  46fc2700                 move.w       #$2700, sr
+00364e  45f900c00000             lea.l        $c00000.l, a2
+003654  3607                     move.w       d7, d3
+003656  8a42                     or.w         d2, d5
+003658  2004                     move.l       d4, d0
+00365a  6100d840                 bsr.w        $e9c
+00365e  3485                     move.w       d5, (a2)
+003660  5245                     addq.w       #$1, d5
+003662  51cffffa                 dbra         d7, $365e
+003666  06440080                 addi.w       #$80, d4
+00366a  3e03                     move.w       d3, d7
+00366c  51c9ffea                 dbra         d1, $3658
+003670  46df                     move.w       (a7)+, sr
+003672  4e75                     rts

@@ -1,0 +1,27 @@
+00195c  61000094                 bsr.w        $19f2
+001960  024000ff                 andi.w       #$ff, d0
+001964  323900ffdd20             move.w       $ffdd20.l, d1
+00196a  33c000ffdd20             move.w       d0, $ffdd20.l
+001970  b141                     eor.w        d0, d1
+001972  c041                     and.w        d1, d0
+001974  e148                     lsl.w        #$8, d0
+001976  807900ffdd20             or.w         $ffdd20.l, d0
+00197c  33c000ffdd22             move.w       d0, $ffdd22.l
+001982  0240000f                 andi.w       #$f, d0
+001986  e348                     lsl.w        #$1, d0
+001988  41f9000019d2             lea.l        $19d2.l, a0
+00198e  33f0000000ffdd04         move.w       (a0, d0.w), $ffdd04.l
+001996  60000038                 bra.w        $19d0
+00199a  610000ac                 bsr.w        $1a48
+00199e  323900ffdd24             move.w       $ffdd24.l, d1
+0019a4  33c000ffdd24             move.w       d0, $ffdd24.l
+0019aa  b141                     eor.w        d0, d1
+0019ac  c041                     and.w        d1, d0
+0019ae  e148                     lsl.w        #$8, d0
+0019b0  807900ffdd24             or.w         $ffdd24.l, d0
+0019b6  33c000ffdd26             move.w       d0, $ffdd26.l
+0019bc  0240000f                 andi.w       #$f, d0
+0019c0  e348                     lsl.w        #$1, d0
+0019c2  41f9000019d2             lea.l        $19d2.l, a0
+0019c8  33f0000000ffdd06         move.w       (a0, d0.w), $ffdd06.l
+0019d0  4e75                     rts

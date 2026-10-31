@@ -1,0 +1,58 @@
+001088  41f900ffd87e             lea.l        $ffd87e.l, a0
+00108e  3e3c003f                 move.w       #$3f, d7
+001092  3010                     move.w       (a0), d0
+001094  3200                     move.w       d0, d1
+001096  0241eee0                 andi.w       #$eee0, d1
+00109a  0240000e                 andi.w       #$e, d0
+00109e  67000004                 beq.w        $10a4
+0010a2  5540                     subq.w       #$2, d0
+0010a4  8041                     or.w         d1, d0
+0010a6  3200                     move.w       d0, d1
+0010a8  0241ee0e                 andi.w       #$ee0e, d1
+0010ac  024000e0                 andi.w       #$e0, d0
+0010b0  67000006                 beq.w        $10b8
+0010b4  04400020                 subi.w       #$20, d0
+0010b8  8041                     or.w         d1, d0
+0010ba  3200                     move.w       d0, d1
+0010bc  0241e0ee                 andi.w       #$e0ee, d1
+0010c0  02400e00                 andi.w       #$e00, d0
+0010c4  67000006                 beq.w        $10cc
+0010c8  04400200                 subi.w       #$200, d0
+0010cc  8041                     or.w         d1, d0
+0010ce  30c0                     move.w       d0, (a0)+
+0010d0  51cfffc0                 dbra         d7, $1092
+0010d4  4e75                     rts
+0010d6  41f900ffd87e             lea.l        $ffd87e.l, a0
+0010dc  43f900ffd8fe             lea.l        $ffd8fe.l, a1
+0010e2  3e3c003f                 move.w       #$3f, d7
+0010e6  3010                     move.w       (a0), d0
+0010e8  3200                     move.w       d0, d1
+0010ea  0241eee0                 andi.w       #$eee0, d1
+0010ee  0240000e                 andi.w       #$e, d0
+0010f2  3411                     move.w       (a1), d2
+0010f4  0242000e                 andi.w       #$e, d2
+0010f8  b042                     cmp.w        d2, d0
+0010fa  67000004                 beq.w        $1100
+0010fe  5440                     addq.w       #$2, d0
+001100  8041                     or.w         d1, d0
+001102  3200                     move.w       d0, d1
+001104  0241ee0e                 andi.w       #$ee0e, d1
+001108  024000e0                 andi.w       #$e0, d0
+00110c  3411                     move.w       (a1), d2
+00110e  024200e0                 andi.w       #$e0, d2
+001112  b042                     cmp.w        d2, d0
+001114  67000006                 beq.w        $111c
+001118  06400020                 addi.w       #$20, d0
+00111c  8041                     or.w         d1, d0
+00111e  3200                     move.w       d0, d1
+001120  0241e0ee                 andi.w       #$e0ee, d1
+001124  02400e00                 andi.w       #$e00, d0
+001128  3419                     move.w       (a1)+, d2
+00112a  02420e00                 andi.w       #$e00, d2
+00112e  b042                     cmp.w        d2, d0
+001130  67000006                 beq.w        $1138
+001134  06400200                 addi.w       #$200, d0
+001138  8041                     or.w         d1, d0
+00113a  30c0                     move.w       d0, (a0)+
+00113c  51cfffa8                 dbra         d7, $10e6
+001140  4e75                     rts

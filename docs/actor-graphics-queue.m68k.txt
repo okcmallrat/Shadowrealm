@@ -1,0 +1,40 @@
+0060fa  082800070011             btst.b       #$7, $11(a0)
+006100  67000010                 beq.w        $6112
+006104  4a68000c                 tst.w        $c(a0)
+006108  6700003c                 beq.w        $6146
+00610c  4eb900003efe             jsr          $3efe.l
+006112  082800050011             btst.b       #$5, $11(a0)
+006118  67000008                 beq.w        $6122
+00611c  4eb900003e86             jsr          $3e86.l
+006122  2a6a0002                 movea.l      $2(a2), a5
+006126  214d0022                 move.l       a5, $22(a0)
+00612a  322a0006                 move.w       $6(a2), d1
+00612e  31410028                 move.w       d1, $28(a0)
+006132  227900ffdf2c             movea.l      $ffdf2c.l, a1
+006138  2288                     move.l       a0, (a1)
+00613a  583900ffdf2f             addq.b       #$4, $ffdf2f.l
+006140  527900ffdf2a             addq.w       #$1, $ffdf2a.l
+006146  4e75                     rts
+006148  3e3900ffdf2a             move.w       $ffdf2a.l, d7
+00614e  3007                     move.w       d7, d0
+006150  5347                     subq.w       #$1, d7
+006152  223900ffdf2c             move.l       $ffdf2c.l, d1
+006158  e508                     lsl.b        #$2, d0
+00615a  9200                     sub.b        d0, d1
+00615c  2241                     movea.l      d1, a1
+00615e  2051                     movea.l      (a1), a0
+006160  20280022                 move.l       $22(a0), d0
+006164  082800070011             btst.b       #$7, $11(a0)
+00616a  67000006                 beq.w        $6172
+00616e  20280044                 move.l       $44(a0), d0
+006172  082800050011             btst.b       #$5, $11(a0)
+006178  67000006                 beq.w        $6180
+00617c  20280048                 move.l       $48(a0), d0
+006180  32280026                 move.w       $26(a0), d1
+006184  34280028                 move.w       $28(a0), d2
+006188  4eb900000f5c             jsr          $f5c.l
+00618e  2009                     move.l       a1, d0
+006190  5800                     addq.b       #$4, d0
+006192  2240                     movea.l      d0, a1
+006194  51cfffc8                 dbra         d7, $615e
+006198  427900ffdf2a             clr.w        $ffdf2a.l

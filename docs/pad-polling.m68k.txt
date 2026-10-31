@@ -1,0 +1,36 @@
+0019f2  4eb900052dc2             jsr          $52dc2.l
+0019f8  13fc004000a10009         move.b       #$40, $a10009.l
+001a00  13fc000000a10003         move.b       #$0, $a10003.l
+001a08  323c000a                 move.w       #$a, d1
+001a0c  51c9fffe                 dbra         d1, $1a0c
+001a10  103900a10003             move.b       $a10003.l, d0
+001a16  e500                     asl.b        #$2, d0
+001a18  020000c0                 andi.b       #$c0, d0
+001a1c  13fc004000a10003         move.b       #$40, $a10003.l
+001a24  323c000a                 move.w       #$a, d1
+001a28  51c9fffe                 dbra         d1, $1a28
+001a2c  123900a10003             move.b       $a10003.l, d1
+001a32  0201003f                 andi.b       #$3f, d1
+001a36  8001                     or.b         d1, d0
+001a38  4600                     not.b        d0
+001a3a  13c000ffef0e             move.b       d0, $ffef0e.l
+001a40  4eb900052dd6             jsr          $52dd6.l
+001a46  4e75                     rts
+001a48  4eb900052dc2             jsr          $52dc2.l
+001a4e  13fc004000a1000b         move.b       #$40, $a1000b.l
+001a56  13fc000000a10005         move.b       #$0, $a10005.l
+001a5e  323c000a                 move.w       #$a, d1
+001a62  51c9fffe                 dbra         d1, $1a62
+001a66  103900a10005             move.b       $a10005.l, d0
+001a6c  e500                     asl.b        #$2, d0
+001a6e  020000c0                 andi.b       #$c0, d0
+001a72  13fc004000a10005         move.b       #$40, $a10005.l
+001a7a  323c000a                 move.w       #$a, d1
+001a7e  51c9fffe                 dbra         d1, $1a7e
+001a82  123900a10005             move.b       $a10005.l, d1
+001a88  0201003f                 andi.b       #$3f, d1
+001a8c  8001                     or.b         d1, d0
+001a8e  4600                     not.b        d0
+001a90  13c000ffef0f             move.b       d0, $ffef0f.l
+001a96  4eb900052dd6             jsr          $52dd6.l
+001a9c  4e75                     rts

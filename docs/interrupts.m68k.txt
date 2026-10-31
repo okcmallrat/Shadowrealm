@@ -1,0 +1,45 @@
+001872  52b900fff9ec             addq.l       #$1, $fff9ec.l
+001878  427900fff9f0             clr.w        $fff9f0.l
+00187e  08b9000100ffef14         bclr.b       #$1, $ffef14.l
+001886  670c                     beq.b        $1894
+001888  6100f65c                 bsr.w        $ee6
+00188c  33fc000100ffdd02         move.w       #$1, $ffdd02.l
+001894  08b9000000ffef14         bclr.b       #$0, $ffef14.l
+00189c  6704                     beq.b        $18a2
+00189e  6100f620                 bsr.w        $ec0
+0018a2  4a7900ffdfe8             tst.w        $ffdfe8.l
+0018a8  66000008                 bne.w        $18b2
+0018ac  4eb90005672c             jsr          $5672c.l
+0018b2  08b9000200ffef14         bclr.b       #$2, $ffef14.l
+0018ba  6704                     beq.b        $18c0
+0018bc  6100f65e                 bsr.w        $f1c
+0018c0  08b9000300ffef14         bclr.b       #$3, $ffef14.l
+0018c8  6704                     beq.b        $18ce
+0018ca  6100f670                 bsr.w        $f3c
+0018ce  4a7900ffe100             tst.w        $ffe100.l
+0018d4  67000008                 beq.w        $18de
+0018d8  4eb900002c92             jsr          $2c92.l
+0018de  4a7900ffe102             tst.w        $ffe102.l
+0018e4  67000008                 beq.w        $18ee
+0018e8  4eb900002cb2             jsr          $2cb2.l
+0018ee  4a7900ffdf2a             tst.w        $ffdf2a.l
+0018f4  67000008                 beq.w        $18fe
+0018f8  4eb900006148             jsr          $6148.l
+0018fe  4a7900ffdf30             tst.w        $ffdf30.l
+001904  67000008                 beq.w        $190e
+001908  4eb9000061f4             jsr          $61f4.l
+00190e  4e75                     rts
+001910  48e78080                 movem.l      d0/a0, -(a7)
+001914  23fcc05e000000c00004     move.l       #$c05e0000, $c00004.l
+00191e  527900fff9f0             addq.w       #$1, $fff9f0.l
+001924  0839000000fff9f1         btst.b       #$0, $fff9f1.l
+00192c  6600000c                 bne.w        $193a
+001930  41f900ffd8dc             lea.l        $ffd8dc.l, a0
+001936  60000008                 bra.w        $1940
+00193a  41f900ffd8bc             lea.l        $ffd8bc.l, a0
+001940  0839000200c00005         btst.b       #$2, $c00005.l
+001948  67f6                     beq.b        $1940
+00194a  33d800c00000             move.w       (a0)+, $c00000.l
+001950  33d800c00000             move.w       (a0)+, $c00000.l
+001956  4cdf0101                 movem.l      (a7)+, d0/a0
+00195a  4e75                     rts

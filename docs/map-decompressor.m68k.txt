@@ -1,0 +1,42 @@
+001610  48e77c70                 movem.l      d1-d5/a1-a3, -(a7)
+001614  341b                     move.w       (a3)+, d2
+001616  3f02                     move.w       d2, -(a7)
+001618  7201                     moveq        #$1, d1
+00161a  5341                     subq.w       #$1, d1
+00161c  6604                     bne.b        $1622
+00161e  101b                     move.b       (a3)+, d0
+001620  7208                     moveq        #$8, d1
+001622  d000                     add.b        d0, d0
+001624  6508                     bcs.b        $162e
+001626  12db                     move.b       (a3)+, (a1)+
+001628  51cafff0                 dbra         d2, $161a
+00162c  6042                     bra.b        $1670
+00162e  161b                     move.b       (a3)+, d3
+001630  6b16                     bmi.b        $1648
+001632  0243007f                 andi.w       #$7f, d3
+001636  5443                     addq.w       #$2, d3
+001638  9443                     sub.w        d3, d2
+00163a  181b                     move.b       (a3)+, d4
+00163c  12c4                     move.b       d4, (a1)+
+00163e  51cbfffc                 dbra         d3, $163c
+001642  51caffd6                 dbra         d2, $161a
+001646  6028                     bra.b        $1670
+001648  181b                     move.b       (a3)+, d4
+00164a  e74c                     lsl.w        #$3, d4
+00164c  1a03                     move.b       d3, d5
+00164e  e80d                     lsr.b        #$4, d5
+001650  02450007                 andi.w       #$7, d5
+001654  8805                     or.b         d5, d4
+001656  024407ff                 andi.w       #$7ff, d4
+00165a  0243000f                 andi.w       #$f, d3
+00165e  5443                     addq.w       #$2, d3
+001660  9443                     sub.w        d3, d2
+001662  2449                     movea.l      a1, a2
+001664  94c4                     suba.w       d4, a2
+001666  12da                     move.b       (a2)+, (a1)+
+001668  51cbfffc                 dbra         d3, $1666
+00166c  51caffac                 dbra         d2, $161a
+001670  4c9f0001                 movem.w      (a7)+, d0
+001674  5240                     addq.w       #$1, d0
+001676  4cdf0e3e                 movem.l      (a7)+, d1-d5/a1-a3
+00167a  4e75                     rts

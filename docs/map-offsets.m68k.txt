@@ -1,0 +1,25 @@
+003fd8  3400                     move.w       d0, d2
+003fda  3601                     move.w       d1, d3
+003fdc  e648                     lsr.w        #$3, d0
+003fde  02400003                 andi.w       #$3, d0
+003fe2  e649                     lsr.w        #$3, d1
+003fe4  02410003                 andi.w       #$3, d1
+003fe8  ea4b                     lsr.w        #$5, d3
+003fea  c6f900ffddea             mulu.w       $ffddea.l, d3
+003ff0  ea4a                     lsr.w        #$5, d2
+003ff2  e34a                     lsl.w        #$1, d2
+003ff4  d642                     add.w        d2, d3
+003ff6  e549                     lsl.w        #$2, d1
+003ff8  d240                     add.w        d0, d1
+003ffa  e349                     lsl.w        #$1, d1
+003ffc  48c1                     ext.l        d1
+003ffe  4e75                     rts
+004000  4443                     neg.w        d3
+004002  024301ff                 andi.w       #$1ff, d3
+004006  024400f8                 andi.w       #$f8, d4
+00400a  e44b                     lsr.w        #$2, d3
+00400c  e94c                     lsl.w        #$4, d4
+00400e  d843                     add.w        d3, d4
+004010  0244fffe                 andi.w       #$fffe, d4
+004014  48c4                     ext.l        d4
+004016  4e75                     rts

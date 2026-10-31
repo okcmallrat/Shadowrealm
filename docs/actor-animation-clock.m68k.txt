@@ -1,0 +1,11 @@
+005fdc  33e8001e00ffdd3e         move.w       $1e(a0), $ffdd3e.l
+005fe4  3028001a                 move.w       $1a(a0), d0
+005fe8  33c000ffdd3c             move.w       d0, $ffdd3c.l
+005fee  d0680018                 add.w        $18(a0), d0
+005ff2  b068001c                 cmp.w        $1c(a0), d0
+005ff6  6d000010                 blt.w        $6008
+005ffa  5268001e                 addq.w       #$1, $1e(a0)
+005ffe  08e800000011             bset.b       #$0, $11(a0)
+006004  9068001c                 sub.w        $1c(a0), d0
+006008  3140001a                 move.w       d0, $1a(a0)
+00600c  4e75                     rts

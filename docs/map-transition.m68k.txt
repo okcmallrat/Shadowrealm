@@ -1,0 +1,39 @@
+002ce0  43f900002e72             lea.l        $2e72.l, a1
+002ce6  103900fffbf9             move.b       $fffbf9.l, d0
+002cec  5100                     subq.b       #$8, d0
+002cee  4880                     ext.w        d0
+002cf0  323900fffc10             move.w       $fffc10.l, d1
+002cf6  e549                     lsl.w        #$2, d1
+002cf8  d2c1                     adda.w       d1, a1
+002cfa  14310000                 move.b       (a1, d0.w), d2
+002cfe  4882                     ext.w        d2
+002d00  33c200fffc10             move.w       d2, $fffc10.l
+002d06  0c420013                 cmpi.w       #$13, d2
+002d0a  66000030                 bne.w        $2d3c
+002d0e  2c3900fffc1e             move.l       $fffc1e.l, d6
+002d14  08060008                 btst.b       #$8, d6
+002d18  66000022                 bne.w        $2d3c
+002d1c  23fc00053ee200ffdd2c     move.l       #$53ee2, $ffdd2c.l
+002d26  4eb90001e2ec             jsr          $1e2ec.l
+002d2c  23fc0001e55200ffe120     move.l       #$1e552, $ffe120.l
+002d36  4eb90001dbaa             jsr          $1dbaa.l
+002d3c  d442                     add.w        d2, d2
+002d3e  43f900002e42             lea.l        $2e42.l, a1
+002d44  33f1200000ffddc4         move.w       (a1, d2.w), $ffddc4.l
+002d4c  43f900002ed2             lea.l        $2ed2.l, a1
+002d52  d2c1                     adda.w       d1, a1
+002d54  10310000                 move.b       (a1, d0.w), d0
+002d58  e548                     lsl.w        #$2, d0
+002d5a  343900ffddc4             move.w       $ffddc4.l, d2
+002d60  0c42002c                 cmpi.w       #$2c, d2
+002d64  6c00000a                 bge.w        $2d70
+002d68  04420006                 subi.w       #$6, d2
+002d6c  60000008                 bra.w        $2d76
+002d70  0442002c                 subi.w       #$2c, d2
+002d74  5842                     addq.w       #$4, d2
+002d76  e94a                     lsl.w        #$4, d2
+002d78  43f900002d92             lea.l        $2d92.l, a1
+002d7e  d2c2                     adda.w       d2, a1
+002d80  33f1000000ffe10a         move.w       (a1, d0.w), $ffe10a.l
+002d88  33f1000200ffe10c         move.w       $2(a1, d0.w), $ffe10c.l
+002d90  4e75                     rts

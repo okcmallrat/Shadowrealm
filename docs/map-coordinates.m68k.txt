@@ -1,0 +1,17 @@
+0041b6  363900ffdd08             move.w       $ffdd08.l, d3
+0041bc  383900ffdd0a             move.w       $ffdd0a.l, d4
+0041c2  303900ffddc6             move.w       $ffddc6.l, d0
+0041c8  323900ffddc8             move.w       $ffddc8.l, d1
+0041ce  e848                     lsr.w        #$4, d0
+0041d0  e849                     lsr.w        #$4, d1
+0041d2  5140                     subq.w       #$8, d0
+0041d4  6b000008                 bmi.w        $41de
+0041d8  5043                     addq.w       #$8, d3
+0041da  60000004                 bra.w        $41e0
+0041de  5040                     addq.w       #$8, d0
+0041e0  5141                     subq.w       #$8, d1
+0041e2  6b000008                 bmi.w        $41ec
+0041e6  5144                     subq.w       #$8, d4
+0041e8  60000004                 bra.w        $41ee
+0041ec  5041                     addq.w       #$8, d1
+0041ee  4e75                     rts

@@ -1,0 +1,55 @@
+001406  6100ff14                 bsr.w        $131c
+00140a  205e                     movea.l      (a6)+, a0
+00140c  4eb900000cec             jsr          $cec.l
+001412  4eb900000ffe             jsr          $ffe.l
+001418  4eb90000102a             jsr          $102a.l
+00141e  4eb900000e34             jsr          $e34.l
+001424  205e                     movea.l      (a6)+, a0
+001426  4eb900001368             jsr          $1368.l
+00142c  33de00ffdd08             move.w       (a6)+, $ffdd08.l
+001432  33de00ffdd0c             move.w       (a6)+, $ffdd0c.l
+001438  33de00ffdd0a             move.w       (a6)+, $ffdd0a.l
+00143e  33de00ffdd0e             move.w       (a6)+, $ffdd0e.l
+001444  201e                     move.l       (a6)+, d0
+001446  6700002e                 beq.w        $1476
+00144a  08000000                 btst.b       #$0, d0
+00144e  6700001a                 beq.w        $146a
+001452  08800000                 bclr.b       #$0, d0
+001456  2640                     movea.l      d0, a3
+001458  43f900ff9700             lea.l        $ff9700.l, a1
+00145e  221e                     move.l       (a6)+, d1
+001460  241e                     move.l       (a6)+, d2
+001462  3001                     move.w       d1, d0
+001464  610000ca                 bsr.w        $1530
+001468  60da                     bra.b        $1444
+00146a  221e                     move.l       (a6)+, d1
+00146c  241e                     move.l       (a6)+, d2
+00146e  4eb900000f5c             jsr          $f5c.l
+001474  60ce                     bra.b        $1444
+001476  201e                     move.l       (a6)+, d0
+001478  6700002a                 beq.w        $14a4
+00147c  2240                     movea.l      d0, a1
+00147e  281e                     move.l       (a6)+, d4
+001480  3e1e                     move.w       (a6)+, d7
+001482  321e                     move.w       (a6)+, d1
+001484  341e                     move.w       (a6)+, d2
+001486  08800000                 bclr.b       #$0, d0
+00148a  67000010                 beq.w        $149c
+00148e  2240                     movea.l      d0, a1
+001490  4243                     clr.w        d3
+001492  3a07                     move.w       d7, d5
+001494  5245                     addq.w       #$1, d5
+001496  61000290                 bsr.w        $1728
+00149a  60da                     bra.b        $1476
+00149c  4eb900001232             jsr          $1232.l
+0014a2  60d2                     bra.b        $1476
+0014a4  4e71                     nop
+0014a6  4e71                     nop
+0014a8  4e71                     nop
+0014aa  08f9000000ffef14         bset.b       #$0, $ffef14.l
+0014b2  08f9000300ffef14         bset.b       #$3, $ffef14.l
+0014ba  08f9000200ffef14         bset.b       #$2, $ffef14.l
+0014c2  4e71                     nop
+0014c4  4e71                     nop
+0014c6  4e71                     nop
+0014c8  4ef900000bd2             jmp          $bd2.l
