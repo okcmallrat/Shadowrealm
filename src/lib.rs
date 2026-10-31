@@ -10,6 +10,7 @@ pub mod map_render;
 pub mod maps;
 pub mod party;
 pub mod scene;
+pub mod transitions;
 pub mod video;
 // ROM inspection primitives for a native Shadowrun reconstruction.
 use std::fmt;

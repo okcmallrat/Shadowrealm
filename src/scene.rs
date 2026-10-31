@@ -12,7 +12,12 @@ pub fn render(
     hud: Option<&Hud>,
 ) -> Result<Vec<u8>, RomError> {
     // Validate crop once, including horizontal stride and fixed-buffer bounds.
-    scene.render(origin.0, origin.1, 320, 224)?;
+    scene.render(
+        origin.0,
+        origin.1,
+        if hud.is_some() { 272 } else { 320 },
+        224,
+    )?;
     let mut pixels = Vec::with_capacity(320 * 224 * 3);
     for y in 0..224 {
         for x in 0..320 {

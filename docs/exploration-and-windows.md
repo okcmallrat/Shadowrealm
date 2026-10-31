@@ -1,5 +1,9 @@
 # Stateful exploration and Windows desktop milestone
 
+This documents the original exploration checkpoint. The subsequent
+[exterior-seam milestone](area-transitions.md) adds map 0 ↔ 3/5 transitions
+and updates the test counts; interior/story transitions remain unfinished.
+
 The project now has a native desktop entry point, `src/bin/game.rs`, backed by
 `src/game.rs`. The Windows target is an x86-64 PE GUI executable, not a renamed
 Linux binary or a launcher for Python/emulation. It reads the supplied ROM as

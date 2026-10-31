@@ -39,15 +39,16 @@ state or a saved game. Spawns come from the selected map descriptor. You can mov
 and switch runners independently. There is no follower AI yet.
 
 Static map collision, turning, sprite animation, sprite depth sorting, camera
-tracking, HUD portraits/equipment/meters, and environmental tile animations are
-connected. The host camera follows the controlled runner; exact original camera
-look-ahead behavior is not yet reconstructed.
+tracking, HUD portraits/equipment/meters, environmental tile animations, and the
+recovered map 0 ↔ 3/5 exterior seams are connected. Those seams include fades and
+party spawning. The host camera follows the controlled runner; exact original
+camera look-ahead behavior is not yet reconstructed.
 
 NOT YET IMPLEMENTED
 
-Doors and story transitions stop movement at their trigger, rather than entering
-an unfinished room script. Combat, dialogue, NPC/companion AI, inventory/menu
-interactions, missions, audio, and save/load are not functional. No completion
+Interior doors and other story transitions still stop at their trigger, rather
+than entering an unfinished room script. Combat, dialogue, NPC/companion AI,
+inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
 
 VALIDATION

@@ -140,3 +140,12 @@ A Windows x64 PE GUI executable is cross-compiled and packaged with its runtime
 DLL. Windows GUI behavior remains untested here. The full-game milestone still
 requires room transitions/scripts, combat, dialogue/AI, inventory and menus,
 missions, save/load, audio, and Windows end-to-end playtesting.
+
+
+## Seventh milestone: connected exterior areas
+
+[Exterior transition notes](area-transitions.md) describe native traversal between
+maps 0/3/5, ROM-derived spawns and camera resets, preserved party state, fades,
+and destination asset reload. The original routing and spawn routines match all
+54/36 oracle cases. Both ROM-backed round trips pass; the base suite has 40
+passing unit tests. Interior/story scripts and Windows GUI testing remain pending.

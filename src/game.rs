@@ -10,7 +10,8 @@ use crate::{
     maps::MapDescriptor,
     party::Runner,
     scene::{self, PlacedActor},
-    RomError,
+    transitions::{ActiveTransition, TransitionPlan, TransitionStage},
+    video, RomError,
 };
 pub struct Game {
     pub scene: MapScene,
@@ -23,6 +24,8 @@ pub struct Game {
     pub blocked: bool,
     pub pending_transition: Option<u8>,
     pub hud: Hud,
+    pub transition: Option<ActiveTransition>,
+    pub completed_transitions: u64,
     map: MapDescriptor,
     input: Controller,
 }
@@ -64,11 +67,90 @@ impl Game {
             blocked: false,
             pending_transition: None,
             hud,
+            transition: None,
+            completed_transitions: 0,
             map,
             input: Controller::default(),
         };
         result.refresh_hud(rom)?;
         Ok(result)
+    }
+    pub fn map_id(&self) -> usize {
+        self.map.id
+    }
+    fn apply_transition(&mut self, rom: &[u8], plan: TransitionPlan) -> Result<(), RomError> {
+        // Prepare every fallible asset before replacing the active scene.
+        let map = MapDescriptor::read(rom, plan.target_map)?;
+        let mut scene = MapScene::load(rom, map.id)?;
+        let collision = Collision::load(rom, &map)?;
+        scene.apply_collision_overflow(&collision.overflow_writes)?;
+        let environment = Environment::load(rom, &map)?;
+        let mut party = self.party.clone();
+        for (slot, runner) in party.iter_mut().enumerate() {
+            runner.set_position(plan.positions[slot].0, plan.positions[slot].1);
+            runner.select_motion(false);
+        }
+        let mut hud = Hud::load(rom, &mut scene)?;
+        hud.select(rom, self.selected)?;
+        for (slot, runner) in party.iter().enumerate() {
+            runner.update_hud(rom, &mut scene, &mut hud, slot)?;
+            let level = if (runner.raw[0x9c] as i8) > 0 {
+                runner.raw[0x9c].min(10)
+            } else {
+                0
+            };
+            hud.condition(rom, slot, level, slot == self.selected)?;
+        }
+        self.map = map;
+        self.scene = scene;
+        self.collision = collision;
+        self.environment = environment;
+        self.party = party;
+        self.hud = hud;
+        self.camera = (plan.camera_fixed.0 >> 4, plan.camera_fixed.1 >> 4);
+        self.completed_transitions += 1;
+        self.pending_transition = None;
+        self.blocked = false;
+        Ok(())
+    }
+    fn advance_transition(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        let mut active = self.transition.expect("transition is active");
+        active.ticks += 1;
+        match active.stage {
+            TransitionStage::FadeOut => {
+                if active.ticks % 2 == 0 {
+                    video::fade_out(&mut self.scene.palette);
+                }
+                if active.ticks == 34 {
+                    self.apply_transition(rom, active.plan)?;
+                    active.target_palette = self.scene.palette;
+                    self.scene.palette = [0; 64];
+                    active.stage = TransitionStage::Warmup;
+                    active.ticks = 0;
+                }
+            }
+            TransitionStage::Warmup => {
+                for runner in &mut self.party {
+                    runner.tick_animation(rom)?;
+                }
+                self.environment.tick(rom, &mut self.scene)?;
+                if active.ticks == 31 {
+                    active.stage = TransitionStage::FadeIn;
+                    active.ticks = 0;
+                }
+            }
+            TransitionStage::FadeIn => {
+                if active.ticks % 2 == 0 {
+                    video::fade_in(&mut self.scene.palette, &active.target_palette);
+                }
+                if active.ticks == 34 {
+                    self.transition = None;
+                    return Ok(());
+                }
+            }
+        }
+        self.transition = Some(active);
+        Ok(())
     }
     pub fn refresh_hud(&mut self, rom: &[u8]) -> Result<(), RomError> {
         self.hud = Hud::load(rom, &mut self.scene)?;
@@ -89,6 +171,9 @@ impl Game {
         if slot >= self.party.len() {
             return Err(RomError("party slot is inactive"));
         }
+        if self.transition.is_some() {
+            return Ok(());
+        }
         self.selected = slot;
         self.pending_transition = None;
         self.refresh_hud(rom)
@@ -96,10 +181,16 @@ impl Game {
     pub fn update(&mut self, rom: &[u8], buttons: u8) -> Result<(), RomError> {
         self.tick = self.tick.wrapping_add(1);
         self.input.update(buttons);
+        if self.transition.is_some() {
+            return self.advance_transition(rom);
+        }
         self.blocked = false;
         self.pending_transition = None;
         let heading = self.input.direction();
+        let source_map = self.map.id;
+        let camera_fixed_x = self.camera.0.wrapping_mul(16);
         let runner = &mut self.party[self.selected];
+        let mut plan = None;
         let mut moved = false;
         if let Some(target) = heading {
             runner.turn_toward(target);
@@ -130,10 +221,23 @@ impl Game {
                 Contact::Trigger(code) => {
                     self.pending_transition = Some(code);
                     self.blocked = true;
+                    if runner.raw[0x10] & 2 != 0 && self.collision.trigger_corners(candidate) >= 2 {
+                        plan = TransitionPlan::exterior(rom, source_map, code, camera_fixed_x)?;
+                    }
                 }
             }
         }
         runner.select_motion(moved);
+        if let Some(plan) = plan {
+            self.transition = Some(ActiveTransition {
+                plan,
+                stage: TransitionStage::FadeOut,
+                ticks: 0,
+                target_palette: self.scene.palette,
+            });
+            self.blocked = false;
+            return Ok(());
+        }
         for runner in &mut self.party {
             runner.tick_animation(rom)?;
         }
@@ -155,7 +259,7 @@ impl Game {
         if py > self.camera.1.saturating_add(184) {
             self.camera.1 = py.saturating_sub(184);
         }
-        self.camera.0 = self.camera.0.min(width.saturating_sub(320) as u16);
+        self.camera.0 = self.camera.0.min(width.saturating_sub(272) as u16);
         self.camera.1 = self
             .camera
             .1

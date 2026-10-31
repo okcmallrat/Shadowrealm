@@ -112,8 +112,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
         let status = if paused {
             "Paused"
+        } else if game.transition.is_some() {
+            "Travelling…"
         } else if game.pending_transition.is_some() {
-            "Entrance — story transition not implemented"
+            "This entrance is not available in this build"
         } else {
             "Arrow keys/WASD: walk | Tab: switch | Space: pause | R: reset"
         };

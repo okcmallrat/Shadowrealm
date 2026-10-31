@@ -229,7 +229,13 @@ impl MapScene {
         window: Option<u16>,
         sprite: Option<(u16, u8)>,
     ) -> Result<[u8; 3], RomError> {
-        let b = self.attribute(0, x, y)?;
+        // The hardware keeps fetching B beneath the window, including the next
+        // linear grid row when the crop extends beyond the visible map columns.
+        let b = if window.is_some() {
+            self.attribute_linear(0, x, y)?
+        } else {
+            self.attribute(0, x, y)?
+        };
         let a = if let Some(attr) = window {
             attr
         } else {
@@ -256,6 +262,9 @@ impl MapScene {
         if (x as usize >> 5) * 2 >= self.descriptor.row_stride_bytes() as usize {
             return Err(RomError("crop exceeds map row stride"));
         }
+        self.attribute_linear(layer, x, y)
+    }
+    fn attribute_linear(&self, layer: usize, x: u16, y: u16) -> Result<u16, RomError> {
         let (grid, inside) = self.descriptor.offsets(x, y);
         let block = word(&self.grids[layer], grid as usize)? as usize;
         let attr = word(&self.definitions[layer], block * 32 + inside as usize)?;

@@ -8,9 +8,9 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-The user is taking a break. No clarification or approval is pending. When they
-return, read this handoff, inspect repository status, and continue the next
-milestone. Do not assume that the prior runtime/processes/files outside Git persist.
+The user resumed from the saved checkpoint. The exterior seam milestone below
+is now implemented; no clarification or approval is pending. On resuming again,
+inspect repository status and continue the next interior-transition milestone. Do not assume that the prior runtime/processes/files outside Git persist.
 
 ## Durable checkpoint
 
@@ -24,7 +24,7 @@ The last checked working tree before preparing this handoff was clean.
 See `git log` for the subsequent handoff commit and any newer work.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `c1ac4c24adfc21bc202fb68629274ecabf3748aa2cb85ca80eb9eab9999af3c4`.
+SHA-256: `d4d8d39000d7360833d3e1c6bc550c3aac048eecf800a5aefa8b655df4693f22`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -53,7 +53,8 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 
 ## What is NOT complete
 
-Doors/room transitions currently stop at a trigger. Combat, dialogue, NPC and
+Interior doors/story transitions currently stop at a trigger. Exterior seams
+0 ↔ 3/5 are implemented, as described in the latest milestone. Combat, dialogue, NPC and
 follower AI, inventory/menu interactions, skills/magic, character creation,
 missions/story state, audio, and save/load are not implemented. The host camera
 is not the original look-ahead/hysteresis system. Original wall-sliding and other
@@ -63,32 +64,42 @@ playtested on a Windows PC or Wine in this environment.
 Do not describe any of those as complete because its graphics/animation assets
 can be rendered. Full-game dynamic traces and scene comparisons remain needed.
 
+## Latest resumed milestone: exterior seams
+
+Read `docs/area-transitions.md` and `src/transitions.rs`. Native gameplay now links
+0 ↔ 3 and 0 ↔ 5 through the original seam triggers, with party-state preservation,
+destination reload, recovered spawn/camera words, palette fades and warm-up.
+There are 40 passing unit tests plus two explicitly executed ROM-backed tests.
+The routine-level oracle matches 54 route cases and 36 spawn applications.
+The Windows exploration package is refreshed, but Windows GUI testing is still pending.
+
+`Game::transition` blocks input and party selection during fades/reload. The
+visible map width is 272 pixels with the HUD; arrival cameras can extend plane-B
+fetches into the next linear grid row beneath the window. Do not restore the old
+320-pixel validation/clamp in the composed game frame.
+
 ## Best next milestone
 
-Implement one real door/area transition end to end, including target map, spawn,
-party state, asset reload and camera reset. Produce a continuous, reproducible
-walk between two connected rooms instead of selecting map IDs manually. Keep
-unrecognized trigger/script behavior explicit until recovered.
+Implement one ordinary interior door AND its return path, preserving the exterior
+map and formation. Current tests seed a player just outside a real exterior seam;
+they are not a complete new-game traversal or an interior-door implementation.
 
-Start with:
+Trace `1651e → 16608 → 167ae`: source descriptor offset 4e supplies target-location
+mapping; `16e30` saves the exterior map before the location reload. Trace spawn
+selection and side effects for one bounded location type, then `2f32` exterior
+restore and `bc36/bc66` return-formation data. Avoid bypassing dialogue/mission
+requirements by mapping every trigger byte directly to a map ID.
 
-- `docs/main-loop-and-maps.md`: main loop at `952`, transition handling from `95e`,
-  selected map index `ffddc4`, spawn pointer `ffe114`, full reload routes.
-- `docs/exploration-and-windows.md`: current state integration and constraints.
-- `src/collision.rs`: `Contact::Trigger(code)` identifies the unfinished boundary.
-- ROM `b7b8` onward: contact/door handling after a negative collision result.
-- ROM `2ce0`, `3168`, `2bd2`, `281e/2822`, `2b78`: transitions, reload and spawning.
-- ROM `e7c8`, `e8a0`, `e9ee`, `ea36`: collision queries and special shapes.
-
-Then restore NPC/companion dispatcher and interactions/dialogue. Connect combat,
-items and skills to persistent state before adding polish. See
-`docs/PROJECT_IDEAS.md` for optional enhancements after fidelity milestones.
+Existing native code still reports unsupported interior triggers. Start from
+`docs/area-transitions.md`, `docs/main-loop-and-maps.md`, and the original routine
+listings. Then restore NPC/companion dispatcher and interaction/dialogue logic.
 
 ## Code map
 
 | Path | Responsibility |
 | --- | --- |
-| src/game.rs | Persistent exploration integration |
+| src/game.rs | Persistent exploration and transition phase integration |
+| src/transitions.rs | ROM exterior route and spawn records |
 | src/bin/game.rs | Native desktop window and keyboard/timing loop |
 | src/party.rs | Templates, identity/assets, equipment resolution, facing |
 | src/collision.rs | Rectangle raster and footprint/shape queries |
@@ -152,7 +163,7 @@ PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_render.py /path/to/S
 
 Run checks relevant to the change. Current completed evidence:
 
-- 37 Rust tests pass.
+- 40 Rust unit tests pass; both ROM-backed transition tests also pass when explicitly enabled.
 - All 56 collision rasters, 7,168 query samples, and 16 VRAM steps per map
   match original routines, including 24 maps with animations.
 - Populated party HUD matches original `334c → 3404 → 39f2` output.

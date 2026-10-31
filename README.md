@@ -4,7 +4,8 @@ Native Rust reconstruction of the Genesis version of Shadowrun, targeting a
 complete Windows PC game. The current milestone is a **Windows exploration
 build**, with a desktop window, persistent party state, collision-aware movement,
 portraits/equipment/meters, character animation, and environmental tile updates.
-Story transitions, combat, dialogue, AI, saves and audio are still unfinished.
+Exterior seams between maps 0, 3 and 5 now work with fades and persistent party
+state. Interior/story transitions, combat, dialogue, AI, saves and audio remain unfinished.
 
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
 Optional improvements are collected in [project ideas](docs/PROJECT_IDEAS.md).
@@ -18,7 +19,7 @@ needed for the package. The ROM is not bundled.
 
 Arrow keys/WASD move, Tab switches runner, Space pauses, R resets, Escape exits.
 The roster is an explicit test setup using original Joshua/Ricky/Freya templates,
-not new-game recruitment. Unfinished entrances stop movement.
+not new-game recruitment. Unfinished interior entrances still stop movement.
 
 The executable was cross-built and inspected here. Windows GUI/input testing
 has not yet been performed. See [build details and remaining milestones](docs/exploration-and-windows.md)
@@ -191,3 +192,16 @@ cargo build --release --locked --features desktop --bin shadowrealm-game
 ```
 
 The default CLI binary remains `shadowrealm`; desktop dependencies are optional.
+
+
+## Exterior transition checks
+
+```sh
+SHADOWREALM_TEST_ROM=/path/to/Shadowrun.bin cargo test --locked --test transitions -- --ignored
+PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_transitions.py /path/to/Shadowrun.bin
+```
+
+The ROM-backed checks drive round trips between the connected exterior maps and
+verify source-derived routing/spawns against original 68000 routines. See
+[area-transition evidence and limits](docs/area-transitions.md). Default unit
+tests leave the ROM-backed tests ignored; execute the command above explicitly.

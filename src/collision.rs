@@ -86,6 +86,20 @@ impl Collision {
             overflow_writes,
         })
     }
+    /// $b7fa requires at least two signed-negative corner samples before invoking
+    /// transition handling. A single maximum trigger byte is not sufficient.
+    pub fn trigger_corners(&self, world: (u16, u16)) -> usize {
+        let (x, y) = (world.0 >> 4, world.1 >> 4);
+        [(-12i16, -7i16), (12, -7), (-12, 7), (12, 7)]
+            .iter()
+            .filter(|(dx, dy)| {
+                let px = x.wrapping_add(*dx as u16);
+                let py = y.wrapping_add(*dy as u16);
+                let offset = (((py.wrapping_mul(2)) & 0xffc0).wrapping_add(px >> 5)) as usize;
+                self.cells.get(offset).is_some_and(|code| *code & 0x80 != 0)
+            })
+            .count()
+    }
     pub fn contact(&self, world: (u16, u16)) -> Result<Contact, RomError> {
         let x = world.0 >> 4;
         let y = world.1 >> 4;
@@ -174,6 +188,19 @@ impl Collision {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn transition_requires_two_negative_footprint_corners() {
+        let mut c = Collision {
+            cells: vec![0; 4096],
+            rectangles: vec![],
+            bounds: [12, 7, 200, 200],
+            overflow_writes: vec![],
+        };
+        c.cells[0] = 0xb0;
+        assert_eq!(c.trigger_corners((32 * 16, 32 * 16)), 1);
+        c.cells[1] = 0xf0;
+        assert_eq!(c.trigger_corners((32 * 16, 32 * 16)), 2);
+    }
     #[test]
     fn hard_collision_overrides_trigger_and_bounds() {
         let mut c = Collision {
