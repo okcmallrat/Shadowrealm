@@ -1,6 +1,6 @@
 # Shadowrealm
 
-This a project for myself and is for my educational purposes only *It's just a freaking project of mine*
+This a project for myself and is for my educational purposes only - *It's just a freaking project of mine*
 
 Native Rust reconstruction of the Genesis version of Shadowrun, targeting a
 complete Windows PC game. The current milestone is a **Windows exploration
