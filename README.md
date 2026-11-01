@@ -12,9 +12,11 @@ and returns to the saved exterior formation. Trent now has a bounded conversatio
 with recovered information/knowledge branches and a bounded first-hire flow,
 using a small Serde/JSON pilot. General story/dialogue scripts,
 combat, AI, saves and audio remain unfinished.
-Non-selected companions now perform bounded noncombat following, formation and
-static wall sliding. Complex fallback navigation and combat AI remain unfinished;
-see [companion behavior and limits](docs/companion-following.md).
+Non-selected companions now perform bounded noncombat following, formation,
+static wall sliding and recovered fallback wall hugging. Party/NPC overlap now
+uses the original physical separation response, including player deflections.
+See [companion behavior](docs/companion-following.md) and
+[actor contacts and limits](docs/actor-contacts.md). Combat AI remains unfinished.
 
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
 The corrected uploaded [Ghidra analysis reference](docs/ghidra-reference.md) is now

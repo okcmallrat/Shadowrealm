@@ -1,4 +1,5 @@
 use shadowrealm::Rom;
+mod avoidance_export;
 mod dialogue_export;
 mod follower_export;
 mod hiring_export;
@@ -26,6 +27,12 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = fs::read(&args[2])?;
     let rom = Rom::parse(&data)?;
     match args[1].as_str() {
+        "avoidance-data" => {
+            if args.len() != 4 {
+                return Err("avoidance-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            avoidance_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
         "follower-data" => {
             if args.len() != 4 {
                 return Err("follower-data ROM NEW_OUTPUT_DIRECTORY".into());

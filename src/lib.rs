@@ -1,4 +1,5 @@
 pub mod actors;
+pub mod avoidance;
 pub mod boot;
 pub mod collision;
 pub mod dialogue;

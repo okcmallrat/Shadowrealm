@@ -221,8 +221,9 @@ fn space_needle_exposition_entry_and_return_preserve_state() {
     }
     // Reusing the door must ask again and create a fresh return context.
     // Turning also walks. Curve back from the south-facing arrival, then align
-    // with the door, using only controller input (no pose/map reassignment).
-    for (count, held) in [(16, input::UP), (11, input::RIGHT), (30, input::UP)] {
+    // with the door after contact deflections, using only controller input
+    // (no pose/map reassignment).
+    for (count, held) in [(16, input::UP), (15, input::RIGHT), (30, input::UP)] {
         for _ in 0..count {
             game.update(&rom, held).unwrap();
             if game.dialogue.is_some() {

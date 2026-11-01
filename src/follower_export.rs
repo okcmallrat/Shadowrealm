@@ -96,6 +96,7 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
         cells,
         rectangles: vec![],
         bounds: [0, 0, 512, 512],
+        map_width_tiles: 32,
         overflow_writes: vec![],
     };
     let mut party = vec![
@@ -122,6 +123,7 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
         cells: vec![0x7f; 4096],
         rectangles: vec![],
         bounds: [0, 0, 512, 512],
+        map_width_tiles: 32,
         overflow_writes: vec![],
     };
     boxed.cells[7 * 64 + 5] = 0;
@@ -130,7 +132,7 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
             boxed.cells[y * 64 + x] = 0;
         }
     }
-    let mut withheld_cases = vec![];
+    let mut closed_cases = vec![];
     for angle in [0, 0x4000, 0x8000, 0xc000] {
         let mut leader = pose(rom, 0, (368 * 16, 240 * 16))?;
         leader.set_word(0x2e, angle);
@@ -138,12 +140,83 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
         runner.set_word(0xb8, 0xffff);
         let before = bytes(&runner);
         let supported = followers::decide(rom, &boxed, &mut runner, &leader)?;
-        withheld_cases.push(json!({"leader":bytes(&leader),"before":before,"supported":supported,"after":bytes(&runner)}));
+        closed_cases.push(json!({"leader":bytes(&leader),"before":before,"supported":supported,"after":bytes(&runner)}));
+    }
+    // Four rotated U-shaped pockets require backing away from the formation
+    // goal: a regular forward/side strip cannot escape the closed end.
+    let mut fallback_timelines = vec![];
+    let mut fallback_decisions = vec![];
+    for rotation in 0..4 {
+        let rotate = |mut x: usize, mut y: usize| {
+            for _ in 0..rotation {
+                (x, y) = (16 - y, x);
+            }
+            (x, y)
+        };
+        let mut cells = vec![0x7f; 4096];
+        for y in 2..=14 {
+            for x in 2..=14 {
+                cells[y * 64 + x] = 0;
+            }
+        }
+        for y in 4..=10 {
+            let (x, y) = rotate(8, y);
+            cells[y * 64 + x] = 0x7f;
+        }
+        for x in 4..=8 {
+            for y in [4, 10] {
+                let (x, y) = rotate(x, y);
+                cells[y * 64 + x] = 0x7f;
+            }
+        }
+        let collision = Collision {
+            cells,
+            rectangles: vec![],
+            bounds: [0, 0, 512, 512],
+            map_width_tiles: 32,
+            overflow_writes: vec![],
+        };
+        let position = |x, y| {
+            let (x, y) = rotate(x, y);
+            ((x as u16 * 32 + 16) * 16, (y as u16 * 32 + 16) * 16)
+        };
+        for i in 0..48u16 {
+            let mut leader = pose(rom, 0, position(12, 6 + usize::from(i % 5)))?;
+            leader.raw[0x10] |= 2;
+            leader.set_word(0x2e, i.wrapping_mul(0x1000));
+            let mut runner = pose(rom, 1, position(6, 5 + usize::from(i % 5)))?;
+            runner.set_word(0x34, i.wrapping_mul(0x2000));
+            runner.set_word(0xc8, i * 79);
+            runner.set_word(0xb8, 0xffff);
+            runner.raw[0xb0] = [0, 2, 10][usize::from(i % 3)];
+            let here = ((runner.position().1 >> 4).wrapping_mul(2) & 0xffc0)
+                .wrapping_add(runner.position().0 >> 9);
+            runner.set_word(0xbc, here);
+            runner.set_word(0xbe, 0xffff);
+            let before = bytes(&runner);
+            let supported = followers::decide(rom, &collision, &mut runner, &leader)?;
+            fallback_decisions.push(json!({"rotation":rotation,"leader":bytes(&leader),"before":before,"supported":supported,"after":bytes(&runner)}));
+        }
+        let mut party = vec![
+            pose(rom, 0, position(12, 7))?,
+            pose(rom, 1, position(6, 7))?,
+        ];
+        party[0].raw[0x10] |= 2;
+        party[0].set_word(0x2e, 0x4000u16.wrapping_add(rotation as u16 * 0x4000));
+        party[1].set_word(0xb8, 0xffff);
+        let initial: Vec<_> = party.iter().flat_map(|r| r.raw).collect();
+        let mut ticks = vec![];
+        for _ in 0..1800 {
+            let leader = party[0].clone();
+            followers::tick(rom, &collision, &mut party, 0, &leader)?;
+            ticks.push(party.iter().flat_map(|r| r.raw).collect::<Vec<_>>());
+        }
+        fallback_timelines.push(json!({"rotation":rotation,"cells":collision.cells,"initial":initial,"ticks":ticks,"warmup_frames":0}));
     }
     fs::write(
         out.join("followers.json"),
         serde_json::to_vec_pretty(
-            &json!({"math":math,"decisions":decisions,"movement":movement,"timeline":timeline,"withheld_cases":withheld_cases,"boxed_cells":boxed.cells}),
+            &json!({"math":math,"decisions":decisions,"movement":movement,"timeline":timeline,"closed_cases":closed_cases,"boxed_cells":boxed.cells,"fallback_timelines":fallback_timelines,"fallback_decisions":fallback_decisions}),
         )?,
     )?;
     // Seeded visual replay of the desktop core; earned hiring is tested separately.

@@ -1,6 +1,6 @@
 //! Noncombat party following recovered with the supplied Ghidra reference and
-//! checked against the ROM routines. Combat, dynamic actor avoidance and the
-//! original fallback wall-hugging search are outside this bounded dispatcher.
+//! checked against the ROM routines. Physical contact overrides are applied by
+//! avoidance/Game; this module isolates static navigation and walking from combat.
 use crate::{
     collision::{Collision, Contact},
     party::Runner,
@@ -142,12 +142,128 @@ fn route_signs(r: &mut Runner) {
 fn clear_route(r: &mut Runner) {
     r.raw[0xb0] &= !(2 | 8);
 }
-/// $14682 regular one/two-corner route. The more complex $1470e fallback
-/// conservatively stops here; no invented A*/teleport route replaces it.
-fn plan_route(r: &mut Runner, c: &Collision) -> bool {
+#[derive(PartialEq)]
+enum RoutePlan {
+    Regular,
+    Fallback,
+    OutsideRaster,
+}
+/// $148aa: scan the complete clear strip, retaining the original eligibility
+/// check. An unmodeled RAM read is withheld rather than treated as an obstacle.
+fn strip_end(c: &Collision, start: u16, direction: u16) -> Option<u16> {
+    let mut at = start;
+    loop {
+        let next = at.wrapping_add(grid_step(direction));
+        if *c.cells.get(next as usize)? != 0 {
+            return Some(at);
+        }
+        at = next;
+    }
+}
+/// Bounds checks in $14764/$14800 are inclusive, unlike footprint collision.
+fn wall_cell_in_bounds(c: &Collision, index: u16) -> bool {
+    (index as i16) >= 0 && index & 63 <= c.map_width_tiles && index >> 6 <= c.bounds[3] >> 5
+}
+/// $14800 (initial search) / $14764 (subsequent wall-corner search).
+/// Returns the endpoint and possibly rotated directions, as the original does.
+fn wall_scan(
+    c: &Collision,
+    start: u16,
+    mut along: u16,
+    mut side: u16,
+    turn: bool,
+) -> Option<(u16, u16, u16)> {
+    if turn {
+        let next = start.wrapping_add(grid_step(side));
+        if wall_cell_in_bounds(c, next) && *c.cells.get(next as usize)? == 0 {
+            along = (along + 2) & 6;
+            side = (side + 2) & 6;
+        }
+    }
+    let mut at = start;
+    loop {
+        let next = at.wrapping_add(grid_step(along));
+        if !wall_cell_in_bounds(c, next) || *c.cells.get(next as usize)? != 0 {
+            return Some((at, along, side));
+        }
+        at = next;
+        let neighbor = at.wrapping_add(grid_step(side));
+        if *c.cells.get(neighbor as usize)? == 0 {
+            return Some((at, along, side));
+        }
+    }
+}
+fn wall_waypoint(r: &mut Runner, next: u16) {
+    r.set_word(0xba, 0);
+    r.set_word(0xbc, next);
+    r.set_word(0xbe, 0xffff);
+}
+/// $14af4 / $14ab4: five clockwise-wall candidates, backing directions up after
+/// each unsuccessful scan. A closed pocket clears navigation without teleporting.
+fn wall_search(r: &mut Runner, c: &Collision, turn: bool) -> Option<()> {
+    let start = cell(r.position());
+    let mut along = r.word(0x34).rotate_left(3) & 6;
+    let mut side = (along + 2) & 6;
+    for _ in 0..5 {
+        let (end, a, b) = wall_scan(c, start, along, side, turn)?;
+        if end != start {
+            wall_waypoint(r, end);
+            return Some(());
+        }
+        along = a.wrapping_sub(2) & 6;
+        side = b.wrapping_sub(2) & 6;
+    }
+    clear_route(r);
+    Some(())
+}
+/// $14914/$1494c: abandon wall hugging when either orthogonal L path
+/// between the current and goal cells is clear. Each leg skips its initial cell.
+fn direct_grid_paths(c: &Collision, start: u16, goal: u16) -> Option<bool> {
+    'path: for (from, to) in [(goal, start), (start, goal)] {
+        let mut at = from;
+        while at & 63 != to & 63 {
+            at = at.wrapping_add(if at & 63 < to & 63 { 1 } else { 0xffff });
+            if *c.cells.get(at as usize)? != 0 {
+                continue 'path;
+            }
+        }
+        at = to;
+        while at & 0xffc0 != from & 0xffc0 {
+            at = at.wrapping_add(if at & 0xffc0 < from & 0xffc0 {
+                64
+            } else {
+                0xffc0
+            });
+            if *c.cells.get(at as usize)? != 0 {
+                continue 'path;
+            }
+        }
+        return Some(true);
+    }
+    Some(false)
+}
+/// $14a54: reaching a wall waypoint plans the next corner but retains the
+/// previous motion heading/range until a later scheduled decision.
+fn continue_wall(r: &mut Runner, c: &Collision) -> Option<()> {
+    let start = cell(r.position());
+    let along = r.word(0x34).rotate_left(3) & 6;
+    let ahead = start.wrapping_add(grid_step(along));
+    if *c.cells.get(ahead as usize)? == 0 {
+        let behind_side = start
+            .wrapping_add(grid_step((along + 4) & 6))
+            .wrapping_add(grid_step((along + 2) & 6));
+        if *c.cells.get(behind_side as usize)? == 0 {
+            wall_waypoint(r, strip_end(c, start, along)?);
+            return Some(());
+        }
+    }
+    wall_search(r, c, true)
+}
+/// $14682 regular route, with the original $1470e wall-hugging fallback.
+fn plan_route(r: &mut Runner, c: &Collision) -> RoutePlan {
     r.raw[0xb0] |= 2;
     if r.raw[0xb0] & 8 != 0 {
-        return false;
+        return RoutePlan::Regular;
     }
     let p = r.position();
     let goal = (r.word(0x96), r.word(0x98));
@@ -161,7 +277,7 @@ fn plan_route(r: &mut Runner, c: &Collision) -> bool {
     let start = cell(p);
     if !cell_open(c, start) {
         clear_route(r);
-        return true; // $14756 clears the route, then caller resumes direct steering
+        return RoutePlan::Regular; // $14756 clears the route, then caller resumes direct steering
     }
     r.set_word(0xba, 0);
     let advance = grid_step(forward);
@@ -172,7 +288,7 @@ fn plan_route(r: &mut Runner, c: &Collision) -> bool {
         let next = end.wrapping_add(advance);
         let Some(value) = c.cells.get(next as usize) else {
             clear_route(r);
-            return false;
+            return RoutePlan::OutsideRaster;
         };
         if *value != 0 {
             break;
@@ -182,7 +298,7 @@ fn plan_route(r: &mut Runner, c: &Collision) -> bool {
     if end != start {
         r.set_word(0xbc, start.wrapping_add(advance));
         r.set_word(0xbe, 0xffff);
-        return true;
+        return RoutePlan::Regular;
     }
     for direction in [side, side ^ 4] {
         let step = grid_step(direction);
@@ -191,7 +307,7 @@ fn plan_route(r: &mut Runner, c: &Collision) -> bool {
             at = at.wrapping_add(step);
             if c.cells.get(at as usize).is_none() {
                 clear_route(r);
-                return false;
+                return RoutePlan::OutsideRaster;
             }
             if !cell_open(c, at) {
                 break;
@@ -199,18 +315,22 @@ fn plan_route(r: &mut Runner, c: &Collision) -> bool {
             let next = at.wrapping_add(advance);
             if c.cells.get(next as usize).is_none() {
                 clear_route(r);
-                return false;
+                return RoutePlan::OutsideRaster;
             }
             if cell_open(c, next) {
                 r.set_word(0xbc, at);
                 r.set_word(0xbe, next);
                 r.set_word(0xc0, 0xffff);
-                return true;
+                return RoutePlan::Regular;
             }
         }
     }
-    clear_route(r);
-    false
+    r.raw[0xb0] |= 8;
+    if wall_search(r, c, false).is_none() {
+        clear_route(r);
+        return RoutePlan::OutsideRaster;
+    }
+    RoutePlan::Fallback
 }
 fn need_route(r: &mut Runner) -> bool {
     let dx = r.word(0x96).wrapping_sub(r.position().0) as i16;
@@ -229,6 +349,66 @@ fn need_route(r: &mut Runner) -> bool {
             blocked & 2 == 0
         }
 }
+fn set_steering(r: &mut Runner, angle: u16, range: u16) {
+    r.set_word(0x34, angle);
+    r.set_word(0xc8, range);
+    set_behavior(r, 0xb574);
+}
+fn direct_steering(r: &mut Runner, rom: &[u8]) -> Result<(), RomError> {
+    let (angle, range) = heading(rom, r.position(), (r.word(0x96), r.word(0x98)))?;
+    set_steering(r, angle, range);
+    Ok(())
+}
+/// $149c0. A cleared wall route returns immediately, preserving motion fields.
+fn follow_route(r: &mut Runner, rom: &[u8], c: &Collision) -> Result<bool, RomError> {
+    if r.raw[0xb0] & 8 != 0 {
+        match direct_grid_paths(c, cell(r.position()), cell((r.word(0x96), r.word(0x98)))) {
+            Some(true) => {
+                clear_route(r);
+                return Ok(true);
+            }
+            None => return Ok(false),
+            Some(false) => {}
+        }
+    }
+    let mut offset = usize::from(r.word(0xba));
+    if offset > 8 || offset & 1 != 0 {
+        return Ok(false);
+    }
+    let mut next = r.word(0xbc + offset);
+    if cell(r.position()) == next {
+        if r.word(0xbe + offset) == 0xffff {
+            if r.raw[0xb0] & 8 != 0 {
+                return Ok(continue_wall(r, c).is_some());
+            }
+            clear_route(r);
+            route_signs(r);
+            direct_steering(r, rom)?;
+            return Ok(true);
+        }
+        offset += 2;
+        r.set_word(0xba, offset as u16);
+        next = r.word(0xbc + offset);
+    }
+    let here = cell(r.position());
+    let direction: u16 = if here & 0xffc0 == next & 0xffc0 {
+        if here & 63 < next & 63 {
+            2
+        } else {
+            6
+        }
+    } else if here & 0xffc0 < next & 0xffc0 {
+        4
+    } else {
+        0
+    };
+    let target = (
+        ((next & 63) << 9).wrapping_add(0x100),
+        ((next >> 6) << 9).wrapping_add(0x100),
+    );
+    set_steering(r, direction.rotate_right(3), distance(r.position(), target));
+    Ok(true)
+}
 fn steer(r: &mut Runner, rom: &[u8], c: &Collision) -> Result<bool, RomError> {
     if (r.word(0x16) as i16) > 0x3c {
         return Ok(true);
@@ -239,71 +419,35 @@ fn steer(r: &mut Runner, rom: &[u8], c: &Collision) -> Result<bool, RomError> {
         if pending {
             route_signs(r);
         } else if r.word(0xb8) != 0x1000 {
-            if need_route(r) && !plan_route(r, c) {
-                idle(r, false);
-                return Ok(false);
+            if need_route(r) {
+                let plan = plan_route(r, c);
+                // $1470e tail-calls $149c0 before returning to $145da, which
+                // may consume the route a second time in this same decision.
+                if plan == RoutePlan::OutsideRaster
+                    || (plan == RoutePlan::Fallback && !follow_route(r, rom, c)?)
+                {
+                    clear_route(r);
+                    idle(r, false);
+                    return Ok(false);
+                }
             }
             if r.raw[0xb0] & 2 == 0 {
                 route_signs(r);
             }
         }
     }
-    let mut target = (r.word(0x96), r.word(0x98));
-    let mut waypoint_heading = None;
     if r.raw[0xb0] & 2 != 0 {
-        if r.raw[0xb0] & 8 != 0 {
+        if !follow_route(r, rom, c)? {
             clear_route(r);
             idle(r, false);
             return Ok(false);
         }
-        let mut offset = usize::from(r.word(0xba));
-        if offset > 8 || offset & 1 != 0 {
-            clear_route(r);
-            idle(r, false);
-            return Ok(false);
-        }
-        let mut next = r.word(0xbc + offset);
-        if cell(r.position()) == next {
-            if r.word(0xbe + offset) == 0xffff {
-                clear_route(r);
-                route_signs(r);
-            } else {
-                offset += 2;
-                r.set_word(0xba, offset as u16);
-                next = r.word(0xbc + offset);
-            }
-        }
-        if r.raw[0xb0] & 2 != 0 {
-            let here = cell(r.position());
-            let direction = if here & 0xffc0 == next & 0xffc0 {
-                if here & 63 < next & 63 {
-                    2
-                } else {
-                    6
-                }
-            } else if here & 0xffc0 < next & 0xffc0 {
-                4
-            } else {
-                0
-            };
-            waypoint_heading = Some((direction as u16).rotate_right(3));
-            target = (
-                ((next & 63) << 9).wrapping_add(0x100),
-                ((next >> 6) << 9).wrapping_add(0x100),
-            );
-        }
-    }
-    let (angle, range) = if let Some(angle) = waypoint_heading {
-        (angle, distance(r.position(), target))
     } else {
-        heading(rom, r.position(), target)?
-    };
-    r.set_word(0x34, angle);
-    r.set_word(0xc8, range);
-    set_behavior(r, 0xb574);
+        direct_steering(r, rom)?;
+    }
     Ok(true)
 }
-/// $14508 + stop gate $144e8/$1460e. Returns false for a withheld fallback route.
+/// $14508 + stop gate $144e8/$1460e. Returns false for an unmodeled raster access.
 pub fn decide(
     rom: &[u8],
     c: &Collision,
@@ -469,6 +613,24 @@ pub fn warmup(
         .clone();
     dispatch(rom, c, party, selected, &previous, true)
 }
+/// One scheduled companion decision, separated from motion so actor contacts
+/// can temporarily replace that motion in the original slot order.
+pub fn schedule(
+    rom: &[u8],
+    c: &Collision,
+    r: &mut Runner,
+    leader: &Runner,
+    serviced: &mut bool,
+) -> Result<(), RomError> {
+    let timer = r.word(0xb6).wrapping_sub(1);
+    r.set_word(0xb6, timer);
+    if (timer as i16) < 0 && !*serviced {
+        *serviced = true;
+        r.set_word(0xb6, 20);
+        decide(rom, c, r, leader)?;
+    }
+    Ok(())
+}
 fn dispatch(
     rom: &[u8],
     c: &Collision,
@@ -494,22 +656,17 @@ fn dispatch(
             }
             continue;
         }
-        let timer = r.word(0xb6).wrapping_sub(1);
-        r.set_word(0xb6, timer);
-        if (timer as i16) < 0 && !serviced {
-            serviced = true;
-            r.set_word(0xb6, 20);
-            decide(
-                rom,
-                c,
-                r,
-                if slot < selected {
-                    previous_leader
-                } else {
-                    &leader
-                },
-            )?;
-        }
+        schedule(
+            rom,
+            c,
+            r,
+            if slot < selected {
+                previous_leader
+            } else {
+                &leader
+            },
+            &mut serviced,
+        )?;
         // $ac9e/$ae5e keeps warm-up positions fixed while allowing goals/timers
         // to reset for the destination. Otherwise old-room waypoints survive.
         if warmup {
@@ -532,11 +689,49 @@ mod tests {
         assert_eq!(distance((0xfff0, 0), (0x10, 0)), 32);
     }
     #[test]
+    fn wall_scan_withholds_unmodeled_neighbor_reads() {
+        let mut c = Collision {
+            cells: vec![0; 4096],
+            rectangles: vec![],
+            bounds: [0, 0, 2048, 2048],
+            map_width_tiles: 128,
+            overflow_writes: vec![],
+        };
+        // The original scans east, then samples the south neighbor in adjacent
+        // RAM. That neighbor is outside the native collision model.
+        assert_eq!(wall_scan(&c, 4094, 2, 4, false), None);
+        // A real obstacle ends the scan without needing that unavailable RAM.
+        c.cells[4095] = 0x7f;
+        assert_eq!(wall_scan(&c, 4094, 2, 4, false), Some((4094, 2, 4)));
+    }
+    #[test]
+    fn wall_scan_uses_inclusive_descriptor_tile_width() {
+        let mut c = Collision {
+            cells: vec![0; 4096],
+            rectangles: vec![],
+            bounds: [0, 0, 512, 512],
+            map_width_tiles: 5,
+            overflow_writes: vec![],
+        };
+        // Navigation compares the cell column directly to descriptor $24,
+        // not to the playable right boundary or to the raster stride.
+        assert_eq!(
+            wall_scan(&c, 5 * 64 + 5, 2, 4, false),
+            Some((5 * 64 + 5, 2, 4))
+        );
+        c.map_width_tiles = 6;
+        assert_eq!(
+            wall_scan(&c, 5 * 64 + 5, 2, 4, false),
+            Some((5 * 64 + 6, 2, 4))
+        );
+    }
+    #[test]
     fn selected_inactive_and_dead_actors_do_not_consume_ai_slots() {
         let c = Collision {
             cells: vec![0; 4096],
             rectangles: vec![],
             bounds: [0, 0, 512, 512],
+            map_width_tiles: 32,
             overflow_writes: vec![],
         };
         let mut p: Vec<_> = [15, 0, 0x4d]

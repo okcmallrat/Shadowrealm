@@ -28,11 +28,25 @@ generic steering approximation replaces those tables.
 The regular `14682` route builder and `149c0` waypoint consumer can take a one-cell
 step along the main axis or route around a rectangular obstruction using a pair
 of corner cells. Route flags, offsets and sign-change checks mirror the traced
-entity fields. The original fallback at `1470e` and subsequent wall hugging are
-not implemented here. Such cases stop conservatively, as do original scans that
-would read outside the modeled collision raster. No invented teleport or A*
-fallback disguises that missing behavior. Companions can still get stuck in
-complex layouts; this remains a development milestone.
+entity fields. The `1470e` fallback now follows the original wall-hugging path when those
+strips cannot reach around an obstruction. `14af4/14800` searches up to five
+candidate directions; `14764/14a54` advances subsequent corners, including the
+original clear-strip continuation. `14914` clears wall hugging when either of
+the two orthogonal L paths to the goal becomes clear. It does not require both.
+Reaching a wall waypoint updates the next waypoint while retaining the previous
+motion heading/range until a later scheduled decision, matching the original.
+The initial fallback can consume a waypoint twice through its tail-call and
+caller; that ordering is preserved.
+
+Navigation retains descriptor word `24` (`ffddea`) separately from playable
+bounds: the original compares the raster column directly with that tile-width
+word, inclusively. It is not interchangeable with playable width or the fixed
+64-cell raster stride. Reads outside the modeled collision raster remain
+withheld. Closed pockets follow the original route-clearing/direct-steering
+behavior and cannot teleport through walls. Physical actor contacts now use the recovered separation response described in
+[actor contacts](actor-contacts.md). General contact scripts, combat AI and
+controlled separation onto area triggers remain incomplete, so this does not
+establish robust all-room navigation.
 
 `b574/b6e4/bade` supplies walking, gradual turning and static collision sliding.
 The distance-selected velocity tables use steps of 8, 10, 15, 20 or 31 fixed-point
@@ -81,10 +95,9 @@ cargo run --release --locked -- follower-data /path/to/Shadowrun.bin artifacts/f
 The routine oracle checks 1,024 heading/distance pairs, 768 formation goals,
 762 supported complete decisions and 1,024 movement/slide records against actual
 68000 execution on maps 0, 3, 5 and 10. Six decision cases are explicitly withheld
-because the original reads outside the collision raster. Four additional boxed-in
-cases confirm that the original requests wall hugging and the bounded native
-dispatcher withholds that route without moving the actor. These are counted,
-not presented as equivalent fallback paths.
+because the original reads outside the collision raster. Four closed-pocket cases now compare the complete decision result with the
+original, including the failed wall search and route clearing; they are no
+longer withheld fallback cases.
 
 A further 900-tick, three-runner trace matches full actor records for scheduler,
 warm-up and regular corner routing around a synthetic wall using the real ROM
@@ -92,7 +105,17 @@ tables. It isolates these routines, holding visibility fixed and excluding
 dynamic actor collision avoidance, combat, rendering timing and animation ticks.
 The standalone endpoints use code hooks to handle cached Unicorn block boundaries.
 
-There are 45 passing unit tests and nine explicitly enabled ROM integration tests.
+A further 7,200 scheduler/movement ticks traverse four rotated U-shaped pockets,
+matching every actor byte after each tick against original execution. Another
+192 standalone decisions cover initial navigation, regular waypoint completion
+and active wall-route completion at varied headings/positions. The oracle checks
+that the original initial search, corner search, L-path exit and clear-strip
+continuation branches actually execute. A functional test verifies each rotated
+pocket uses fallback, leaves it, and reaches formation while every footprint
+remains clear.
+
+There are 49 passing unit tests and 12 explicitly enabled ROM integration tests
+including the new physical-contact checks; see [actor contacts](actor-contacts.md).
 New checks cover a regular wall detour, refusal to cross an area trigger, and an
 actual hire → exterior return → following → leader switch sequence. Followers
 must move normally and catch up when the leader stops, preserving payment and
@@ -107,7 +130,7 @@ cross-compiles; actual Windows GUI playtesting remains outstanding.
 
 ## Next bounded work
 
-Recover the `1470e` fallback/wall-hugging path and dynamic actor avoidance
-(`eb92/b49c`) before claiming robust companion navigation in all rooms. Then
-connect combat targeting and the job/mission loop, including single-run contract
-completion, earning money and broader dialogue/opinion state.
+Recover controlled separation/travel side effects and combat target selection.
+Keep the six unmodeled raster cases explicit. Then connect the job/mission loop,
+including single-run contract completion, earning money and broader dialogue/
+opinion state. Keep JSON additions small and source-backed.

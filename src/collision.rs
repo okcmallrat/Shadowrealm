@@ -19,6 +19,9 @@ pub struct Collision {
     pub cells: Vec<u8>,
     pub rectangles: Vec<Rect>,
     pub bounds: [u16; 4],
+    /// Descriptor $24 / RAM $ffddea, used verbatim by navigation's bounds checks.
+    /// This is a map tile width, not the collision raster's fixed 64-cell stride.
+    pub map_width_tiles: u16,
     pub overflow_writes: Vec<(i16, u8)>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +89,7 @@ impl Collision {
         Ok(Self {
             cells,
             rectangles,
+            map_width_tiles: w(&map.raw, 0x24)?,
             bounds: [
                 w(&map.raw, 0x10)?,
                 w(&map.raw, 0x12)?,
@@ -203,6 +207,7 @@ mod tests {
             cells: vec![0; 4096],
             rectangles: vec![],
             bounds: [12, 7, 200, 200],
+            map_width_tiles: 14,
             overflow_writes: vec![],
         };
         c.cells[0] = 0xb0;
@@ -216,6 +221,7 @@ mod tests {
             cells: vec![0; 4096],
             rectangles: vec![],
             bounds: [12, 7, 200, 200],
+            map_width_tiles: 14,
             overflow_writes: vec![],
         };
         assert_eq!(c.contact((100 * 16, 100 * 16)).unwrap(), Contact::Clear);

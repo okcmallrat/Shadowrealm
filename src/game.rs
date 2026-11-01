@@ -3,6 +3,7 @@
 //! are not yet reconstructed.
 use crate::{
     actors::{project, ActorFrame},
+    avoidance,
     collision::{Collision, Contact},
     dialogue::Dialogue,
     dialogue_data::{Catalog, Knowledge},
@@ -45,6 +46,7 @@ pub struct Game {
     pub completed_transitions: u64,
     map: MapDescriptor,
     input: Controller,
+    avoidance: avoidance::State,
 }
 impl Game {
     /// Template selection is explicit: it is not an earned/recruited save-game roster.
@@ -100,6 +102,7 @@ impl Game {
             completed_transitions: 0,
             map,
             input: Controller::default(),
+            avoidance: avoidance::State::default(),
         };
         result.refresh_hud(rom)?;
         result.sync_projections();
@@ -430,92 +433,148 @@ impl Game {
             self.npc_dialogue_cooldown = 60;
             return Ok(());
         }
-        let previous_leader = self.party[self.selected].clone();
-        let heading = self.input.direction();
-        let source_map = self.map.id;
-        let camera_fixed_x = self.camera.0.wrapping_mul(16);
-        let runner = &mut self.party[self.selected];
-        let mut plan = None;
-        let mut moved = false;
-        if let Some(target) = heading {
-            runner.turn_toward(target);
-            let direction = (runner.word(0x2e).rotate_left(3) & 7) as usize;
-            // Default player table selected by $b5ea for template flag bit 3.
-            let base = 0xbec2 + direction * 4;
-            let dx = i16::from_be_bytes(
-                rom.get(base..base + 2)
-                    .ok_or(RomError("movement table missing"))?
-                    .try_into()
-                    .unwrap(),
-            );
-            let dy = i16::from_be_bytes(
-                rom.get(base + 2..base + 4)
-                    .ok_or(RomError("movement table missing"))?
-                    .try_into()
-                    .unwrap(),
-            );
-            let (x, y) = runner.position();
-            let candidate = (x.wrapping_add(dx as u16), y.wrapping_add(dy as u16));
-            match self.collision.contact(candidate)? {
-                Contact::Clear => {
-                    runner.set_position(candidate.0, candidate.1);
-                    moved = true;
+        let mut serviced = false;
+        for slot in 0..self.party.len() {
+            if self.party[slot].raw[0x10] & 0x51 != 1 {
+                continue;
+            }
+            if slot != self.selected {
+                let leader = self.party[self.selected].clone();
+                if self.party[slot].raw[0x10] & 8 != 0 {
+                    followers::schedule(
+                        rom,
+                        &self.collision,
+                        &mut self.party[slot],
+                        &leader,
+                        &mut serviced,
+                    )?;
                 }
-                Contact::Blocked => self.blocked = true,
-                // Stop rather than entering a door/mission without its unresolved script.
-                Contact::Trigger(code) => {
-                    self.pending_transition = Some(code);
-                    self.blocked = true;
-                    if runner.raw[0x10] & 2 != 0 && self.collision.trigger_corners(candidate) >= 2 {
-                        plan = TransitionPlan::exterior(rom, source_map, code, camera_fixed_x)?;
-                        if plan.is_none() {
-                            if let Some(saved) = self.saved_exterior {
-                                plan = TransitionPlan::leave_interior(source_map, code, saved);
-                            } else {
-                                plan = TransitionPlan::space_needle(
-                                    rom,
-                                    &self.map,
-                                    code,
-                                    (camera_fixed_x, self.camera.1.wrapping_mul(16)),
-                                    runner.position(),
-                                )?;
+                avoidance::scan(
+                    rom,
+                    &mut self.party,
+                    &mut self.npcs,
+                    slot,
+                    &mut self.avoidance,
+                )?;
+                if !avoidance::respond(
+                    rom,
+                    &self.collision,
+                    &mut self.party[slot],
+                    self.tick as u16,
+                )? {
+                    followers::move_one(rom, &self.collision, &mut self.party[slot])?;
+                }
+                continue;
+            }
+            let target = self.input.direction();
+            if let Some(angle) = target {
+                self.party[slot].set_word(0x34, angle);
+            }
+            self.party[slot].raw[0x3a..0x3e].copy_from_slice(
+                &(if target.is_some() { 0xb574u32 } else { 0xb45c }).to_be_bytes(),
+            );
+            avoidance::scan(
+                rom,
+                &mut self.party,
+                &mut self.npcs,
+                slot,
+                &mut self.avoidance,
+            )?;
+            if avoidance::respond(
+                rom,
+                &self.collision,
+                &mut self.party[slot],
+                self.tick as u16,
+            )? {
+                continue;
+            }
+            let heading = self.input.direction();
+            let source_map = self.map.id;
+            let camera_fixed_x = self.camera.0.wrapping_mul(16);
+            let runner = &mut self.party[self.selected];
+            let mut plan = None;
+            let mut moved = false;
+            if let Some(target) = heading {
+                runner.turn_toward(target);
+                let direction = (runner.word(0x2e).rotate_left(3) & 7) as usize;
+                // Default player table selected by $b5ea for template flag bit 3.
+                let base = 0xbec2 + direction * 4;
+                let dx = i16::from_be_bytes(
+                    rom.get(base..base + 2)
+                        .ok_or(RomError("movement table missing"))?
+                        .try_into()
+                        .unwrap(),
+                );
+                let dy = i16::from_be_bytes(
+                    rom.get(base + 2..base + 4)
+                        .ok_or(RomError("movement table missing"))?
+                        .try_into()
+                        .unwrap(),
+                );
+                let (x, y) = runner.position();
+                let candidate = (x.wrapping_add(dx as u16), y.wrapping_add(dy as u16));
+                match self.collision.contact(candidate)? {
+                    Contact::Clear => {
+                        runner.set_position(candidate.0, candidate.1);
+                        moved = true;
+                    }
+                    Contact::Blocked => self.blocked = true,
+                    // Stop rather than entering a door/mission without its unresolved script.
+                    Contact::Trigger(code) => {
+                        self.pending_transition = Some(code);
+                        self.blocked = true;
+                        if runner.raw[0x10] & 2 != 0
+                            && self.collision.trigger_corners(candidate) >= 2
+                        {
+                            plan = TransitionPlan::exterior(rom, source_map, code, camera_fixed_x)?;
+                            if plan.is_none() {
+                                if let Some(saved) = self.saved_exterior {
+                                    plan = TransitionPlan::leave_interior(source_map, code, saved);
+                                } else {
+                                    plan = TransitionPlan::space_needle(
+                                        rom,
+                                        &self.map,
+                                        code,
+                                        (camera_fixed_x, self.camera.1.wrapping_mul(16)),
+                                        runner.position(),
+                                    )?;
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        runner.select_motion(moved);
-        runner.raw[0x3a..0x3e]
-            .copy_from_slice(&(if moved { 0xb574u32 } else { 0xb45c }).to_be_bytes());
-        runner.set_word(0x38, if moved { 1 } else { 0 });
-        if heading.is_some() {
-            runner.set_word(0xb8, if moved { 0x1000 } else { 0xffff });
-            runner.set_word(0xca, 30);
-        }
-        if let Some(plan) = plan {
-            if plan.kind == TransitionKind::EnterSpaceNeedle {
-                self.dialogue = Some(Dialogue::exposition(rom, self.catalog.entrance.address.0)?);
-                self.dialogue_target = Some(plan);
+            runner.select_motion(moved);
+            runner.raw[0x3a..0x3e]
+                .copy_from_slice(&(if moved { 0xb574u32 } else { 0xb45c }).to_be_bytes());
+            runner.set_word(0x38, if moved { 1 } else { 0 });
+            if heading.is_some() {
+                runner.set_word(0xb8, if moved { 0x1000 } else { 0xffff });
+                runner.set_word(0xca, 30);
+            }
+            if let Some(plan) = plan {
+                if plan.kind == TransitionKind::EnterSpaceNeedle {
+                    self.dialogue =
+                        Some(Dialogue::exposition(rom, self.catalog.entrance.address.0)?);
+                    self.dialogue_target = Some(plan);
+                    self.blocked = false;
+                    return Ok(());
+                }
+                self.transition = Some(ActiveTransition {
+                    plan,
+                    stage: TransitionStage::FadeOut,
+                    ticks: 0,
+                    target_palette: self.scene.palette,
+                });
                 self.blocked = false;
                 return Ok(());
             }
-            self.transition = Some(ActiveTransition {
-                plan,
-                stage: TransitionStage::FadeOut,
-                ticks: 0,
-                target_palette: self.scene.palette,
-            });
-            self.blocked = false;
-            return Ok(());
         }
-        followers::tick(
-            rom,
-            &self.collision,
-            &mut self.party,
-            self.selected,
-            &previous_leader,
-        )?;
+        for npc in &mut self.npcs {
+            if npc.raw[0x10] & 0x41 == 1 {
+                avoidance::respond(rom, &self.collision, npc, self.tick as u16)?;
+            }
+        }
         for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
             runner.tick_animation(rom)?;
         }

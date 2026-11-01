@@ -1,7 +1,8 @@
 """Compare the bounded noncombat follower routines with original 68000 execution.
 
 Uses the original collision raster/queries and the pre-existing ROM oracle.
-Dynamic actor avoidance, combat and fallback wall hugging are excluded explicitly.
+Dynamic actor avoidance and combat are excluded explicitly; fallback wall hugging
+is compared through rotated pocket decisions and complete scheduler/movement traces.
 """
 import argparse, hashlib, json, struct, subprocess, tempfile
 from pathlib import Path
@@ -76,24 +77,40 @@ with tempfile.TemporaryDirectory() as temp:
   c=cpus[case['map']];reset(c);c.mem_write(0xff0200,bytes(case['before']));c.reg_write(UC_M68K_REG_A0,0xff0200)
   assert call(c,0xaaa0,0xaac6)==0xaac6
   compare(c,case,f'movement {i}')
- c=cpu();trace=data['timeline'];c.mem_write(0xff0100,bytes(trace['initial']));c.mem_write(0xff1700,bytes(trace['cells']));c.mem_write(0xfffc04,struct.pack('>I',0xff0100))
- for address,value in [(0xffddd2,512),(0xffddd4,512),(0xffddd6,0),(0xffddd8,0),(0xffddea,32)]:c.mem_write(address,struct.pack('>H',value))
- for tick,expected in enumerate(trace['ticks']):
-  c.mem_write(0xffe175,b'\x00')
-  if tick<trace['warmup_frames']:
-   reset(c);c.reg_write(UC_M68K_REG_A0,0xff0100);assert call(c,0xae5e)==0x400000;assert call(c,0xaaa0,0xaac6)==0xaac6
-  for actor in [0xff0200,0xff0300]:
-   reset(c);c.reg_write(UC_M68K_REG_A0,actor);assert call(c,0x138b8)==0x400000
-   if tick<trace['warmup_frames']:assert call(c,0xae5e)==0x400000
-   reset(c);c.reg_write(UC_M68K_REG_A0,actor);assert call(c,0xaaa0,0xaac6)==0xaac6
-  got=bytes(c.mem_read(0xff0100,len(expected)))
-  assert got==bytes(expected),f'timeline tick {tick} differs at {[hex(i) for i in range(len(expected)) if got[i]!=expected[i]][:24]}'
+ fallback_ticks=0
+ visits={address:0 for address in [0x1470e,0x14764,0x14800,0x14914,0x14a54,0x14aaa]}
+ def count_visit(uc,address,size,user):
+  visits[address]+=1
+ for trace in [data['timeline'], *data['fallback_timelines']]:
+  c=cpu();c.mem_write(0xff0100,bytes(trace['initial']));c.mem_write(0xff1700,bytes(trace['cells']));c.mem_write(0xfffc04,struct.pack('>I',0xff0100))
+  for address,value in [(0xffddd2,512),(0xffddd4,512),(0xffddd6,0),(0xffddd8,0),(0xffddea,32)]:c.mem_write(address,struct.pack('>H',value))
+  hooks=[c.hook_add(UC_HOOK_CODE,count_visit,begin=address,end=address) for address in visits]
+  for tick,expected in enumerate(trace['ticks']):
+   c.mem_write(0xffe175,b'\x00')
+   if tick<trace['warmup_frames']:
+    reset(c);c.reg_write(UC_M68K_REG_A0,0xff0100);assert call(c,0xae5e)==0x400000;assert call(c,0xaaa0,0xaac6)==0xaac6
+   for actor in range(0xff0200,0xff0100+len(expected),256):
+    reset(c);c.reg_write(UC_M68K_REG_A0,actor);assert call(c,0x138b8)==0x400000
+    if tick<trace['warmup_frames']:assert call(c,0xae5e)==0x400000
+    reset(c);c.reg_write(UC_M68K_REG_A0,actor);assert call(c,0xaaa0,0xaac6)==0xaac6
+   got=bytes(c.mem_read(0xff0100,len(expected)))
+   assert got==bytes(expected),f'timeline rotation {trace.get("rotation", "regular")} tick {tick} differs at {[(hex(i),expected[i],got[i]) for i in range(len(expected)) if got[i]!=expected[i]][:24]}'
+  for hook in hooks:c.hook_del(hook)
+  if 'rotation' in trace:fallback_ticks+=len(trace['ticks'])
+ for i,case in enumerate(data['fallback_decisions']):
+  c=cpu();c.mem_write(0xff1700,bytes(data['fallback_timelines'][case['rotation']]['cells']));c.mem_write(0xfffc04,struct.pack('>I',0xff0100))
+  for address,value in [(0xffddd2,512),(0xffddd4,512),(0xffddd6,0),(0xffddd8,0),(0xffddea,32)]:c.mem_write(address,struct.pack('>H',value))
+  reset(c);c.mem_write(0xff0100,bytes(case['leader']));c.mem_write(0xff0200,bytes(case['before']));c.reg_write(UC_M68K_REG_A0,0xff0200)
+  hooks=[c.hook_add(UC_HOOK_CODE,count_visit,begin=address,end=address) for address in visits]
+  assert case['supported'];assert call(c,0x14508)==0x400000
+  for hook in hooks:c.hook_del(hook)
+  compare(c,dict(case,map=f'rotation {case["rotation"]}'),f'fallback decision {i}')
+ assert all(visits.values()),f'wall-hugging branches not exercised: {visits}'
  c=cpu();c.mem_write(0xff1700,bytes(data['boxed_cells']));c.mem_write(0xfffc04,struct.pack('>I',0xff0100))
  for address,value in [(0xffddd2,512),(0xffddd4,512),(0xffddd6,0),(0xffddd8,0)]:c.mem_write(address,struct.pack('>H',value))
- hook=c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop(),begin=0x1470e,end=0x1470e)
- for case in data['withheld_cases']:
+ for case in data['closed_cases']:
   reset(c);c.mem_write(0xff0100,bytes(case['leader']));c.mem_write(0xff0200,bytes(case['before']));c.reg_write(UC_M68K_REG_A0,0xff0200)
-  assert not case['supported'];assert call(c,0x14508)==0x1470e
-  assert bytes(case['after'])[:8]==bytes(case['before'])[:8], 'withheld route moved actor'
- c.hook_del(hook)
-print(f'PASS: {len(data["math"])} heading/distance pairs; {len(data["decisions"])} formation goals, {supported} supported decisions, {withheld} withheld raster routes; {len(data["movement"])} movement records; {len(trace["ticks"])} three-runner scheduler/warm-up ticks; {len(data["withheld_cases"])} guarded original wall-hugging requests')
+  assert case['supported'];assert call(c,0x14508)==0x400000
+  compare(c,dict(case,map='boxed'), 'closed pocket')
+  assert bytes(case['after'])[:8]==bytes(case['before'])[:8], 'closed-pocket decision moved actor'
+print(f'PASS: {len(data["math"])} heading/distance pairs; {len(data["decisions"])} formation goals, {supported} supported decisions, {withheld} withheld raster routes; {len(data["movement"])} movement records; 900 three-runner scheduler/warm-up ticks; {fallback_ticks} rotated wall-hugging ticks; {len(data["fallback_decisions"])} fallback/waypoint decisions; {len(data["closed_cases"])} closed-pocket decisions')

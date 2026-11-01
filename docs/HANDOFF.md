@@ -8,11 +8,10 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-The user has paused work and asked to save the checkpoint for later. No
-clarification or approval is pending. Do not start new feature work until the user
-resumes. On resuming, inspect Git status and continue companion fallback/avoidance
-from the latest milestone below; do not restart completed ROM/map/hiring work.
-Do not assume prior runtime files outside Git persist.
+The user resumed development after cloud setup. The current local milestone
+adds original fallback wall hugging and physical actor-contact separation to
+companion following. Next, recover controlled separation/travel effects and
+combat target selection; do not restart completed ROM/map/hiring/navigation work. No clarification is pending. Do not assume runtime files outside Git persist.
 
 The user explicitly asked to introduce JSON **slowly** for recovered dialogue
 and quest logic. Keep the Rust engine and use small verified records; do not
@@ -22,17 +21,18 @@ migrate unrelated systems or invent missing quest rules.
 
 Repository: https://github.com/okcmallrat/Shadowrealm
 Branch: `main`
-Latest implementation checkpoint: `e5979b9` — verified Ghidra reference and
+Earlier published implementation checkpoint: `e5979b9` — verified Ghidra reference and
 noncombat companion following. Its source, tests, tooling and refreshed Windows
 package have been pushed to `main`. The subsequent documentation-only pause
 checkpoint records this stopping point; see `git log` for its commit.
 
 Source, docs, scripts, validators, and the Windows package are on GitHub.
 The last checked working tree before preparing this handoff was clean.
-No source changes or running feature tasks were left unfinished at the pause.
+The resumed fallback/contact milestones are recorded together by this checkpoint.
+Use `git log` for its commit ID; the earlier checkpoint above describes the base.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `d164053effd042368680e1f4d8b9a3c9bda36afdff0338cbabf41dd311b96f30`.
+SHA-256: `2bf8158e2243349574d47d7f5d5762b155d3d110f1f51b000d8507dda237c2bc`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -65,8 +65,8 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
   refusal, member/HUD initialization, room-NPC removal and contract persistence.
   Tab transfers the controlled-player flag, so hired/switched runners use doors.
 - Bounded noncombat following: formation, 21-tick decision scheduling, regular
-  grid corner routes, distance/visibility speeds, gradual turning and static wall
-  sliding. The old leader follows after Tab switches control.
+  grid corner routes, fallback wall hugging, distance/visibility speeds, gradual turning
+  and static wall sliding. The old leader follows after Tab switches control.
 - Native desktop executable: WASD/arrows walk, Tab switches runner, Space pauses,
   Enter/Z acknowledges the entrance passage, R resets, Escape exits. Default map
   is 0; optional second CLI argument is map ID.
@@ -77,8 +77,7 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 Other interior doors/story transitions stop at a trigger. The Space Needle
 path implements its traced no-mission baseline; there is no quest-state VM yet.
 Combat, other branching dialogue/quest scripts, other recruiting, contract
-completion/dismissal/rehire history, other NPC/combat AI, fallback wall hugging,
-dynamic actor avoidance, inventory/menu interactions, skills/magic, character creation,
+completion/dismissal/rehire history, other NPC/combat AI, general contact/travel scripts, inventory/menu interactions, skills/magic, character creation,
 missions/story state, audio, and save/load are not implemented. The host camera
 is not the original look-ahead/hysteresis system. Original wall-sliding and other
 special movement cases are not ported. The Windows GUI has **not** been run or
@@ -195,7 +194,7 @@ the oracle skips UI/VDP-only calls and adjusts the native host animation rate.
 frames. Older dialogue/interior/seam and world/HUD checks still pass.
 The Windows package is refreshed; actual Windows GUI playtesting remains pending.
 
-## Latest milestone: Ghidra reference and noncombat following
+## Earlier milestone: Ghidra reference and noncombat following
 
 The user supplied the corrected `ShadowRunBin.gzf` and explicitly asked to use it
 going forward. Read `docs/ghidra-reference.md`: it records the upload/file ID,
@@ -210,9 +209,9 @@ and the original-routine oracle.
 Read `docs/companion-following.md` and `src/followers.rs`. Healthy non-selected
 party runners now use `ac84/138b8` scheduling, `14508` formation, original angle/
 distance tables, regular `14682/149c0` corner routes and `b574/bade` walking/sliding.
-The `1470e` fallback and original scans outside the collision raster stop safely
-instead of inventing a replacement path. Dynamic actor avoidance and combat
-targeting remain unimplemented. Do not claim all-room robust navigation.
+At that checkpoint, the `1470e` fallback and original scans outside the collision
+raster stopped safely. The fallback and physical contact response are now
+implemented as described below. Combat targeting remains unimplemented. Do not claim all-room robust navigation.
 
 Screen projection words `a/c` are maintained at tick end for the next tick's
 on/offscreen velocity choice. AI does not depend on render-call frequency. Party
@@ -224,8 +223,8 @@ essential: leaving decisions frozen kept stale interior waypoints after exit.
 Arrival positions still remain fixed. Tests compare persistent identity/stats/
 equipment/contract fields, not AI targets/timers/samples, across transitions.
 
-45 unit tests and nine explicitly enabled ROM integration tests pass. The new
-oracle compares 1024 heading/distance pairs, 768 formation goals, 762 supported
+That checkpoint had 45 passing unit tests and nine explicitly enabled ROM
+integration tests. Its oracle compares 1024 heading/distance pairs, 768 formation goals, 762 supported
 decisions, 6 explicitly withheld raster routes, 4 guarded wall-hugging requests,
 1024 movement/slide records and a 900-tick
 three-runner scheduler/warm-up/wall-route trace against original execution.
@@ -234,32 +233,81 @@ replay with leader switching, frames and a state trace. An actual hire → exit 
 follow → leader-switch integration test passes. Earlier oracles still pass.
 The Windows package is refreshed; actual Windows GUI testing remains pending.
 
+## Earlier local milestone: fallback wall hugging
+
+`src/followers.rs` now follows the original `1470e/14af4/14800` initial fallback,
+`14764/14a54` corner/clear-strip continuation, and `14914` L-path exit. The
+uploaded GZF was imported into a private Ghidra working copy and its actual
+program bytes rehashed against the ROM before targeted exports. No generated
+analysis or game assets are tracked.
+
+The route consumer preserves the original delayed heading/range refresh and
+initial tail-call/caller ordering. `Collision::map_width_tiles` stores descriptor
+word `24` verbatim for the inclusive original navigation bounds check; do not
+derive that value from playable right bounds. Out-of-raster reads remain guarded.
+Physical contacts and combat were excluded at this checkpoint.
+
+That checkpoint passed 47 unit tests and ten explicitly enabled ROM integration tests. The follower
+oracle adds 7,200 full-actor scheduler/movement ticks across four rotated U
+pockets, 192 fallback/waypoint decisions and four fully compared closed-pocket
+decisions. It requires the original initial-search, corner-search, L-path exit
+and clear-strip continuation branches to execute. The existing 900-tick regular
+scheduler/warm-up trace, 762 supported real-map decisions, six withheld raster
+routes, 1,024 movement cases, math/formation checks remain passing. Functional
+checks require fallback to clear and the companion to rejoin formation without
+entering blocked footprints in each pocket orientation.
+
+World, exterior transition, interior, dialogue and hiring original-routine checks
+also pass. The native Linux desktop and Windows cross-builds/package are rebuilt;
+actual Windows GUI playtesting is still outstanding. See releases/SHA256SUMS for
+the refreshed package digest. Rust remains the engine and the existing typed
+Serde/JSON dialogue/hiring pilot remains unchanged by this navigation work.
+
+## Latest local milestone: physical actor contacts
+
+Read `docs/actor-contacts.md`, `src/avoidance.rs` and `tools/validate_avoidance.py`.
+`eb92` physical contact flags/headings, widened existing target-link windows,
+`d44` random adjustments, and `aa88/b49c` temporary motion overrides now run in
+native party slot order, including selected-player deflections and the fixed NPC.
+The prior handler resumes; the original discarded third probe is preserved.
+
+49 unit tests and all 12 explicitly enabled ROM integration tests pass. The new
+oracle matches 1,536 contact cases (438 contacts, 69 random adjustments), 1,024
+response steps near real collision boundaries and 2,700 full-actor/RNG ordered
+ticks with all three selected slots. It exercises all probe branches, including
+clear third candidates that do not move. Existing follower/world/transition/
+interior/dialogue/hiring checks pass. The controller-only second door approach
+uses 15 rather than 11 rightward ticks after contact changes its trajectory;
+all repeated-entry and persistent-state assertions remain.
+
+The contact oracle omits only the `eccc` script callback; the separate existing
+Trent dialogue oracle remains passing. General contact/quest/combat scripts are
+not implemented. Controlled separation onto triggers remains blocked; normal
+player-driven travel works. Initial RNG seed zero and simulation frame parity
+are explicit native host choices, not recovered hardware boot timing. Fades,
+warm-up position holds and dialogue freezing remain. No JSON migration was needed
+for physical motion: typed Serde/JSON dialogue/hiring records remain in use.
+
+The native Linux desktop and Windows builds/package are refreshed. Actual
+Windows GUI/input remains untested. The current local ZIP digest is recorded
+above and in releases/SHA256SUMS. The fallback/contact changes are recorded by
+this checkpoint; see `git log` for its commit ID.
+
 ## Best next milestone
 
-Recover fallback wall hugging (`1470e` onward) and dynamic actor avoidance
-(`eb92/b49c`) before claiming robust following in complex rooms. Then connect
-combat targeting and the job/mission loop for earning money and resolving
-single-run contracts. Broader dialogue variants, other runners and dismissal/
-rehire history need their own recovered state.
-Keep JSON increments small and compare each operation with the original routines.
+Recover controlled separation onto triggers (`b732/ac5e/b7b8`) and its travel
+side effects, then combat target acquisition before enabling attacks. Connect
+one bounded source-backed job/mission flow for earning money and resolving
+single-run contracts. Keep JSON increments small and verify them against original
+routines. Do not claim full NPC AI or all-room robust navigation.
 
-Recommended resume sequence:
-
-1. Read `docs/companion-following.md`, `docs/ghidra-reference.md`, and
-   `src/followers.rs`; check whether the local toolchains and uploads still exist.
-2. Start from the bounded `1470e` wall-hugging fallback and the four currently
-   withheld boxed-in oracle cases. Use the Ghidra working copy/instruction views
-   and original-routine execution, rather than trusting untyped decompiled C.
-3. Extend the existing follower oracle and integration tests for one recovered
-   fallback path before enabling it. Then address `eb92/b49c` actor avoidance.
-4. After verified gameplay changes, rebuild/check the Windows package and update
-   its versioned ZIP/checksum. Windows GUI playtesting is still outstanding.
-
-Current quick checks after environment recovery are `cargo test --locked`, the
-explicit ROM-backed `--test followers --test transitions -- --ignored` checks,
-and `tools/validate_followers.py`. The saved result is 45 passing unit tests,
-nine ROM integration tests, and passing relevant original-routine comparisons.
-No game progress/save file is implied: native disk save/load is not implemented.
+The ROM and corrected GZF are privately retained at `/workspace/inputs/Shadowrun.bin`
+and `/workspace/inputs/ShadowRunBin.gzf`. Rust activation remains below. Python
+validators now use `/workspace/.venvs/shadowrealm/bin/python`; Ghidra/Java are
+under `/workspace/reverse-tools` as documented. Private analysis project:
+`artifacts/ghidra-projects/FallbackReference.gpr`; exports:
+`artifacts/fallback-reference/ghidra` and `artifacts/avoidance-reference/ghidra`.
+Do not commit these inputs or outputs.
 
 Trace `1651e → 16608 → 167ae`: source descriptor offset 4e supplies target-location
 mapping; `16e30` saves the exterior map before the location reload. Trace spawn
@@ -281,7 +329,8 @@ own state model and script handling before entry can be enabled.
 | src/dialogue.rs, src/npc.rs | Bounded exposition/font and fixed NPC initialization |
 | src/dialogue_data.rs, data/dialogue/space-needle.json | Validated embedded dialogue pilot and flag actions |
 | src/hiring.rs | Bounded Trent quote/payment/member initialization |
-| src/followers.rs | Bounded noncombat scheduler, formation, regular routes and walking |
+| src/followers.rs | Noncombat scheduler, formation, regular/fallback routes and walking |
+| src/avoidance.rs | Physical actor contact flags/headings/RNG and temporary separation motion |
 | tools/ghidra/ExportCompanion.java | Targeted views from the uploaded analysis reference |
 | src/bin/game.rs | Native desktop window and keyboard/timing loop |
 | src/party.rs | Templates, identity/assets, equipment resolution, facing |
@@ -350,10 +399,13 @@ PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_render.py /path/to/S
 
 Run checks relevant to the change. Current completed evidence:
 
-- 45 Rust unit tests pass; nine ROM-backed integration tests pass explicitly.
+- 49 Rust unit tests pass; 12 ROM-backed integration tests pass explicitly.
+- Physical contacts: 1536 cases, 1024 response steps and 2700 ordered party ticks
+  match actor bytes and RNG state (`tools/validate_avoidance.py`).
 - Noncombat followers: 1024 math pairs, 768 goals / 762 supported decisions,
-  1024 movement records and 900 scheduler/warm-up ticks match; 6 out-of-scope
-  raster routes and 4 wall-hugging requests are explicitly withheld
+  1024 movement records, 900 regular scheduler/warm-up ticks, 7200 wall-hugging
+  ticks, 192 fallback/waypoint decisions and 4 closed-pocket decisions match;
+  6 out-of-scope raster routes remain explicitly withheld
   (`tools/validate_followers.py`).
 - Trent first-hire: 54 original fee quotes and 24 complete purchase/capacity/funds
   cases match (`tools/validate_hiring.py`).
