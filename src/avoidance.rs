@@ -13,6 +13,16 @@ pub struct State {
     /// at zero; it does not reproduce hardware/input-dependent boot seeding.
     pub seed: u16,
 }
+impl State {
+    pub fn next_word(&mut self) -> u16 {
+        self.seed = self.seed.wrapping_mul(0x20e5).wrapping_add(1);
+        self.seed
+    }
+    /// $d3a: high word of the next seed times the candidate count.
+    pub fn sample(&mut self, count: u16) -> u16 {
+        ((u32::from(self.next_word()) * u32::from(count)) >> 16) as u16
+    }
+}
 fn pointer(r: &Runner, offset: usize) -> u32 {
     u32::from_be_bytes(r.raw[offset..offset + 4].try_into().unwrap())
 }
@@ -54,7 +64,7 @@ pub fn pair(
     b.set_word(0x92, angle.wrapping_add(0x4000));
     a.set_word(0x94, b.word(0x38));
     b.set_word(0x94, a.word(0x38));
-    state.seed = state.seed.wrapping_mul(0x20e5).wrapping_add(1);
+    state.next_word();
     if state.seed & 0x7000 == 0 {
         a.set_word(0x92, a.word(0x92).wrapping_add(0xc000));
         b.set_word(0x92, b.word(0x92).wrapping_add(0x4000));
@@ -79,11 +89,37 @@ pub fn scan(
     }
     Ok(())
 }
+/// Only the previously recovered noncombat travel routes may be activated.
+#[derive(Clone, Copy)]
+pub struct TravelScope {
+    pub map: usize,
+    pub has_return: bool,
+}
+impl TravelScope {
+    pub fn allows(self, code: u8) -> bool {
+        code >= 0x80
+            && (([0, 3, 5].contains(&self.map) && code & 31 == 16)
+                || (self.map == 0 && code == 0xc6)
+                || (self.map == 10 && self.has_return && code == 0x80))
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TriggerRequest {
+    pub code: u8,
+    /// $bc36 uses the first negative corner, which need not be the maximum code.
+    pub orientation: u8,
+}
+#[derive(Debug, Clone, Copy)]
+pub struct Response {
+    pub handled: bool,
+    pub trigger: Option<TriggerRequest>,
+}
 fn probe(
     rom: &[u8],
     c: &Collision,
     r: &mut Runner,
     angle: u16,
+    travel: Option<TravelScope>,
 ) -> Result<Option<(u16, u16)>, RomError> {
     let offset = 0xbf82 + usize::from(angle.rotate_left(3) & 7) * 4;
     let data = rom
@@ -101,21 +137,36 @@ fn probe(
         c.footprint_samples(candidate)
     };
     r.raw[0xd0..0xd4].copy_from_slice(&samples);
-    // Uncontrolled actors cannot travel. Controlled trigger scripts during
-    // separation remain guarded until their $ac5e side effects are recovered.
-    Ok(if c.contact(candidate)? == Contact::Clear {
-        Some(candidate)
-    } else {
-        None
-    })
+    let accepted = match c.contact(candidate)? {
+        Contact::Clear => true,
+        Contact::Trigger(code) => {
+            r.raw[0x10] & 2 != 0 && travel.is_some_and(|scope| scope.allows(code))
+        }
+        Contact::Blocked => false,
+    };
+    Ok(if accepted { Some(candidate) } else { None })
 }
 /// $aa88/$aa92/$aaa0 -> $b49c. A response replaces one motion dispatch and
 /// restores its handler without turning, changing animation state, or path data.
 pub fn respond(rom: &[u8], c: &Collision, r: &mut Runner, phase: u16) -> Result<bool, RomError> {
+    Ok(respond_with_travel(rom, c, r, phase, None)?.handled)
+}
+/// Controlled separation may request one of the already recovered travel paths.
+/// A request is dispatched after motion, including a discarded third probe.
+pub fn respond_with_travel(
+    rom: &[u8],
+    c: &Collision,
+    r: &mut Runner,
+    phase: u16,
+    travel: Option<TravelScope>,
+) -> Result<Response, RomError> {
     let pending = r.raw[0x11] & 2 != 0;
     r.raw[0x11] &= !2;
     if !pending {
-        return Ok(false);
+        return Ok(Response {
+            handled: false,
+            trigger: None,
+        });
     }
     r.raw.copy_within(0x3a..0x3e, 0xd4);
     r.raw[0x11] &= !4;
@@ -127,29 +178,58 @@ pub fn respond(rom: &[u8], c: &Collision, r: &mut Runner, phase: u16) -> Result<
     } else {
         r.word(0x92)
     };
-    let candidate = if let Some(p) = probe(rom, c, r, first)? {
+    let candidate = if let Some(p) = probe(rom, c, r, first, travel)? {
         Some(p)
     } else {
         r.set_word(0x38, 2);
-        if let Some(p) = probe(rom, c, r, r.word(0x92).wrapping_add(0x4000))? {
+        if let Some(p) = probe(rom, c, r, r.word(0x92).wrapping_add(0x4000), travel)? {
             Some(p)
         } else {
             // $b518/$b51e discards the third candidate for every status value.
             // Preserve that observed branch, including its footprint samples.
-            probe(rom, c, r, r.word(0x92).wrapping_add(0x8000))?;
+            probe(rom, c, r, r.word(0x92).wrapping_add(0x8000), travel)?;
             None
         }
     };
     if let Some((x, y)) = candidate {
         r.set_position(x, y);
     }
-    // $ac5e/$b7b8/$baae rejects a non-controlled party actor's final
-    // trigger sample and records the original blocked-route flag.
-    let samples = &r.raw[0xd0..0xd4];
-    if r.raw[0x10] & 0xa == 8 && !samples.contains(&0x7f) && samples.iter().any(|v| *v >= 0x80) {
-        r.raw[0xb0] = (r.raw[0xb0] & !0x20) | 1;
+    let trigger = post_motion_trigger(r, travel);
+    Ok(Response {
+        handled: true,
+        trigger,
+    })
+}
+/// $ac5e -> $b7b8's physical gate, stopping before its location/script call.
+fn post_motion_trigger(r: &mut Runner, travel: Option<TravelScope>) -> Option<TriggerRequest> {
+    if r.raw[0x10] & 8 == 0 {
+        return None;
     }
-    Ok(true)
+    let samples: [u8; 4] = r.raw[0xd0..0xd4].try_into().unwrap();
+    let code = if samples.contains(&0x7f) {
+        0x7f
+    } else {
+        *samples.iter().max().unwrap()
+    };
+    if code == 0 {
+        r.raw[0xb0] &= !0x20;
+    }
+    if code < 0x80 || r.raw[0xb0] & 0x20 != 0 {
+        return None;
+    }
+    r.raw[0xb0] |= 0x20;
+    if r.raw[0x10] & 2 == 0
+        || samples.iter().filter(|v| **v >= 0x80).count() < 2
+        || !travel.is_some_and(|scope| scope.allows(code))
+    {
+        r.raw[0xb0] = (r.raw[0xb0] & !0x20) | 1;
+        return None;
+    }
+    let first = samples.iter().find(|v| **v >= 0x80).copied().unwrap();
+    let orientation = first.rotate_left(3) & 3;
+    r.set_word(0xcc, u16::from(orientation).rotate_right(2));
+    r.set_word(0xc6, code as i8 as i16 as u16);
+    Some(TriggerRequest { code, orientation })
 }
 
 #[cfg(test)]
@@ -181,6 +261,66 @@ mod tests {
         // The original compares two wrapped unsigned bounds; it does not
         // reinterpret a wrapped interval as a torus around zero.
         assert!(!overlapping(&actor(0, (0, 0)), &actor(1, (0, 0))));
+    }
+    #[test]
+    fn mixed_corner_orientation_and_trigger_latch_match_the_physical_gate() {
+        let mut r = actor(0, (4000, 4000));
+        r.raw[0x10] = 0xf;
+        r.raw[0xd0..0xd4].copy_from_slice(&[0xa6, 0xc6, 0, 0]);
+        let scope = Some(TravelScope {
+            map: 0,
+            has_return: false,
+        });
+        assert_eq!(
+            post_motion_trigger(&mut r, scope),
+            Some(TriggerRequest {
+                code: 0xc6,
+                orientation: 1
+            })
+        );
+        assert_eq!(r.word(0xcc), 0x4000);
+        assert_eq!(r.word(0xc6), 0xffc6);
+        assert_eq!(
+            post_motion_trigger(&mut r, scope),
+            None,
+            "latched triggers must not dispatch twice"
+        );
+        r.raw[0xd0..0xd4].fill(0);
+        assert_eq!(post_motion_trigger(&mut r, scope), None);
+        assert_eq!(r.raw[0xb0] & 0x20, 0);
+        r.raw[0xd0] = 0xc6;
+        assert_eq!(
+            post_motion_trigger(&mut r, scope),
+            None,
+            "one corner cannot activate travel"
+        );
+        assert_eq!(r.raw[0xb0] & 0x21, 1);
+    }
+    #[test]
+    fn contact_travel_scope_keeps_unrecovered_locations_blocked() {
+        let exterior = TravelScope {
+            map: 0,
+            has_return: false,
+        };
+        assert!(exterior.allows(0xc6));
+        assert!(exterior.allows(0xb0));
+        assert!(!exterior.allows(0xc0));
+        assert!(!exterior.allows(0x10));
+        assert!(!TravelScope {
+            map: 10,
+            has_return: false
+        }
+        .allows(0x80));
+        assert!(TravelScope {
+            map: 10,
+            has_return: true
+        }
+        .allows(0x80));
+        assert!(!TravelScope {
+            map: 20,
+            has_return: true
+        }
+        .allows(0x80));
     }
     #[test]
     fn inactive_and_dead_targets_do_not_consume_randomness_or_mutate_actors() {

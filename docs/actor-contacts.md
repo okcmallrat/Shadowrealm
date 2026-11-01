@@ -3,7 +3,8 @@
 The native game now applies the physical contact response from `eb92/b49c` to
 the party and the currently supported fixed NPC. Nearby actors can deflect the
 player as well as companions. This is a reactive separation step after overlap,
-not predictive path planning, combat targeting, or complete NPC AI.
+not predictive path planning or complete NPC AI. The subsequent
+[target-selection milestone](combat-targets.md) creates the verified target links.
 
 The uploaded Ghidra reference was opened as a private working copy and the
 program memory hash was checked against the supplied ROM. Targeted instruction
@@ -17,7 +18,8 @@ does not define the Rust behavior.
 uses an unsigned 4-pixel window, lower inclusive and upper exclusive on each
 axis. An existing `a2/ac` actor link widens that window to 16 pixels. The window
 uses wrapped word bounds, rather than a toroidal distance calculation. Link
-comparison is supported here; creating combat/interaction targets is not.
+comparison is supported here; the subsequent target-selection milestone creates
+those links without enabling attacks.
 
 Contact sets byte `11` bit 1 on both actors and derives opposite separation
 headings in word `92` from the actual quantized heading tables. Word `94` stores
@@ -48,10 +50,10 @@ recreated hardware clock.
 ## Scope and validation
 
 Non-controlled actors still cannot cross area triggers. The final trigger sample
-also records the original `ac5e/b7b8/baae` blocked-route flag. Controlled separation
-onto a trigger is conservatively blocked until its travel/script side effects are
-recovered. Normal directional player movement still uses the existing verified
-exterior/Space Needle travel paths.
+also records the original `ac5e/b7b8/baae` blocked-route flag. Controlled separation can now activate the already verified exterior seams
+on maps 0/3/5 and the map 0 Space Needle entrance / map 10 return, with the
+required saved return context. Other locations remain blocked. Normal directional
+player movement continues to use those same bounded travel paths.
 
 The contact-only oracle omits the `eccc` dialogue/quest callback to isolate
 physical effects; it executes the real heading, RNG, response and static-collision
@@ -76,9 +78,46 @@ Functional tests drive overlapping parties apart with every selected slot and
 verify clear footprints, unchanged health/equipment/wallet, and restored idle-NPC
 behavior. The repeated Space Needle approach now uses four more rightward input
 ticks to account for actual contact deflections; it still uses controller input
-only and preserves the entry/return assertions. There are 49 passing unit tests
-and 12 explicitly executed ROM integration tests. The earlier follower, world,
+only and preserves the entry/return assertions. That checkpoint passed 49 unit
+tests and 12 explicitly executed ROM integration tests. The earlier follower, world,
 transition, interior, dialogue and hiring oracles also pass.
 
 The Windows package is cross-built and inspected. Windows GUI/input playtesting
 remains outstanding. These checks do not establish full-game navigation or combat.
+
+## Contact-triggered travel
+
+The follow-up port connects the final collision samples from `b49c` to the
+physical `ac5e/b7b8` gate. It permits only the noncombat routes already supported
+by `TransitionPlan`. Unsupported doors, special trigger scripts, combat and
+mission-state conditions remain guarded.
+
+Two negative footprint corners are required to request travel. Byte `b0` bit 5
+latches a dispatched trigger; a raw zero collision releases it, including the
+idle reload warm-up. One negative corner and non-controlled actors retain the
+original blocked-route outcome. The maximum collision code supplies word `c6`,
+but `bc36` takes orientation for word `cc` and return formation from the first
+negative corner. Mixed-corner fixtures check that distinction.
+
+The first or second accepted separation candidate commits its position before
+the gate runs. The third candidate remains discarded, but its final samples can
+still activate travel. Space Needle return formation therefore uses the actual
+post-response position, which can differ from a blocked normal walking step's
+pre-candidate position. Entering still shows the original passage and requires
+acknowledgement; leaving still restores the saved exterior camera and formation.
+No quest permission is inferred from an arbitrary trigger-to-map mapping.
+
+The oracle now adds 3,936 motion/gate/latch cases against original execution,
+including 2,038 location-dispatch requests and 55 requests from discarded third
+probes. It stops at `1651e` before location scripts and omits only the `423c`
+location-label/UI update. Actor bytes, eligibility, trigger orientation and Space
+Needle return formations are compared. The existing separate route, entry-gate,
+spawn and restore oracles validate the downstream supported paths.
+
+Two added functional tests use real contacts with no movement input to activate
+all three exterior seam maps (after selecting another leader), and to enter,
+acknowledge and leave the Space Needle. The latter verifies trigger-latch release
+and exact saved return context. Only boundary positions are seeded; these are
+not full-game traversal recordings. The full checkpoint passes 51 unit tests and
+14 explicitly enabled ROM integration tests. JSON dialogue/hiring remains typed
+Serde data and unchanged by this physical travel work.

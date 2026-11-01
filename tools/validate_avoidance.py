@@ -1,8 +1,8 @@
 """Compare physical contact/separation and ordered party motion with M68000 code.
 
 The $eccc dialogue/quest callback is omitted from contact-only fixtures; its
-implemented Trent path has a separate oracle. Controlled separation onto area
-triggers remains guarded and is not claimed equivalent here.
+implemented Trent path has a separate oracle. Travel fixtures stop at the
+original location-dispatch boundary; unrecovered travel scripts remain guarded.
 """
 import argparse
 import hashlib
@@ -120,4 +120,48 @@ with tempfile.TemporaryDirectory() as temp:
             compare(c, 0xff0100, tick['actors'], f'ordered selected={trace["selected"]}, tick={phase}')
             assert getw(c, 0xfff9f8) == tick['seed'], f'ordered RNG {phase}'
         timeline_ticks += len(trace['ticks'])
-print(f'PASS: {len(data["contacts"])} contact cases ({found} contacts, {adjusted} RNG adjustments); {len(data["movements"])} response steps; {timeline_ticks} ordered party/contact/follower ticks with all three leader slots')
+    requests = discarded_requests = 0
+    third = [False]
+    c = cpu()
+    c.mem_write(0x423c, b'\x4e\x75')  # omit location-label/UI update only
+    stopped = [False]
+    def dispatch_stop(uc, address, size, user):
+        stopped[0] = True
+        uc.emu_stop()
+    hook = c.hook_add(UC_HOOK_CODE, dispatch_stop, begin=0x1651e, end=0x1651e)
+    end_hook = c.hook_add(UC_HOOK_CODE, lambda uc,address,size,user: uc.emu_stop(), begin=0xaac6,end=0xaac6)
+    third_hook = c.hook_add(UC_HOOK_CODE, lambda uc,address,size,user: third.__setitem__(0, True), begin=0xb504,end=0xb504)
+    for i, case in enumerate(data['travel']):
+        c.mem_write(0xff0000, bytes(65536))
+        c.mem_write(0xff0100, bytes(case['before']))
+        c.mem_write(0xff1700, bytes(data['travel_grids'][case['grid']]))
+        for address,value in [(0xffddd2,512),(0xffddd4,512),(0xffddea,32),(0xffddc4,case['map']),
+                              (0xffddc6,0x1880),(0xffddc8,0x200),(0xffdf88,case['phase'])]:
+            putw(c,address,value)
+        c.reg_write(UC_M68K_REG_A0,0xff0100)
+        stopped[0] = False
+        third[0] = False
+        # Stop before the real location-dispatch call, or after an ineligible
+        # response returns. No travel/script routine is replaced with a guess.
+        c.reg_write(UC_M68K_REG_SR,0x2700)
+        c.reg_write(UC_M68K_REG_A7,0xffff00)
+        c.mem_write(0xffff00,struct.pack('>I',0x400000))
+        c.emu_start(0xaa88,0xaac6,count=500_000)
+        expected_request = case['request']
+        assert stopped[0] == (expected_request is not None), f'travel request {i}, PC={c.reg_read(UC_M68K_REG_PC):x}'
+        assert c.reg_read(UC_M68K_REG_PC) in [0xaac6,0x1651e], f'travel timeout {i}'
+        compare(c,0xff0100,case['after'],f'travel actor {i}')
+        if expected_request is not None:
+            requests += 1
+            discarded_requests += third[0]
+            assert bytes(c.mem_read(0xfffbf9,1))[0] == expected_request['code'] & 31
+            assert getw(c,0xff01cc) == expected_request['orientation'] << 14
+            if case['return_positions'] is not None:
+                expected = struct.pack('>6H',*[v for xy in case['return_positions'] for v in xy])
+                compare(c,0xffdf44,expected,f'travel return formation {i}')
+    c.hook_del(hook)
+    c.hook_del(end_hook)
+    c.hook_del(third_hook)
+    assert discarded_requests > 0, "no travel request from a discarded third probe was exercised"
+    assert requests > 0
+print(f'PASS: {len(data["contacts"])} contact cases ({found} contacts, {adjusted} RNG adjustments); {len(data["movements"])} response steps; {timeline_ticks} ordered party/contact/follower ticks with all three leader slots; {len(data["travel"])} contact/travel gates ({requests} dispatch requests, {discarded_requests} after discarded third probes)')

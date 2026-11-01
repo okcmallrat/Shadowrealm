@@ -45,7 +45,7 @@ word, inclusively. It is not interchangeable with playable width or the fixed
 withheld. Closed pockets follow the original route-clearing/direct-steering
 behavior and cannot teleport through walls. Physical actor contacts now use the recovered separation response described in
 [actor contacts](actor-contacts.md). General contact scripts, combat AI and
-controlled separation onto area triggers remain incomplete, so this does not
+other contact-triggered travel remain incomplete, so this does not
 establish robust all-room navigation.
 
 `b574/b6e4/bade` supplies walking, gradual turning and static collision sliding.
@@ -114,7 +114,7 @@ continuation branches actually execute. A functional test verifies each rotated
 pocket uses fallback, leaves it, and reaches formation while every footprint
 remains clear.
 
-There are 49 passing unit tests and 12 explicitly enabled ROM integration tests
+There are 54 passing unit tests and 17 explicitly enabled ROM integration tests
 including the new physical-contact checks; see [actor contacts](actor-contacts.md).
 New checks cover a regular wall detour, refusal to cross an area trigger, and an
 actual hire → exterior return → following → leader switch sequence. Followers
@@ -130,7 +130,9 @@ cross-compiles; actual Windows GUI playtesting remains outstanding.
 
 ## Next bounded work
 
-Recover controlled separation/travel side effects and combat target selection.
+The [target-selection prerequisite](combat-targets.md) is now connected. Recover
+weapon actions and damage before enabling combat; the obstruction probe is now
+implemented. Continue with additional source-backed travel scripts.
 Keep the six unmodeled raster cases explicit. Then connect the job/mission loop,
 including single-run contract completion, earning money and broader dialogue/
 opinion state. Keep JSON additions small and source-backed.

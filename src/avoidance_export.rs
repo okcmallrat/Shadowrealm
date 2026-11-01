@@ -137,10 +137,94 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
         }
         timelines.push(json!({"selected":selected,"initial":initial,"seed":seed,"ticks":ticks}));
     }
+    let mut travel_grids = vec![];
+    let mut travel = vec![];
+    for (map_id, code) in [(0, 0xb0u8), (3, 0xb0), (5, 0xb0), (0, 0xc6), (10, 0x80)] {
+        let patterns = if map_id == 0 && code == 0xc6 { 9 } else { 8 };
+        for pattern in 0..patterns {
+            let mut cells = vec![0u8; 4096];
+            for y in 6..=9 {
+                for x in 6..=9 {
+                    let value = match pattern {
+                        8 if y < 8 => 0xa6,
+                        8 => code,
+                        0 if y < 8 => code,
+                        1 if y >= 8 => code,
+                        2 if x < 8 => code,
+                        3 if x >= 8 => code,
+                        4 if x >= 8 && y >= 8 => code,
+                        5 if x < 8 && y < 8 => code,
+                        6 if x >= 8 => code,
+                        6 if y < 8 => 0x7f,
+                        7 if y >= 8 => code,
+                        7 if x < 8 => 0x7f,
+                        _ => 0,
+                    };
+                    cells[y * 64 + x] = value;
+                }
+            }
+            let c = Collision {
+                cells,
+                rectangles: vec![],
+                bounds: [0, 0, 512, 512],
+                map_width_tiles: 32,
+                overflow_writes: vec![],
+            };
+            let grid = travel_grids.len();
+            for i in 0..96usize {
+                let x = if pattern == 8 {
+                    256
+                } else {
+                    [244u16, 245, 255, 256, 267, 268][i % 6]
+                };
+                let y = if pattern == 8 {
+                    256
+                } else {
+                    [249u16, 250, 255, 256, 262, 263][(i / 6) % 6]
+                };
+                let mut r = actor(rom, 0, (x * 16, y * 16))?;
+                r.raw[0x10] = if i % 17 == 0 { 0xd } else { 0xf };
+                r.raw[0x11] = 6;
+                r.raw[0xb0] = if i % 13 == 0 { 0x20 } else { 0 };
+                r.set_word(0x34, (i as u16).wrapping_mul(0x2000));
+                r.set_word(0x92, (i as u16).wrapping_mul(0x3800));
+                let before = r.raw.to_vec();
+                let result = avoidance::respond_with_travel(
+                    rom,
+                    &c,
+                    &mut r,
+                    i as u16,
+                    Some(avoidance::TravelScope {
+                        map: map_id,
+                        has_return: true,
+                    }),
+                )?;
+                let request = result
+                    .trigger
+                    .map(|t| json!({"code":t.code,"orientation":t.orientation}));
+                let saved = if let Some(t) = result.trigger {
+                    shadowrealm::transitions::TransitionPlan::space_needle_from_contact(
+                        rom,
+                        &MapDescriptor::read(rom, map_id)?,
+                        t.code,
+                        t.orientation,
+                        (0x1880, 0x200),
+                        r.position(),
+                    )?
+                    .and_then(|plan| plan.exterior_return)
+                    .map(|saved| saved.positions)
+                } else {
+                    None
+                };
+                travel.push(json!({"grid":grid,"map":map_id,"phase":i,"before":before,"after":r.raw.to_vec(),"request":request,"return_positions":saved}));
+            }
+            travel_grids.push(c.cells);
+        }
+    }
     fs::write(
         out.join("avoidance.json"),
         serde_json::to_vec(
-            &json!({"contacts":contacts,"movements":movements,"cells":c.cells,"timelines":timelines}),
+            &json!({"contacts":contacts,"movements":movements,"cells":c.cells,"timelines":timelines,"travel_grids":travel_grids,"travel":travel}),
         )?,
     )?;
     println!("Exported 1536 contacts, 1024 response steps and 2700 ordered party ticks");

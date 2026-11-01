@@ -94,3 +94,14 @@ follower/NPC AI, dynamic world persistence and sound remain separate work.
 The subsequent pilot traces the fixed NPC contact dispatcher and a bounded set of
 branching dialogue/state changes. Next recover its hiring action and targeting,
 then connect follower dispatch and additional location types.
+
+## Contact-driven entry and exit
+
+The later [actor-contact milestone](actor-contacts.md) also connects physical
+separation to this same acknowledged entry and saved exterior return. A committed
+separation step saves return formation relative to its post-response position;
+a discarded third probe can request travel without moving the actor. Trigger
+orientation uses the first negative sample, while the route code uses the maximum.
+The contact oracle checks these gates/formations and the functional test completes
+a contact-driven entry/acknowledgement/exit round trip. Other interior scripts and
+mission-dependent travel remain unsupported.

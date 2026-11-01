@@ -132,6 +132,9 @@ fn run() -> Result<(), Box<dyn Error>> {
                 held |= button;
             }
         }
+        if game.dialogue.is_none() && window.is_key_down(Key::T) {
+            held |= input::C;
+        }
         if window.is_key_down(Key::Enter) || window.is_key_down(Key::Z) {
             held |= input::A;
         }
@@ -156,10 +159,22 @@ fn run() -> Result<(), Box<dyn Error>> {
         } else if game.pending_transition.is_some() {
             "This entrance is not available in this build"
         } else {
-            "Arrow keys/WASD: walk | Tab: switch | Space: pause | R: reset"
+            "WASD/arrows: walk | T: target | Tab: switch | Space: pause | R: reset"
+        };
+        let line_status = match game.selected_fire_probe(&rom)?.map(|probe| probe.outcome) {
+            Some(shadowrealm::combat::LineOutcome::Blocked) => " [path blocked]",
+            Some(shadowrealm::combat::LineOutcome::OutsideModel) => " [path unknown]",
+            _ => "",
+        };
+        let target_status = if game.targeting.enabled {
+            game.selected_target()
+                .map(|r| format!(" | Target: {}{line_status}", r.name()))
+                .unwrap_or_else(|| " | No visible target".to_string())
+        } else {
+            String::new()
         };
         window.set_title(&format!(
-            "Shadowrealm — {} — {status}",
+            "Shadowrealm — {} — {status}{target_status}",
             game.party[game.selected].name()
         ));
         window.update_with_buffer(&buffer, 320, 224)?;

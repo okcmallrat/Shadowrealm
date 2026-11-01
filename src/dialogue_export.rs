@@ -57,6 +57,25 @@ pub fn run(rom: &[u8], directory: &Path) -> Result<(), Box<dyn Error>> {
         other.raw[0x9e] = npc_talk;
         contacts.push(json!({"x":player.position().0,"y":player.position().1,"player_flags":player_flags,"npc_flags":npc_flags,"npc_talk":npc_talk,"contact":npc::trent_contact(&player,&other)}));
     }
+    for field in 0..4 {
+        for dx in [-257i16, -256, -255, -65, -1, 0, 63, 255, 256, 257] {
+            for dy in [-257i16, -256, -255, -65, -1, 0, 63, 255, 256, 257] {
+                let mut player = Runner::load(rom, 0, 0)?;
+                let mut other = npc.clone();
+                player.set_position(
+                    npc.position().0.wrapping_add(dx as u16),
+                    npc.position().1.wrapping_add(dy as u16),
+                );
+                let mut links = [0u32; 4];
+                links[field] = if field < 2 { 0xff0400 } else { 0xff0100 };
+                player.raw[0xa2..0xa6].copy_from_slice(&links[0].to_be_bytes());
+                player.raw[0xac..0xb0].copy_from_slice(&links[1].to_be_bytes());
+                other.raw[0xa2..0xa6].copy_from_slice(&links[2].to_be_bytes());
+                other.raw[0xac..0xb0].copy_from_slice(&links[3].to_be_bytes());
+                contacts.push(json!({"x":player.position().0,"y":player.position().1,"player_flags":player.raw[0x10],"npc_flags":other.raw[0x10],"npc_talk":other.raw[0x9e],"links":links,"contact":npc::trent_contact(&player,&other)}));
+            }
+        }
+    }
     fs::write(directory.join("npc.bin"), npc.raw)?;
     fs::write(
         directory.join("dialogue.json"),

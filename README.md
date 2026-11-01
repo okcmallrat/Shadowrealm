@@ -14,7 +14,11 @@ using a small Serde/JSON pilot. General story/dialogue scripts,
 combat, AI, saves and audio remain unfinished.
 Non-selected companions now perform bounded noncombat following, formation,
 static wall sliding and recovered fallback wall hugging. Party/NPC overlap now
-uses the original physical separation response, including player deflections.
+uses the original physical separation response, including player deflections
+and contact-triggered travel through the verified seams and Space Needle path.
+Press T to toggle the new [target-selection prerequisite](docs/combat-targets.md).
+Blocked projectile probes now show red target brackets; this does not enable
+weapon attacks or damage.
 See [companion behavior](docs/companion-following.md) and
 [actor contacts and limits](docs/actor-contacts.md). Combat AI remains unfinished.
 
@@ -30,7 +34,8 @@ Download and extract [`Shadowrealm-windows-x64-exploration.zip`](releases/Shadow
 and launch the EXE on Windows 10/11 x64. No Rust/Python/emulator installation is
 needed for the package. The ROM is not bundled.
 
-Arrow keys/WASD move, Tab switches runner, Enter/Z acknowledges the entrance
+Arrow keys/WASD move, Tab switches runner, T toggles target selection outside
+dialogue, Enter/Z acknowledges the entrance
 passage or dialogue choice, Space pauses, R resets, Escape exits. During dialogue,
 Up/Down selects a choice and Left/Right pages long text. Trent can be hired when
 there is a free companion slot and sufficient nuyen.

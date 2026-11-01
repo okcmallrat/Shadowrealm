@@ -38,6 +38,24 @@ impl TransitionPlan {
         camera_fixed: (u16, u16),
         player: (u16, u16),
     ) -> Result<Option<Self>, RomError> {
+        Self::space_needle_from_contact(
+            rom,
+            map,
+            trigger,
+            trigger.rotate_left(3) & 3,
+            camera_fixed,
+            player,
+        )
+    }
+    /// $bc36 derives return orientation from the first negative footprint sample.
+    pub fn space_needle_from_contact(
+        rom: &[u8],
+        map: &crate::maps::MapDescriptor,
+        trigger: u8,
+        orientation: u8,
+        camera_fixed: (u16, u16),
+        player: (u16, u16),
+    ) -> Result<Option<Self>, RomError> {
         if map.id != 0 || trigger != 0xc6 {
             return Ok(None);
         }
@@ -54,7 +72,7 @@ impl TransitionPlan {
         let mut positions = [(0, 0); 3];
         let mut return_positions = [(0, 0); 3];
         // $bc36 chooses orientation from the first negative footprint code.
-        let orientation = usize::from(trigger.rotate_left(3) & 3);
+        let orientation = usize::from(orientation & 3);
         for slot in 0..3 {
             positions[slot] = (
                 word(&descriptor.raw, 0x42 + slot * 4)?,

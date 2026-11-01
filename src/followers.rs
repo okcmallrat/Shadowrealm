@@ -493,6 +493,11 @@ pub fn move_one(rom: &[u8], c: &Collision, r: &mut Runner) -> Result<(), RomErro
         r.select_motion(false);
         let samples = c.footprint_samples(r.position());
         r.raw[0xd0..0xd4].copy_from_slice(&samples);
+        // $ac5e releases the trigger latch on a zero raw collision sample,
+        // including the fixed-position idle dispatch during reload warm-up.
+        if samples == [0; 4] {
+            r.raw[0xb0] &= !0x20;
+        }
         if before != r.word(0x16) {
             r.raw[0x11] |= 1;
         }

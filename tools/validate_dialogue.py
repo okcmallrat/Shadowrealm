@@ -1,6 +1,6 @@
 """Check the small JSON conversation pilot against original M68000 execution.
 
-Only the unlinked Space Needle/Trent contact and zero-opinion dialogue scope are
+The unlinked/target-linked Space Needle contact and zero-opinion dialogue scope are
 implemented. Original rendering, AI, targeting and hiring are outside this test.
 """
 import argparse
@@ -94,6 +94,8 @@ with tempfile.TemporaryDirectory() as temp:
         c.mem_write(0xff049e, bytes([case['npc_talk']]))
         putw(c, 0xffddc4, 10)
         c.mem_write(0xfffbf9, b'\x06')
+        for address,value in zip([0xff01a2,0xff01ac,0xff04a2,0xff04ac],case.get('links',[0,0,0,0])):
+            c.mem_write(address,struct.pack('>I',value))
         c.reg_write(UC_M68K_REG_A0, 0xff0100)
         # Stop after the interaction handler, before collision-avoidance PRNG.
         c.hook_add(UC_HOOK_CODE, lambda uc, address, size, user: uc.emu_stop(), begin=0xec90, end=0xec90)

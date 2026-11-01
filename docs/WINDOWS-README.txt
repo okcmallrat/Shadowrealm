@@ -18,6 +18,10 @@ CONTROLS
 
 Arrow keys or WASD: move the selected runner.
 Tab: select the next runner (also selects its HUD panel).
+T outside dialogue: toggle target selection; yellow brackets/name identify the NPC.
+Red brackets/title status mean the projectile probe found a blocking path;
+gray means geometry is not modeled. Yellow only identifies the selection.
+Target selection does not fire, consume ammunition or apply damage.
 Enter or Z: acknowledge the Space Needle entrance passage.
 During dialogue: Up/Down chooses an option, Enter/Z selects it, Left/Right pages
 long text.
@@ -49,6 +53,8 @@ Tab changes the leader, with the old leader becoming a follower. Companions now
 use the recovered wall-hugging fallback to escape tested U-shaped obstructions
 and rejoin formation. Party and NPC contact now uses the original temporary
 separation response; nearby actors can deflect the controlled player as well.
+Those contact steps can activate the supported exterior seams or Space Needle
+entry/return. The entrance still requires acknowledging its original passage.
 
 Static map collision, turning, sprite animation, sprite depth sorting, camera
 tracking, HUD portraits/equipment/meters, environmental tile animations, and the
@@ -77,7 +83,7 @@ NOT YET IMPLEMENTED
 
 Other interior doors and story transitions still stop at their trigger. Combat,
 other conversations/quest scripts, other recruitment, contract completion,
-other NPC AI, combat targeting, general contact scripts, controlled contact-triggered travel,
+other NPC AI, weapon actions, hit rolls and damage, general contact scripts and other contact-triggered travel,
 inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
 

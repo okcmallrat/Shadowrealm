@@ -2,6 +2,7 @@ pub mod actors;
 pub mod avoidance;
 pub mod boot;
 pub mod collision;
+pub mod combat;
 pub mod dialogue;
 pub mod dialogue_data;
 pub mod environment;
@@ -18,6 +19,7 @@ pub mod party;
 pub mod scene;
 pub mod transitions;
 pub mod video;
+pub mod weapons;
 // ROM inspection primitives for a native Shadowrun reconstruction.
 use std::fmt;
 #[derive(Debug, PartialEq)]

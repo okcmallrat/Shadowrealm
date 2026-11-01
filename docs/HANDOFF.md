@@ -10,8 +10,15 @@ executable is an exploration milestone, not the finished game.
 
 The user resumed development after cloud setup. The current local milestone
 adds original fallback wall hugging and physical actor-contact separation to
-companion following. Next, recover controlled separation/travel effects and
-combat target selection; do not restart completed ROM/map/hiring/navigation work. No clarification is pending. Do not assume runtime files outside Git persist.
+companion following, plus contact-triggered travel on the verified routes.
+Target acquisition and the projectile obstruction probe are now connected;
+weapon cooldown ticking and source-only ranged animation setup are verified
+in `src/weapons.rs` (4,096 original full-actor comparisons each for cooldown,
+dispatcher tick and ranged setup, without stubs). Next recover launch admission,
+ammunition consumption, projectile allocation and damage before enabling attacks.
+54 unit tests and 18 ROM integration tests pass, along with the combat,
+avoidance, followers, world, transitions, interior, dialogue and hiring validators.
+Do not restart completed ROM/map/hiring/navigation work. No clarification is pending. Do not assume runtime files outside Git persist.
 
 The user explicitly asked to introduce JSON **slowly** for recovered dialogue
 and quest logic. Keep the Rust engine and use small verified records; do not
@@ -20,19 +27,21 @@ migrate unrelated systems or invent missing quest rules.
 ## Durable checkpoint
 
 Repository: https://github.com/okcmallrat/Shadowrealm
-Branch: `main`
-Earlier published implementation checkpoint: `e5979b9` — verified Ghidra reference and
-noncombat companion following. Its source, tests, tooling and refreshed Windows
-package have been pushed to `main`. The subsequent documentation-only pause
-checkpoint records this stopping point; see `git log` for its commit.
+Remote branch: `main`; this environment's local branch is `work`.
+Verified published commit: `90fa5c4d438b1c81a0c9c316faa8b56956ab600d` — companion
+wall hugging and original physical contact separation, including source, tests,
+notes and Windows ZIP. The user explicitly requested this push; the remote SHA
+was checked after success. The earlier `e5979b9` checkpoint is its base milestone.
 
-Source, docs, scripts, validators, and the Windows package are on GitHub.
-The last checked working tree before preparing this handoff was clean.
-The resumed fallback/contact milestones are recorded together by this checkpoint.
-Use `git log` for its commit ID; the earlier checkpoint above describes the base.
+The user requested committing and pushing the subsequent contact-triggered travel,
+combat targeting/obstruction and weapon-timing checkpoint to `main`, then pausing.
+This handoff is included in that checkpoint. Verify the remote SHA when resuming;
+`90fa5c4` above is the preceding published checkpoint. Next development step is
+launch admission, ammunition consumption, projectile allocation and damage.
+Do not continue development until the user resumes.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `2bf8158e2243349574d47d7f5d5762b155d3d110f1f51b000d8507dda237c2bc`.
+SHA-256: `f3f1a02b9fac68cf3fbd03e5f0a024c8cc81e127c3d4101d87a946450f4c16b6`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -211,7 +220,8 @@ party runners now use `ac84/138b8` scheduling, `14508` formation, original angle
 distance tables, regular `14682/149c0` corner routes and `b574/bade` walking/sliding.
 At that checkpoint, the `1470e` fallback and original scans outside the collision
 raster stopped safely. The fallback and physical contact response are now
-implemented as described below. Combat targeting remains unimplemented. Do not claim all-room robust navigation.
+implemented as described below. Target acquisition is now connected, while
+weapon attacks and damage remain unimplemented. Do not claim all-room robust navigation.
 
 Screen projection words `a/c` are maintained at tick end for the next tick's
 on/offscreen velocity choice. AI does not depend on render-call frequency. Party
@@ -233,7 +243,7 @@ replay with leader switching, frames and a state trace. An actual hire → exit 
 follow → leader-switch integration test passes. Earlier oracles still pass.
 The Windows package is refreshed; actual Windows GUI testing remains pending.
 
-## Earlier local milestone: fallback wall hugging
+## Published milestone: fallback wall hugging (`90fa5c4`)
 
 `src/followers.rs` now follows the original `1470e/14af4/14800` initial fallback,
 `14764/14a54` corner/clear-strip continuation, and `14914` L-path exit. The
@@ -263,7 +273,7 @@ actual Windows GUI playtesting is still outstanding. See releases/SHA256SUMS for
 the refreshed package digest. Rust remains the engine and the existing typed
 Serde/JSON dialogue/hiring pilot remains unchanged by this navigation work.
 
-## Latest local milestone: physical actor contacts
+## Published milestone: physical actor contacts (`90fa5c4`)
 
 Read `docs/actor-contacts.md`, `src/avoidance.rs` and `tools/validate_avoidance.py`.
 `eb92` physical contact flags/headings, widened existing target-link windows,
@@ -282,31 +292,130 @@ all repeated-entry and persistent-state assertions remain.
 
 The contact oracle omits only the `eccc` script callback; the separate existing
 Trent dialogue oracle remains passing. General contact/quest/combat scripts are
-not implemented. Controlled separation onto triggers remains blocked; normal
-player-driven travel works. Initial RNG seed zero and simulation frame parity
+not implemented. At that published checkpoint, controlled separation onto triggers remained
+blocked; the local follow-up below enables the bounded verified travel paths. Initial RNG seed zero and simulation frame parity
 are explicit native host choices, not recovered hardware boot timing. Fades,
 warm-up position holds and dialogue freezing remain. No JSON migration was needed
 for physical motion: typed Serde/JSON dialogue/hiring records remain in use.
 
 The native Linux desktop and Windows builds/package are refreshed. Actual
 Windows GUI/input remains untested. The current local ZIP digest is recorded
-above and in releases/SHA256SUMS. The fallback/contact changes are recorded by
-this checkpoint; see `git log` for its commit ID.
+above and in releases/SHA256SUMS. The fallback/contact changes are recorded in
+`90fa5c4`; subsequent travel changes below are local.
+
+## Earlier local milestone: contact-triggered travel
+
+`avoidance::respond_with_travel` now permits controlled separation onto the
+previously supported noncombat exterior seams (maps 0/3/5) and Space Needle
+entry/return. It preserves the final-probe physical gate, two-negative-corner
+requirement, trigger latch/release and first-negative-corner return orientation.
+`TransitionPlan::space_needle_from_contact` uses the actual post-response player
+position and recovered corner orientation. The existing passage acknowledgement,
+fades, party preservation and saved return context still apply. Other doors and
+special script/combat/mission gates remain blocked.
+
+51 unit tests and all 14 explicitly enabled ROM integration tests pass. The
+extended avoidance oracle adds 3,936 gate/motion/latch cases (2,038 original
+location-dispatch requests, 55 from discarded third probes), comparing actor
+records and return formations up to the `1651e` dispatch boundary. The location
+label/UI update is skipped; downstream routes/spawn/passage/restore retain their
+separate original-routine checks. Functional contact tests complete exterior
+travel with a switched leader and an acknowledged Space Needle round trip using
+real physical overlap and no directional input at activation. Warm-up zero
+samples release the trigger latch, so later contact-driven travel still works.
+
+See `docs/actor-contacts.md` for scope and commands. No new JSON migration was
+needed: the typed Serde dialogue/hiring records remain unchanged. These follow-up
+changes and their refreshed Windows ZIP are local; only `90fa5c4` above was pushed.
+Actual Windows GUI/input playtesting remains outstanding.
+
+## Earlier local milestone: combat target acquisition
+
+Read `docs/combat-targets.md` and `src/combat.rs`. The user clarified that
+“combat training” meant continuing to the next implementation step, not adding
+a practice mode. T now toggles target selection outside dialogue, using the
+original `13874/1438c/14446` list filters/cadence and `143f6/14492` target retention
+and random replacement. `15c58` close-range probing is implemented separately;
+it does not establish weapon readiness, line of sight or hit chance.
+
+Targeting and physical contact share the original random recurrence. The mode is
+off by default, with native host controls/brackets. Neutral talkable NPCs can be
+listed; targeting does not establish hostility or attack permission. No enemies
+or training-room spawns were invented. `npc::trent_contact` now honors original
+`a2/ac` linked contact windows, preserving the existing conversation. Party/map
+changes invalidate controlled target links; dialogue/travel freezes remain.
+
+53 unit tests and all 16 explicitly enabled ROM integration tests pass. The new
+combat oracle compares 768 acquisition cases (441 replacements, 116 retained
+pointers, 147 counted/omitted empty-list callbacks), 1,024 close-range probes and
+256 refresh/retention/RNG phases. Dialogue contact checks expand from 69 to 469,
+covering links in both directions/fields; existing JSON branches remain unchanged.
+The avoidance/travel, follower, world, transition, interior and hiring oracles pass.
+The two new functional tests cover the target toggle/marker/retention/leader
+switch without damage or ammo use, plus targeting Trent and opening the original
+wider-range conversation. Native Linux and Windows builds/package are refreshed;
+actual Windows GUI/input playtesting remains unverified.
+
+This targeting checkpoint, the prior contact-triggered travel work and their
+current Windows ZIP are local and not yet committed/pushed. The last verified
+published commit remains `90fa5c4` above. Typed Serde/JSON dialogue/hiring stays
+in use; no broad data migration or speculative quest records were added.
+
+## Latest local milestone: projectile obstruction probe
+
+The published cloud environment restored the existing target/contact/travel
+changes and both private inputs. They were inspected and preserved, not reapplied.
+Do not publish environment/configuration or push code without a new user request.
+The last verified GitHub commit remains `90fa5c4`; subsequent changes are local.
+
+`combat::line_of_fire` now follows `14d8e/14ff8/15118/14f26` and the point-query
+branch of `e7c8`, plus intended-target matching in `15aba`. It preserves launch
+rounding/offsets, signed velocity, 32-bit fractions, the 27-step cap and original
+projectile-passable geometry. This is an obstruction probe, not a full attack.
+TargetReached, Blocked, TraceLimit and OutsideModel remain distinct. Only the
+requested actor can satisfy the probe; intervening actors do not intercept it.
+The source, target and other actors are not mutated.
+
+Initial collision scratch is explicit because the original point/diagonal query
+retains other corner bytes. The UI deliberately uses cleared scratch for an
+independent deterministic query. Red target brackets/title status report a
+blocked probe, gray reports unmodeled geometry, and yellow still only means
+selection. Rendering does not advance simulation, consume RNG/ammo, create live
+projectiles, change target links, or apply damage. Firing remains disabled.
+
+54 unit tests and all 17 explicitly enabled ROM integration tests pass. The
+combat oracle adds 2,176 complete original probe calls: 271 target reaches,
+1,169 blockers and 736 trace-limit outcomes, on six real maps and eleven synthetic
+collision bands with three initial scratch configurations. All 256 scratch actor
+bytes, steps, collision scratch and outcome match; source/target/intervening actor
+records remain unchanged. No subroutine on the projectile-query path is stubbed.
+The functional wall/marker test checks red-to-yellow feedback with unchanged
+actor records, wallet and tick. Earlier target/contact/travel/follower/world/
+transition/interior/dialogue/hiring checks remain passing. Linux/Windows builds
+and the versioned ZIP are refreshed; actual Windows GUI/input remains untested.
+
+See `docs/combat-targets.md` for scope and commands. New Ghidra working-copy
+exports are under ignored `artifacts/weapon-reference/ghidra`. No previous changes
+were reinstalled/reapplied, no environment draft was edited, and nothing was
+published or pushed during this milestone. The Rust engine and existing typed
+Serde/JSON dialogue/hiring records remain in use.
 
 ## Best next milestone
 
-Recover controlled separation onto triggers (`b732/ac5e/b7b8`) and its travel
-side effects, then combat target acquisition before enabling attacks. Connect
-one bounded source-backed job/mission flow for earning money and resolving
-single-run contracts. Keep JSON increments small and verify them against original
-routines. Do not claim full NPC AI or all-room robust navigation.
+Recover weapon attack/action and animation dispatch (including `b11c/b1dc` and
+the non-probe projectile path), ammunition/cooldown checks, hit rolls and one
+bounded damage path before enabling firing. Keep hostile AI and mission state
+separate. Connect earning money and contract resolution through a verified job
+flow, introducing JSON only in small source-backed records. Full combat and
+additional scripted travel remain unfinished.
 
 The ROM and corrected GZF are privately retained at `/workspace/inputs/Shadowrun.bin`
 and `/workspace/inputs/ShadowRunBin.gzf`. Rust activation remains below. Python
 validators now use `/workspace/.venvs/shadowrealm/bin/python`; Ghidra/Java are
 under `/workspace/reverse-tools` as documented. Private analysis project:
 `artifacts/ghidra-projects/FallbackReference.gpr`; exports:
-`artifacts/fallback-reference/ghidra` and `artifacts/avoidance-reference/ghidra`.
+`artifacts/fallback-reference/ghidra`, `artifacts/avoidance-reference/ghidra`,
+`artifacts/contact-travel-reference/ghidra` and `artifacts/combat-reference/target-ghidra`.
 Do not commit these inputs or outputs.
 
 Trace `1651e → 16608 → 167ae`: source descriptor offset 4e supplies target-location
@@ -330,7 +439,8 @@ own state model and script handling before entry can be enabled.
 | src/dialogue_data.rs, data/dialogue/space-needle.json | Validated embedded dialogue pilot and flag actions |
 | src/hiring.rs | Bounded Trent quote/payment/member initialization |
 | src/followers.rs | Noncombat scheduler, formation, regular/fallback routes and walking |
-| src/avoidance.rs | Physical actor contact flags/headings/RNG and temporary separation motion |
+| src/avoidance.rs | Physical actor contact flags/headings/shared RNG and temporary separation motion |
+| src/combat.rs | Target lists/retention, close range and projectile obstruction probe |
 | tools/ghidra/ExportCompanion.java | Targeted views from the uploaded analysis reference |
 | src/bin/game.rs | Native desktop window and keyboard/timing loop |
 | src/party.rs | Templates, identity/assets, equipment resolution, facing |
@@ -399,9 +509,13 @@ PYTHONPATH=/workspace/.reverse-tools python3 tools/validate_render.py /path/to/S
 
 Run checks relevant to the change. Current completed evidence:
 
-- 49 Rust unit tests pass; 12 ROM-backed integration tests pass explicitly.
+- 54 Rust unit tests pass; 17 ROM-backed integration tests pass explicitly.
+- Combat targeting: 768 acquisition cases, 1024 close-range probes and 256
+  refresh/retention phases and 2176 complete projectile probes match original
+  routines (`tools/validate_combat.py`).
 - Physical contacts: 1536 cases, 1024 response steps and 2700 ordered party ticks
-  match actor bytes and RNG state (`tools/validate_avoidance.py`).
+  match actor bytes and RNG state; 3936 contact/travel gate cases compare the
+  dispatch boundary and return formation (`tools/validate_avoidance.py`).
 - Noncombat followers: 1024 math pairs, 768 goals / 762 supported decisions,
   1024 movement records, 900 regular scheduler/warm-up ticks, 7200 wall-hugging
   ticks, 192 fallback/waypoint decisions and 4 closed-pocket decisions match;
@@ -410,7 +524,7 @@ Run checks relevant to the change. Current completed evidence:
 - Trent first-hire: 54 original fee quotes and 24 complete purchase/capacity/funds
   cases match (`tools/validate_hiring.py`).
 - Trent dialogue: 15 node/text records, 26 original text/flag branch executions
-  and 69 contact/gating cases match (`tools/validate_dialogue.py`).
+  and 469 unlinked/linked contact cases match (`tools/validate_dialogue.py`).
 - Space Needle entry gate/text/font, route/save/spawn/return and fixed NPC
   initialization match bounded original routines (`tools/validate_interior.py`).
 - All 56 collision rasters, 7,168 query samples, and 16 VRAM steps per map

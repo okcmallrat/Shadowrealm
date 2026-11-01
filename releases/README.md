@@ -10,7 +10,11 @@ dialogue/AI, inventory interactions, saves, and audio remain incomplete.
 Companions now use recovered fallback wall hugging; four rotated U-shaped
 pockets pass functional and original-routine comparisons. Party/NPC contact now
 uses recovered temporary separation, including player deflections. General
-contact scripts, contact-triggered travel and combat remain incomplete.
+contact scripts, other travel paths and combat remain incomplete. Contact steps
+can now activate the verified exterior seams and Space Needle entry/return.
+T toggles target selection outside dialogue; targets can include neutral NPCs.
+A blocked projectile probe shows red brackets and a title status; yellow is
+selection feedback. Weapon attacks and damage are not enabled.
 The executable was cross-compiled; Windows GUI playtesting remains outstanding.
 
 The ZIP includes runtime licenses and per-file hashes. `SHA256SUMS` records the

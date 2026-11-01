@@ -5,6 +5,7 @@ use crate::{
     actors::{project, ActorFrame},
     avoidance,
     collision::{Collision, Contact},
+    combat::{self, Targeting},
     dialogue::Dialogue,
     dialogue_data::{Catalog, Knowledge},
     environment::Environment,
@@ -30,6 +31,7 @@ pub struct Game {
     pub saved_exterior: Option<ExteriorReturn>,
     pub knowledge: Knowledge,
     pub nuyen: u32,
+    pub targeting: Targeting,
     catalog: Catalog,
     hiring_quote: Option<Quote>,
     npc_dialogue_cooldown: u8,
@@ -86,6 +88,7 @@ impl Game {
             saved_exterior: None,
             knowledge: Knowledge::default(),
             nuyen: hiring::initial_balance(rom)?,
+            targeting: Targeting::default(),
             hiring_quote: None,
             catalog,
             npc_dialogue_cooldown: 0,
@@ -231,6 +234,47 @@ impl Game {
         }
         Ok(())
     }
+    fn resolve_trigger(
+        &self,
+        rom: &[u8],
+        code: u8,
+        orientation: u8,
+    ) -> Result<Option<TransitionPlan>, RomError> {
+        if let Some(plan) =
+            TransitionPlan::exterior(rom, self.map.id, code, self.camera.0.wrapping_mul(16))?
+        {
+            return Ok(Some(plan));
+        }
+        if let Some(saved) = self.saved_exterior {
+            return Ok(TransitionPlan::leave_interior(self.map.id, code, saved));
+        }
+        TransitionPlan::space_needle_from_contact(
+            rom,
+            &self.map,
+            code,
+            orientation,
+            (
+                self.camera.0.wrapping_mul(16),
+                self.camera.1.wrapping_mul(16),
+            ),
+            self.party[self.selected].position(),
+        )
+    }
+    fn start_transition(&mut self, rom: &[u8], plan: TransitionPlan) -> Result<(), RomError> {
+        if plan.kind == TransitionKind::EnterSpaceNeedle {
+            self.dialogue = Some(Dialogue::exposition(rom, self.catalog.entrance.address.0)?);
+            self.dialogue_target = Some(plan);
+        } else {
+            self.transition = Some(ActiveTransition {
+                plan,
+                stage: TransitionStage::FadeOut,
+                ticks: 0,
+                target_palette: self.scene.palette,
+            });
+        }
+        self.blocked = false;
+        Ok(())
+    }
     fn apply_transition(&mut self, rom: &[u8], plan: TransitionPlan) -> Result<(), RomError> {
         // Prepare every fallible asset before replacing the active scene.
         let mut map = MapDescriptor::read(rom, plan.target_map)?;
@@ -277,6 +321,7 @@ impl Game {
         self.scene = scene;
         self.collision = collision;
         self.environment = environment;
+        self.targeting.invalidate(&mut party);
         self.party = party;
         self.hud = hud;
         self.camera = (plan.camera_fixed.0 >> 4, plan.camera_fixed.1 >> 4);
@@ -303,6 +348,9 @@ impl Game {
                 }
             }
             TransitionStage::Warmup => {
+                for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
+                    crate::weapons::tick_cooldown(runner);
+                }
                 followers::warmup(rom, &self.collision, &mut self.party, self.selected)?;
                 for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
                     runner.tick_animation(rom)?;
@@ -347,6 +395,9 @@ impl Game {
         }
         if self.transition.is_some() || self.dialogue.is_some() {
             return Ok(());
+        }
+        if slot != self.selected && self.targeting.enabled {
+            self.targeting.invalidate(&mut self.party);
         }
         self.selected = slot;
         // $3992/$39a8 transfers the controlled-player bit. Without this, a
@@ -408,6 +459,23 @@ impl Game {
                 }
             }
             return Ok(());
+        }
+        for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
+            crate::weapons::tick_cooldown(runner);
+        }
+        if self.input.pressed & crate::input::C != 0 {
+            self.targeting.enabled = !self.targeting.enabled;
+            self.targeting.invalidate(&mut self.party);
+        }
+        if self.targeting.enabled {
+            let actors: Vec<_> = self.party.iter().chain(self.npcs.iter()).collect();
+            self.targeting
+                .lists
+                .refresh(&actors, self.tick as u16, self.targeting.force_refresh);
+            self.targeting.force_refresh = false;
+            self.targeting
+                .lists
+                .acquire(&mut self.party[self.selected], &mut self.avoidance);
         }
         self.blocked = false;
         self.pending_transition = None;
@@ -480,12 +548,26 @@ impl Game {
                 slot,
                 &mut self.avoidance,
             )?;
-            if avoidance::respond(
+            let response = avoidance::respond_with_travel(
                 rom,
                 &self.collision,
                 &mut self.party[slot],
                 self.tick as u16,
-            )? {
+                Some(avoidance::TravelScope {
+                    map: self.map.id,
+                    has_return: self.saved_exterior.is_some(),
+                }),
+            )?;
+            if response.handled {
+                if let Some(trigger) = response.trigger {
+                    self.pending_transition = Some(trigger.code);
+                    if let Some(plan) =
+                        self.resolve_trigger(rom, trigger.code, trigger.orientation)?
+                    {
+                        self.start_transition(rom, plan)?;
+                        return Ok(());
+                    }
+                }
                 continue;
             }
             let heading = self.input.direction();
@@ -515,6 +597,9 @@ impl Game {
                 let candidate = (x.wrapping_add(dx as u16), y.wrapping_add(dy as u16));
                 match self.collision.contact(candidate)? {
                     Contact::Clear => {
+                        if self.collision.footprint_samples(candidate) == [0; 4] {
+                            runner.raw[0xb0] &= !0x20;
+                        }
                         runner.set_position(candidate.0, candidate.1);
                         moved = true;
                     }
@@ -544,6 +629,9 @@ impl Game {
                     }
                 }
             }
+            if heading.is_none() && self.collision.footprint_samples(runner.position()) == [0; 4] {
+                runner.raw[0xb0] &= !0x20;
+            }
             runner.select_motion(moved);
             runner.raw[0x3a..0x3e]
                 .copy_from_slice(&(if moved { 0xb574u32 } else { 0xb45c }).to_be_bytes());
@@ -553,20 +641,7 @@ impl Game {
                 runner.set_word(0xca, 30);
             }
             if let Some(plan) = plan {
-                if plan.kind == TransitionKind::EnterSpaceNeedle {
-                    self.dialogue =
-                        Some(Dialogue::exposition(rom, self.catalog.entrance.address.0)?);
-                    self.dialogue_target = Some(plan);
-                    self.blocked = false;
-                    return Ok(());
-                }
-                self.transition = Some(ActiveTransition {
-                    plan,
-                    stage: TransitionStage::FadeOut,
-                    ticks: 0,
-                    target_palette: self.scene.palette,
-                });
-                self.blocked = false;
+                self.start_transition(rom, plan)?;
                 return Ok(());
             }
         }
@@ -604,6 +679,30 @@ impl Game {
         self.sync_projections();
         Ok(())
     }
+    pub fn selected_target(&self) -> Option<&Runner> {
+        if !self.targeting.enabled {
+            return None;
+        }
+        let id = combat::target(&self.party[self.selected])?;
+        self.party
+            .iter()
+            .chain(self.npcs.iter())
+            .find(|r| r.word(0x3e) == u16::from(id.0) && r.raw[0x10] & 0x41 == 1)
+    }
+    /// Independent, non-mutating diagnostic with cleared collision scratch.
+    pub fn selected_fire_probe(&self, rom: &[u8]) -> Result<Option<combat::LineProbe>, RomError> {
+        self.selected_target()
+            .map(|target| {
+                combat::line_of_fire(
+                    rom,
+                    &self.collision,
+                    &self.party[self.selected],
+                    target,
+                    [0; 4],
+                )
+            })
+            .transpose()
+    }
     pub fn render(&mut self, rom: &[u8]) -> Result<Vec<u8>, RomError> {
         let actors: Vec<&Runner> = self.party.iter().chain(self.npcs.iter()).collect();
         let mut frames = Vec::with_capacity(actors.len());
@@ -640,6 +739,39 @@ impl Game {
             }
         }
         let mut pixels = scene::render(&self.scene, self.camera, &placed, Some(&self.hud))?;
+        let target_color = match self.selected_fire_probe(rom)?.map(|probe| probe.outcome) {
+            Some(combat::LineOutcome::Blocked) => [255, 64, 64],
+            Some(combat::LineOutcome::OutsideModel) => [160, 160, 160],
+            _ => [255, 224, 64],
+        };
+        // Native target brackets are a host UI aid, not a recovered VDP sprite.
+        if self.dialogue.is_none() {
+            if let Some(target) = self.selected_target() {
+                if let Some((x, y)) = project(
+                    target.position(),
+                    (
+                        self.camera.0.wrapping_mul(16),
+                        self.camera.1.wrapping_mul(16),
+                    ),
+                    target.word(8) as i16,
+                    false,
+                ) {
+                    for (sx, sy) in [(-1, -1), (1, -1), (-1, 1), (1, 1)] {
+                        for d in 0..5 {
+                            for (px, py) in [
+                                (x + sx * 12 - sx * d, y - 16 + sy * 12),
+                                (x + sx * 12, y - 16 + sy * 12 - sy * d),
+                            ] {
+                                if (0..272).contains(&px) && (0..224).contains(&py) {
+                                    let at = (py as usize * 320 + px as usize) * 3;
+                                    pixels[at..at + 3].copy_from_slice(&target_color);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if let Some(dialogue) = &self.dialogue {
             dialogue.render(rom, &mut pixels)?;
         }
