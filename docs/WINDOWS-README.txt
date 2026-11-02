@@ -1,7 +1,7 @@
 SHADOWREALM — WINDOWS EXPLORATION BUILD
 
 This is a native Rust reconstruction in progress, not the complete Shadowrun game.
-It renders the original assets and runs a limited stateful exploration simulation.
+It renders the original assets and runs exploration with bounded player gunfire.
 
 RUN ON WINDOWS 10/11 (64-BIT)
 
@@ -17,6 +17,9 @@ The supplied 2 MB Genesis ROM revision is the supported input.
 CONTROLS
 
 Arrow keys or WASD: move the selected runner.
+F outside dialogue: hold to fire the equipped firearm; tap for one request.
+Firing uses finite ammo, cooldowns and automatic reloads while reserves remain.
+Without a selected target, shots follow the runner's facing direction.
 Tab: select the next runner (also selects its HUD panel).
 T outside dialogue: toggle target selection; yellow brackets/name identify the NPC.
 Red brackets/title status mean the projectile probe found a blocking path;
@@ -81,11 +84,18 @@ camera look-ahead behavior is not yet reconstructed.
 
 NOT YET IMPLEMENTED
 
-Other interior doors and story transitions still stop at their trigger. Combat,
+Other interior doors and story transitions still stop at their trigger. Full combat,
 other conversations/quest scripts, other recruitment, contract completion,
-other NPC AI, weapon actions, hit rolls and damage, general contact scripts and other contact-triggered travel,
+hostile/companion combat AI, melee/magic/throwable actions, ongoing combat effects,
+general contact scripts and other contact-triggered travel,
 inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
+
+Equipped firearms now use recovered ammo/reload/cooldown rules, original attack
+and resistance dice, projectile collision, muzzle/impact sprites, damage and
+hurt/death setup. There are no fabricated enemies or a training arena; the world
+and NPC spawning are still incomplete. Neutral/protected NPCs retain the original
+collision filters. Audio playback and the full defeat/game-over flow are absent.
 
 VALIDATION
 

@@ -6,6 +6,582 @@ use shadowrealm::{
 
 #[test]
 #[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn game_fire_input_consumes_ammo_renders_flash_and_retires_projectiles() {
+    let rom = rom();
+    let mut game = Game::load(&rom, 0, &[0, 3, 10]).unwrap();
+    game.party[0].raw[0x4e] = rom[0xd4540 + usize::from(game.party[0].raw[0x57] - 1) * 48 + 0x24];
+    game.refresh_hud(&rom).unwrap();
+    let before = game.render(&rom).unwrap();
+    let ammo = game.party[0].raw[0x4e];
+    game.update(&rom, input::A).unwrap();
+    assert_eq!(game.combat.shots, 1);
+    assert_eq!(game.party[0].raw[0x4e], ammo - 1);
+    assert!(game.combat.has_live());
+    assert_eq!(&game.party[0].raw[0x3a..0x3e], &0xb3eeu32.to_be_bytes());
+    let flash = game.render(&rom).unwrap();
+    assert_ne!(flash, before);
+    let pool = game.combat.pool;
+    game.combat.pool = [[0; 256]; 6];
+    let without_flash = game.render(&rom).unwrap();
+    game.combat.pool = pool;
+    assert_ne!(
+        flash, without_flash,
+        "resident muzzle graphics must contribute visible pixels"
+    );
+    for _ in 0..200 {
+        game.update(&rom, 0).unwrap();
+    }
+    assert_eq!(game.combat.shots, 1);
+    assert!(!game.combat.has_live());
+    assert_eq!(game.party[0].raw[0x4e], ammo - 1);
+    game.update(&rom, input::A).unwrap();
+    assert_eq!(
+        game.combat.shots, 2,
+        "ended firing pose must return to controllable idle"
+    );
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn game_targeted_fire_applies_damage_and_keeps_reaction_poses() {
+    use shadowrealm::{collision::Collision, party::Runner};
+    let rom = rom();
+    let mut game = Game::load(&rom, 0, &[0]).unwrap();
+    game.party[0].set_position(200 * 16, 200 * 16);
+    game.party[0].raw[0x57] = 12;
+    game.party[0].raw[0x4e] = 8;
+    game.party[0].raw[0x84] = 20;
+    game.party[0].raw[0x81] = 20;
+    game.camera = (100, 100);
+    game.collision = Collision {
+        cells: vec![0; 4096],
+        rectangles: vec![],
+        bounds: [0, 0, 2048, 2048],
+        map_width_tiles: 128,
+        overflow_writes: vec![],
+    };
+    let mut enemy = Runner::load(&rom, 3, 0).unwrap();
+    enemy.set_word(0x3e, 3);
+    enemy.set_word(0xc, 100);
+    enemy.set_position(280 * 16, 200 * 16);
+    enemy.raw[0x10] = 5;
+    enemy.raw[0xdf] = 0;
+    enemy.raw[0x9a] = 0;
+    enemy.raw[0x9b] = 0;
+    enemy.raw[0x9e] = 0;
+    enemy.raw[0xb0] = 0;
+    enemy.raw[0x66..0x85].fill(0);
+    enemy.raw[0x4c] = 10;
+    enemy.raw[0x4d] = 0;
+    enemy.set_word(0x90, 0);
+    game.npcs.push(enemy);
+    game.update(&rom, input::C).unwrap();
+    assert_eq!(game.selected_target().unwrap().word(0x3e), 3);
+    game.update(&rom, input::A).unwrap();
+    for _ in 0..30 {
+        game.update(&rom, 0).unwrap();
+        if game.combat.hits > 0 {
+            break;
+        }
+    }
+    assert_eq!(game.combat.shots, 1);
+    assert_eq!(game.combat.hits, 1);
+    assert!(game.npcs[0].raw[0x4c] < 10);
+    assert!(matches!(
+        shadowrealm::combat_runtime::handler(&game.npcs[0]),
+        0xb07e | 0xb38a
+    ));
+    for tick in 0..120 {
+        game.update(&rom, 0).unwrap();
+        if tick < 8 || tick % 20 == 0 {
+            game.render(&rom).unwrap();
+        }
+    }
+    assert!(!game.combat.has_live());
+    assert_eq!(game.combat.shots, 1);
+    if game.npcs[0].raw[0x4c] == 0 {
+        assert_eq!(game.npcs[0].raw[0x10] & 0x50, 0x50);
+    }
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn game_held_burst_fire_is_bounded_and_targeting_is_optional() {
+    let rom = rom();
+    let mut game = Game::load(&rom, 0, &[0]).unwrap();
+    game.party[0].raw[0x57] = 8;
+    game.party[0].raw[0x4e] = 30;
+    game.party[0].raw[0x4f] = 0;
+    for tick in 0..240 {
+        game.update(&rom, input::A).unwrap();
+        if tick < 8 || tick % 20 == 0 {
+            game.render(&rom).unwrap();
+        }
+    }
+    assert!(!game.targeting.enabled);
+    assert!(game.combat.shots >= 2 && game.combat.shots < 15);
+    assert!(game.party[0].raw[0x4e] < 30);
+    for _ in 0..240 {
+        game.update(&rom, 0).unwrap();
+    }
+    assert!(
+        !game.combat.has_live(),
+        "burst/FX slots must retire rather than leak"
+    );
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn game_queues_cooldown_tap_and_reloads_from_finite_reserves() {
+    let rom = rom();
+    let mut game = Game::load(&rom, 0, &[0]).unwrap();
+    game.party[0].set_word(0xdc, 3);
+    game.update(&rom, input::A).unwrap();
+    assert_eq!(game.combat.shots, 0);
+    for _ in 0..4 {
+        game.update(&rom, 0).unwrap();
+    }
+    assert_eq!(
+        game.combat.shots, 1,
+        "a tapped request survives release during cooldown"
+    );
+    for _ in 0..200 {
+        game.update(&rom, 0).unwrap();
+    }
+    game.party[0].raw[0x4e] = 0;
+    game.party[0].raw[0x4f] = 1;
+    game.update(&rom, input::A).unwrap();
+    assert_eq!(game.combat.shots, 1);
+    assert_eq!(game.party[0].raw[0x4f], 0);
+    assert!(game.party[0].raw[0x4e] > 0);
+    assert_eq!(game.combat.status, "Reloading");
+    for _ in 0..200 {
+        game.update(&rom, 0).unwrap();
+    }
+    game.party[0].raw[0x4e] = 0;
+    game.update(&rom, input::A).unwrap();
+    assert_eq!(game.combat.status, "No ammunition");
+    assert_eq!(game.party[0].raw[0x4e], 0);
+    assert_eq!(game.combat.shots, 1);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn launched_hit_applies_resistance_damage_defeat_rewards_and_death_reaction() {
+    use shadowrealm::{
+        avoidance::State,
+        collision::Collision,
+        damage::DamageWorld,
+        party::Runner,
+        projectiles::{self, FlightContext, FlightEvent},
+        weapons::{self, LaunchResult, LaunchWorld},
+    };
+    let rom = rom();
+    let mut source = Runner::load(&rom, 0, 0).unwrap();
+    source.raw[0x10] = 0xd;
+    source.raw[0xdf] = 0;
+    source.raw[0x56] = 0;
+    source.raw[0x57] = 11;
+    source.raw[0x4e] = 3;
+    source.set_word(0x16, 0);
+    source.set_position(1000 * 16, 1000 * 16);
+    source.raw[0xa2..0xa6].copy_from_slice(&0xff0400u32.to_be_bytes());
+    let mut target = Runner::load(&rom, 3, 0).unwrap();
+    target.set_word(0x3e, 3);
+    target.set_position(1000 * 16 + 0x500, 1000 * 16);
+    target.raw[0x10] = 1;
+    target.raw[0x4c] = 10;
+    target.raw[0x4d] = 0;
+    target.raw[0xdf] = 0;
+    target.raw[0x66..0x85].fill(0);
+    target.set_word(0x90, 0);
+    target.raw[0x9a] = 0;
+    target.raw[0x9b] = 0x42;
+    target.raw[0xb0] = 0;
+    target.raw[0x9e] = 0;
+    let mut pool = [[0u8; 256]; 6];
+    // Supplied successes isolate this test's guaranteed lethal hit; original
+    // launch-roll generation is covered by the separate differential/replay tests.
+    let result = weapons::launch_with_resolved_roll(
+        &rom,
+        &mut source,
+        Some(&mut target),
+        &mut pool,
+        &mut LaunchWorld::default(),
+        20,
+    )
+    .unwrap();
+    let LaunchResult::Initialized { projectile, .. } = result else {
+        panic!("expected launch")
+    };
+    let ammo = source.raw[0x4e];
+    let mut actors = vec![
+        source,
+        Runner::load(&rom, 3, 1).unwrap(),
+        Runner::load(&rom, 10, 2).unwrap(),
+        target,
+    ];
+    actors[1].raw[0x10] = 0;
+    actors[2].raw[0x10] = 0;
+    let rewards: Vec<_> = actors[..3].iter().map(|r| r.raw[0x8d]).collect();
+    let collision = Collision {
+        cells: vec![0; 4096],
+        rectangles: vec![],
+        bounds: [0, 0, 2048, 2048],
+        map_width_tiles: 128,
+        overflow_writes: vec![],
+    };
+    let mut context = FlightContext::default();
+    let mut random = State { seed: 4321 };
+    let mut pending = None;
+    for _ in 0..64 {
+        let update = projectiles::advance(
+            &rom,
+            &collision,
+            &mut pool[projectile],
+            &mut actors,
+            &mut context,
+            &mut random,
+        )
+        .unwrap();
+        match update.event {
+            FlightEvent::Moving => {}
+            FlightEvent::DamagePending { actor: 3, .. } => {
+                pending = Some(update.event);
+                break;
+            }
+            event => panic!("unexpected event {event:?}"),
+        }
+    }
+    assert_eq!(actors[3].raw[0x4c], 10);
+    let mut world = DamageWorld {
+        counter42: 19,
+        defeat_timer: 17,
+        ..Default::default()
+    };
+    let result = projectiles::complete_impact(
+        &rom,
+        &mut pool[projectile],
+        &mut actors,
+        pending.unwrap(),
+        &mut world,
+        &mut random,
+    )
+    .unwrap();
+    assert!(result.damage.npc_defeat);
+    assert_eq!(result.damage.health_after, 0);
+    assert!(result.sound.is_some());
+    assert_ne!(random.seed, 4321);
+    assert_eq!(world.counter42, 20);
+    assert_eq!(world.reward_count, 15);
+    assert_eq!(world.defeat_timer, 17);
+    for (actor, before) in actors[..3].iter().zip(rewards) {
+        assert_eq!(actor.raw[0x8d], before.wrapping_add(1));
+    }
+    assert_eq!(actors[3].raw[0x10] & 0x10, 0x10);
+    assert_eq!(&actors[3].raw[0x3a..0x3e], &0xb38au32.to_be_bytes());
+    assert_eq!(
+        u16::from_be_bytes([pool[projectile][0x16], pool[projectile][0x17]]),
+        0x10
+    );
+    let seed = random.seed;
+    assert_eq!(
+        projectiles::advance(
+            &rom,
+            &collision,
+            &mut pool[projectile],
+            &mut actors,
+            &mut context,
+            &mut random
+        )
+        .unwrap()
+        .event,
+        FlightEvent::ImpactAnimating
+    );
+    assert_eq!(random.seed, seed);
+    assert_eq!(actors[0].raw[0x4e], ammo);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn burst_launch_flies_three_shots_and_retires_without_spending_more_ammo() {
+    use shadowrealm::{
+        avoidance::State,
+        collision::Collision,
+        party::Runner,
+        projectiles::{self, FlightContext, FlightEvent},
+        weapons::{self, LaunchResult, LaunchWorld},
+    };
+    let rom = rom();
+    let mut source = Runner::load(&rom, 0, 0).unwrap();
+    source.raw[0xdf] = 0;
+    source.raw[0x10] = 0xd;
+    source.raw[0x57] = 8;
+    source.raw[0x56] = 0;
+    source.raw[0x4e] = 20;
+    source.raw[0xa2..0xa6].fill(0);
+    source.set_word(0x16, 0);
+    source.set_position(1000 * 16, 1000 * 16);
+    let collision = Collision {
+        cells: vec![0; 4096],
+        rectangles: vec![],
+        bounds: [0, 0, 2048, 2048],
+        map_width_tiles: 128,
+        overflow_writes: vec![],
+    };
+    let mut pool = [[0u8; 256]; 6];
+    let mut random = State { seed: 1234 };
+    let (result, _) = weapons::launch_ranged(
+        &rom,
+        &mut source,
+        None,
+        &mut pool,
+        &mut LaunchWorld::default(),
+        &mut random,
+    )
+    .unwrap();
+    let LaunchResult::Initialized { projectile, .. } = result else {
+        panic!("expected launch")
+    };
+    let mut actors = vec![source];
+    let mut context = FlightContext::default();
+    for shot in 0..3 {
+        let mut steps = 0;
+        let seed = random.seed;
+        loop {
+            let update = projectiles::advance(
+                &rom,
+                &collision,
+                &mut pool[projectile],
+                &mut actors,
+                &mut context,
+                &mut random,
+            )
+            .unwrap();
+            steps += update.steps;
+            assert_eq!(random.seed, seed, "flight does not roll again");
+            match update.event {
+                FlightEvent::Moving => assert!(steps <= 32),
+                FlightEvent::Miss { actor: None } => break,
+                event => panic!("unexpected flight event: {event:?}"),
+            }
+        }
+        assert_eq!(steps, 33);
+        // Animation playback is owned by the caller. Simulate its end marker.
+        pool[projectile][0x16..0x18].copy_from_slice(&0xffffu16.to_be_bytes());
+        let update = projectiles::advance(
+            &rom,
+            &collision,
+            &mut pool[projectile],
+            &mut actors,
+            &mut context,
+            &mut random,
+        )
+        .unwrap();
+        if shot < 2 {
+            assert!(matches!(update.event, FlightEvent::Restarted { .. }));
+            assert_ne!(random.seed, seed);
+        } else {
+            assert_eq!(update.event, FlightEvent::Deactivated);
+            assert_eq!(random.seed, seed);
+        }
+        assert_eq!(
+            actors[0].raw[0x4e], 17,
+            "burst continuations do not spend ammunition again"
+        );
+    }
+    assert_eq!(pool[projectile][0x10] & 1, 0);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn original_launch_roll_obeys_admission_and_unsupported_effect_boundaries() {
+    use shadowrealm::{
+        avoidance::State,
+        party::Runner,
+        weapons::{self, LaunchAdmission, LaunchResult, LaunchWorld},
+    };
+    let rom = rom();
+    let mut source = Runner::load(&rom, 0, 0).unwrap();
+    source.set_word(0x16, 0);
+    source.raw[0xa2..0xa6].fill(0);
+    source.raw[0xdf] = 1;
+    source.raw[0x57] = 2;
+    source.raw[0x56] = 0;
+    source.raw[0x4e] = 10;
+    let mut pool = [[0u8; 256]; 6];
+    for raw in &mut pool {
+        raw[0x10] = 1;
+    }
+    let mut world = LaunchWorld::default();
+    let mut random = State { seed: 1234 };
+    let (result, roll) =
+        weapons::launch_ranged(&rom, &mut source, None, &mut pool, &mut world, &mut random)
+            .unwrap();
+    assert_eq!(result, LaunchResult::Rejected(LaunchAdmission::PoolFull));
+    assert!(roll.is_none());
+    assert_eq!(source.raw[0x4e], 9);
+    assert_eq!(random.seed, 1234);
+    pool[2][0x10] = 0;
+    let before = source.raw;
+    let before_pool = pool;
+    assert!(
+        weapons::launch_ranged(&rom, &mut source, None, &mut pool, &mut world, &mut random)
+            .is_err()
+    );
+    assert_eq!(source.raw, before);
+    assert_eq!(pool, before_pool);
+    assert_eq!(random.seed, 1234);
+    assert_eq!(world.engaged, 0);
+    source.raw[0xdf] = 0;
+    let health = source.raw[0x4c];
+    let (result, roll) =
+        weapons::launch_ranged(&rom, &mut source, None, &mut pool, &mut world, &mut random)
+            .unwrap();
+    assert_eq!(result, LaunchResult::FxPoolFull { projectile: 2 });
+    let roll = roll.unwrap();
+    assert!(roll.result.rolls >= 1);
+    assert_ne!(random.seed, 1234);
+    assert_eq!(source.raw[0x9f], roll.result.successes);
+    assert_eq!(pool[2][0x9f], roll.result.successes);
+    assert_eq!(source.raw[0x4e], 8);
+    assert_eq!(source.raw[0x4c], health);
+    assert_eq!(world.timeout, 120);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn launched_projectile_survives_fx_failure_and_success_preserves_fx_tail() {
+    use shadowrealm::{
+        party::Runner,
+        weapons::{self, LaunchResult, LaunchWorld},
+    };
+    let rom = rom();
+    let mut source = Runner::load(&rom, 0, 0).unwrap();
+    source.set_word(0x16, 0);
+    source.raw[0xa2..0xa6].fill(0);
+    source.raw[0x57] = 8;
+    source.raw[0x56] = 0;
+    source.raw[0x4e] = 10;
+    let mut pool = [[0xa5; 256]; 6];
+    for raw in &mut pool {
+        raw[0x10] = 1;
+    }
+    pool[2][0x10] = 0;
+    let mut world = LaunchWorld::default();
+    assert_eq!(
+        weapons::launch_with_resolved_roll(&rom, &mut source, None, &mut pool, &mut world, 3)
+            .unwrap(),
+        LaunchResult::FxPoolFull { projectile: 2 }
+    );
+    assert_eq!(source.raw[0x4e], 7);
+    assert_eq!(source.raw[0x9f], 3);
+    assert_eq!(pool[2][0x10] & 1, 1);
+    assert_eq!(pool[2][0x89], 0x20);
+    assert_eq!(world.timeout, 120);
+    // Two available entries now allow both projectile and muzzle FX.
+    pool[0][0x10] = 0;
+    pool[5][0x10] = 0;
+    let old_projectile = pool[2];
+    let fx_tail = pool[5][160..].to_vec();
+    let result =
+        weapons::launch_with_resolved_roll(&rom, &mut source, None, &mut pool, &mut world, 7)
+            .unwrap();
+    assert!(matches!(
+        result,
+        LaunchResult::Initialized {
+            projectile: 0,
+            fx: 5,
+            ..
+        }
+    ));
+    assert_eq!(pool[2], old_projectile);
+    assert_eq!(&pool[5][160..], fx_tail);
+    assert!(pool[0][160..].iter().all(|b| *b == 0));
+    assert_eq!(pool[0][0x9f], 7);
+    assert_eq!(pool[5][0x9f], 7);
+    assert_eq!(source.raw[0x4e], 4);
+    assert_eq!(pool[0][0x41], 2);
+    assert_eq!(pool[5][0x41], 0);
+    assert_eq!(pool[5][0xe], 0);
+    assert_eq!(
+        source.raw[0x4c],
+        Runner::load(&rom, 0, 0).unwrap().raw[0x4c],
+        "initialization does not apply damage"
+    );
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn launch_prefix_preserves_resource_loss_on_full_pool_and_consumable_removal() {
+    use shadowrealm::{
+        party::Runner,
+        weapons::{self, LaunchAdmission, LaunchSignals},
+    };
+    let rom = rom();
+    let mut runner = Runner::load(&rom, 0, 0).unwrap();
+    runner.set_word(0x16, 0);
+    runner.raw[0x10] = 0xf;
+    runner.raw[0x56] = 0;
+    runner.raw[0x57] = 8;
+    runner.raw[0x4e] = 2;
+    let mut pool = [[0u8; 256]; 6];
+    for entry in &mut pool {
+        entry[0x10] = 1;
+    }
+    let mut signals = LaunchSignals::default();
+    assert_eq!(
+        weapons::admit_ranged_prefix(&rom, &mut runner, 0, &mut signals, &pool).unwrap(),
+        LaunchAdmission::PoolFull
+    );
+    assert_eq!(runner.raw[0x4e], 0);
+    assert!(signals.burst);
+    pool[4][0x10] = 0;
+    assert_eq!(
+        weapons::admit_ranged_prefix(&rom, &mut runner, 0, &mut signals, &pool).unwrap(),
+        LaunchAdmission::EmptyResource
+    );
+    runner.raw[0x57] = 13;
+    runner.raw[0x4e] = 1;
+    runner.raw[0x66] = 13;
+    runner.raw[0x6e] = 1;
+    assert_eq!(
+        weapons::admit_ranged_prefix(&rom, &mut runner, 0, &mut signals, &pool).unwrap(),
+        LaunchAdmission::ReadyForInitialization { slot: 4 }
+    );
+    assert_eq!(
+        (
+            runner.raw[0x56],
+            runner.raw[0x57],
+            runner.raw[0x66],
+            runner.raw[0x6e]
+        ),
+        (0x7f, 0, 0, 0)
+    );
+    assert_eq!(runner.raw[0x4e], 1);
+    assert_eq!(pool[4][0x10], 0, "prefix lookup does not reserve the entry");
+    // State and mode rejections occur before resource consumption; the busy
+    // signal persists until the owning controller explicitly clears it.
+    runner.raw[0x57] = 8;
+    runner.raw[0x56] = 0;
+    runner.raw[0x4e] = 10;
+    runner.set_word(0x16, 0x3d);
+    let before = runner.raw;
+    assert_eq!(
+        weapons::admit_ranged_prefix(&rom, &mut runner, 3, &mut signals, &pool).unwrap(),
+        LaunchAdmission::ModeBlocked
+    );
+    assert!(!signals.controlled_busy);
+    assert_eq!(
+        weapons::admit_ranged_prefix(&rom, &mut runner, 0, &mut signals, &pool).unwrap(),
+        LaunchAdmission::StateBlocked
+    );
+    assert!(signals.controlled_busy);
+    assert_eq!(runner.raw, before);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
 fn cooldown_advances_active_actors_and_freezes_during_dialogue() {
     let rom = rom();
     let mut game = Game::load(&rom, 0, &[0, 3, 10]).unwrap();

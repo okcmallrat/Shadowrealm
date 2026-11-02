@@ -1,6 +1,5 @@
-//! Stateful exploration integration. Uses recovered templates, collision and
-//! animation assets and traced area transitions. General story/combat handlers
-//! are not yet reconstructed.
+//! Stateful exploration and bounded player gunfire, using recovered templates,
+//! collision, animation and travel. General story and combat AI remain incomplete.
 use crate::{
     actors::{project, ActorFrame},
     avoidance,
@@ -32,6 +31,7 @@ pub struct Game {
     pub knowledge: Knowledge,
     pub nuyen: u32,
     pub targeting: Targeting,
+    pub combat: crate::combat_runtime::Runtime,
     catalog: Catalog,
     hiring_quote: Option<Quote>,
     npc_dialogue_cooldown: u8,
@@ -69,6 +69,16 @@ impl Game {
         let mut party = Vec::new();
         for (slot, template) in templates.iter().enumerate() {
             let mut runner = Runner::load(rom, *template, slot)?;
+            // Host development roster: templates contain provisional resource
+            // values (32) above several equipped magazines. Match the existing
+            // HUD capacity clamp before play, without inventing a new-game save.
+            if runner.raw[0x56] < 8 && (1..=12).contains(&runner.raw[0x57]) {
+                let at = 0xd4540 + usize::from(runner.raw[0x57] - 1) * 48 + 0x24;
+                runner.raw[0x4e] = runner.raw[0x4e].min(
+                    *rom.get(at)
+                        .ok_or(RomError("starting magazine capacity missing"))?,
+                );
+            }
             let offset = 0x42 + slot * 4;
             runner.set_position(
                 u16::from_be_bytes([map.raw[offset], map.raw[offset + 1]]),
@@ -89,6 +99,7 @@ impl Game {
             knowledge: Knowledge::default(),
             nuyen: hiring::initial_balance(rom)?,
             targeting: Targeting::default(),
+            combat: Default::default(),
             hiring_quote: None,
             catalog,
             npc_dialogue_cooldown: 0,
@@ -292,6 +303,12 @@ impl Game {
         for (slot, runner) in party.iter_mut().enumerate() {
             runner.set_position(plan.positions[slot].0, plan.positions[slot].1);
             runner.select_motion(false);
+            if crate::combat_runtime::action(runner) && runner.raw[0x4c] != 0 {
+                runner.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
+                runner.set_word(0x1a, 0);
+                runner.set_word(0x1e, 0);
+                runner.clock = Default::default();
+            }
         }
         let mut hud = Hud::load(rom, &mut scene)?;
         hud.select(rom, self.selected)?;
@@ -317,6 +334,7 @@ impl Game {
             TransitionKind::Exterior => self.saved_exterior,
         };
         self.npcs = npcs;
+        self.combat.clear_map();
         self.map = map;
         self.scene = scene;
         self.collision = collision;
@@ -400,6 +418,8 @@ impl Game {
             self.targeting.invalidate(&mut self.party);
         }
         self.selected = slot;
+        self.combat.status = "";
+        self.combat.launch.signals.controlled_busy = false;
         // $3992/$39a8 transfers the controlled-player bit. Without this, a
         // switched or newly hired runner could walk but could not use doors.
         for (i, runner) in self.party.iter_mut().enumerate() {
@@ -483,6 +503,8 @@ impl Game {
             self.npc_dialogue_cooldown -= 1;
         }
         if self.map.id == 10
+            && self.input.held & crate::input::A == 0
+            && !self.combat.has_live()
             && self.saved_exterior.is_some()
             && self.npc_dialogue_cooldown == 0
             && self
@@ -503,7 +525,16 @@ impl Game {
         }
         let mut serviced = false;
         for slot in 0..self.party.len() {
+            crate::combat_runtime::prepare_actor(&mut self.party[slot]);
+            if slot == self.selected {
+                self.dispatch_weapon(rom)?;
+            }
             if self.party[slot].raw[0x10] & 0x51 != 1 {
+                continue;
+            }
+            if crate::combat_runtime::holds_movement(&self.party[slot])
+                || (slot == self.selected && self.combat.player_attempt)
+            {
                 continue;
             }
             if slot != self.selected {
@@ -646,12 +677,18 @@ impl Game {
             }
         }
         for npc in &mut self.npcs {
-            if npc.raw[0x10] & 0x41 == 1 {
+            crate::combat_runtime::prepare_actor(npc);
+            if npc.raw[0x10] & 0x41 == 1 && !crate::combat_runtime::holds_movement(npc) {
                 avoidance::respond(rom, &self.collision, npc, self.tick as u16)?;
             }
         }
+        self.dispatch_projectiles(rom)?;
         for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
-            runner.tick_animation(rom)?;
+            if crate::combat_runtime::action(runner) {
+                crate::combat_runtime::tick_animation(rom, runner)?;
+            } else {
+                runner.tick_animation(rom)?;
+            }
         }
         self.environment.tick(rom, &mut self.scene)?;
         // Host camera keeps the controlled runner in the playable area. Original
@@ -689,6 +726,63 @@ impl Game {
             .chain(self.npcs.iter())
             .find(|r| r.word(0x3e) == u16::from(id.0) && r.raw[0x10] & 0x41 == 1)
     }
+    fn combat_actors(&self) -> Vec<Runner> {
+        (0..10)
+            .map(|slot| {
+                self.party
+                    .iter()
+                    .chain(self.npcs.iter())
+                    .find(|r| r.word(0x3e) == slot)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        let mut r = Runner {
+                            raw: [0; 256],
+                            template: 0,
+                            clock: Default::default(),
+                        };
+                        r.set_word(0x3e, slot);
+                        r
+                    })
+            })
+            .collect()
+    }
+    fn accept_combat_actors(&mut self, actors: &[Runner]) -> bool {
+        let mut dirty = false;
+        for r in self.party.iter_mut().chain(self.npcs.iter_mut()) {
+            if let Some(updated) = actors.iter().find(|a| a.word(0x3e) == r.word(0x3e)) {
+                if r.word(0x3e) < 3 {
+                    dirty |= r.raw[0x4c..0x58] != updated.raw[0x4c..0x58]
+                        || r.raw[0x9c] != updated.raw[0x9c];
+                }
+                *r = updated.clone();
+            }
+        }
+        dirty
+    }
+    fn dispatch_weapon(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        let mut actors = self.combat_actors();
+        self.combat.launch.map_id = self.map.id as u16;
+        self.combat.player(
+            rom,
+            &mut actors,
+            self.selected as u16,
+            self.input,
+            &mut self.avoidance,
+        )?;
+        if self.accept_combat_actors(&actors) {
+            self.refresh_hud(rom)?;
+        }
+        Ok(())
+    }
+    fn dispatch_projectiles(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        let mut actors = self.combat_actors();
+        self.combat
+            .projectiles(rom, &self.collision, &mut actors, &mut self.avoidance)?;
+        if self.accept_combat_actors(&actors) {
+            self.refresh_hud(rom)?;
+        }
+        Ok(())
+    }
     /// Independent, non-mutating diagnostic with cleared collision scratch.
     pub fn selected_fire_probe(&self, rom: &[u8]) -> Result<Option<combat::LineProbe>, RomError> {
         self.selected_target()
@@ -704,7 +798,14 @@ impl Game {
             .transpose()
     }
     pub fn render(&mut self, rom: &[u8]) -> Result<Vec<u8>, RomError> {
-        let actors: Vec<&Runner> = self.party.iter().chain(self.npcs.iter()).collect();
+        let projectiles = self.combat.sprites();
+        let actors: Vec<&Runner> = self
+            .party
+            .iter()
+            .chain(self.npcs.iter())
+            .chain(projectiles.iter())
+            .filter(|r| r.raw[0x10] & 1 != 0)
+            .collect();
         let mut frames = Vec::with_capacity(actors.len());
         for runner in &actors {
             let seq = runner.sequence(rom)?;

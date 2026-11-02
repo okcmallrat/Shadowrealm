@@ -16,9 +16,11 @@ Non-selected companions now perform bounded noncombat following, formation,
 static wall sliding and recovered fallback wall hugging. Party/NPC overlap now
 uses the original physical separation response, including player deflections
 and contact-triggered travel through the verified seams and Space Needle path.
-Press T to toggle the new [target-selection prerequisite](docs/combat-targets.md).
-Blocked projectile probes now show red target brackets; this does not enable
-weapon attacks or damage.
+**Hold F to fire** the selected runner's equipped firearm. Tap T to toggle
+target selection, or fire in the facing direction without a target. The native
+game loop now runs cooldowns, finite ammunition/reloads, flashes/impacts, burst
+continuations, damage and hurt/death setup. See [combat scope and verification](docs/combat-targets.md).
+Blocked projectile probes show red target brackets; shots still obey collision.
 See [companion behavior](docs/companion-following.md) and
 [actor contacts and limits](docs/actor-contacts.md). Combat AI remains unfinished.
 
@@ -34,7 +36,7 @@ Download and extract [`Shadowrealm-windows-x64-exploration.zip`](releases/Shadow
 and launch the EXE on Windows 10/11 x64. No Rust/Python/emulator installation is
 needed for the package. The ROM is not bundled.
 
-Arrow keys/WASD move, Tab switches runner, T toggles target selection outside
+Arrow keys/WASD move, F fires, Tab switches runner, T toggles target selection outside
 dialogue, Enter/Z acknowledges the entrance
 passage or dialogue choice, Space pauses, R resets, Escape exits. During dialogue,
 Up/Down selects a choice and Left/Right pages long text. Trent can be hired when

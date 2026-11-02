@@ -14,10 +14,41 @@ companion following, plus contact-triggered travel on the verified routes.
 Target acquisition and the projectile obstruction probe are now connected;
 weapon cooldown ticking and source-only ranged animation setup are verified
 in `src/weapons.rs` (4,096 original full-actor comparisons each for cooldown,
-dispatcher tick and ranged setup, without stubs). Next recover launch admission,
-ammunition consumption, projectile allocation and damage before enabling attacks.
-54 unit tests and 18 ROM integration tests pass, along with the combat,
-avoidance, followers, world, transitions, interior, dialogue and hiring validators.
+dispatcher tick and ranged setup, without stubs). Launch admission through the
+first projectile-slot lookup and resource consumption are now implemented as
+backend APIs: 18,432 resource and 6,144 launch-prefix original comparisons pass,
+with only low-level HUD transfers omitted. See `docs/combat-targets.md`.
+Projectile initialization, alert logic, burst setup, second FX allocation and
+FX initialization are implemented in `launch_with_resolved_roll`; `launch_ranged`
+now adds original `$55640` rolls for the baseline without ongoing effects.
+`src/attack_roll.rs` matches 1,538 dice cases and 4,096 ranged-roll cases without
+stubs. All 2,048 normal-world launch fixtures match in both supplied-roll and
+original-roll variants, omitting only audio/HUD transfers in the latter.
+Both allocation failures preserve the original partial state; FX failure leaves
+the live projectile in place. Environment mode 2 scripts remain unsupported.
+`src/projectiles.rs` now implements live movement, actor scans, impact entry,
+animation holds and burst restarts/retirement: 3,264 original handler comparisons
+match (only audio omitted; hits stop at the real `$55948` damage entry).
+`src/damage.rs` now resolves baseline physical `$55948` damage; 4,096 original
+calls match (1,231 health changes and 552 NPC defeat paths; only HUD transfer
+omitted). `projectiles::complete_impact` adds health-loss impact visuals and
+`$aff2` hurt/death setup, including party-defeat timer setup. All 512 reaction
+cases and 588 complete live impacts match (only audio/HUD transfers omitted).
+Player firearm firing is now enabled: **hold F**, optionally T to target.
+`src/combat_runtime.rs` integrates the selected-player cooldown/request gate,
+finite-reserve reload, actor firing/hurt poses, six projectile/FX slots, immediate
+hit completion, terminal frame timing and original resident sprites into Game.
+1,024 gates, 1,024 reloads, 1,024 failed-launch/reload continuations and 1,024
+animation calls match original routines.
+Next reconstruct hostile/companion combat AI, mission-aware death callbacks,
+full defeat/game-over flow and the remaining weapon/effect systems. Ongoing
+modifiers, modified burst roll contexts, environment mode 2
+scripts and footprint-flag projectile collisions return explicit unsupported errors.
+59 unit tests and all 27 enabled ROM integration tests pass, including 13 combat
+tests. The 313-tick firing replay records shots, hits, ammo, reserves and pool use.
+The combat oracle, including all previous timing/target/probe comparisons,
+passes. The preceding checkpoint also passed avoidance,
+followers, world, transitions, interior, dialogue and hiring validators.
 Do not restart completed ROM/map/hiring/navigation work. No clarification is pending. Do not assume runtime files outside Git persist.
 
 The user explicitly asked to introduce JSON **slowly** for recovered dialogue
@@ -28,20 +59,22 @@ migrate unrelated systems or invent missing quest rules.
 
 Repository: https://github.com/okcmallrat/Shadowrealm
 Remote branch: `main`; this environment's local branch is `work`.
-Verified published commit: `90fa5c4d438b1c81a0c9c316faa8b56956ab600d` — companion
-wall hugging and original physical contact separation, including source, tests,
-notes and Windows ZIP. The user explicitly requested this push; the remote SHA
-was checked after success. The earlier `e5979b9` checkpoint is its base milestone.
+Verified published commit: `5127868318d5de673e4301bdc5a0dcd019e27a32` — contact
+travel, combat targeting/obstruction and weapon timing, including source,
+tests, notes and Windows ZIP. The user explicitly requested this push; the
+remote SHA was checked after success. Its parent is `90fa5c4`.
 
-The user requested committing and pushing the subsequent contact-triggered travel,
-combat targeting/obstruction and weapon-timing checkpoint to `main`, then pausing.
-This handoff is included in that checkpoint. Verify the remote SHA when resuming;
-`90fa5c4` above is the preceding published checkpoint. Next development step is
-launch admission, ammunition consumption, projectile allocation and damage.
-Do not continue development until the user resumes.
+The user requested pushing the enabled-firing milestone (ammunition, launch,
+attack rolls, flight, damage, rendering and controls), then continuing development.
+This handoff is included in that checkpoint; verify the remote SHA when resuming.
+The `5127868` commit above is the preceding published checkpoint. Subsequent
+development changes should remain local until another push is requested.
+The versioned Windows ZIP is refreshed locally with enabled firing, supporting
+README and matching SHA-256. Linux desktop and Windows cross-builds are checked;
+actual Windows GUI/input playtesting remains outstanding.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `f3f1a02b9fac68cf3fbd03e5f0a024c8cc81e127c3d4101d87a946450f4c16b6`.
+SHA-256: `8ccf8440d26447ed314a87f3a13f0ba46a896738852e441c00ddd30be00ade30`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -381,7 +414,8 @@ retains other corner bytes. The UI deliberately uses cleared scratch for an
 independent deterministic query. Red target brackets/title status report a
 blocked probe, gray reports unmodeled geometry, and yellow still only means
 selection. Rendering does not advance simulation, consume RNG/ammo, create live
-projectiles, change target links, or apply damage. Firing remains disabled.
+projectiles, change target links, or apply damage. Firing was disabled at that
+checkpoint; the current runtime at the top of this handoff now enables it.
 
 54 unit tests and all 17 explicitly enabled ROM integration tests pass. The
 combat oracle adds 2,176 complete original probe calls: 271 target reaches,
@@ -402,10 +436,9 @@ Serde/JSON dialogue/hiring records remain in use.
 
 ## Best next milestone
 
-Recover weapon attack/action and animation dispatch (including `b11c/b1dc` and
-the non-probe projectile path), ammunition/cooldown checks, hit rolls and one
-bounded damage path before enabling firing. Keep hostile AI and mission state
-separate. Connect earning money and contract resolution through a verified job
+Firing is now enabled for equipped firearms. Recover hostile/companion combat
+AI and mission-aware death/defeat handling next, followed by melee/magic and
+ongoing effects. Connect earning money and contract resolution through a verified job
 flow, introducing JSON only in small source-backed records. Full combat and
 additional scripted travel remain unfinished.
 

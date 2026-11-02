@@ -31,7 +31,7 @@ fn set_word(raw: &mut [u8; 256], at: usize, value: u16) {
 /// Point-query variant of $e7c8, used by the flag-bit-2-clear probe particle.
 /// Other corner bytes persist in the original shared collision scratch; keep
 /// them explicit instead of silently substituting a full actor footprint.
-fn point_blocks(c: &Collision, p: (u16, u16), samples: &mut [u8; 4]) -> Option<bool> {
+pub(crate) fn point_blocks(c: &Collision, p: (u16, u16), samples: &mut [u8; 4]) -> Option<bool> {
     let (x, y) = (p.0 >> 4, p.1 >> 4);
     if x < c.bounds[0] || y < c.bounds[1] || x >= c.bounds[2] || y >= c.bounds[3] {
         *samples = [0, 0x7f, 0, 0x7f];

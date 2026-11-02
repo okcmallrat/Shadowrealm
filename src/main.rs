@@ -163,7 +163,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             let directory = std::path::Path::new(&args[5]);
             fs::create_dir(directory)?;
             let mut trace = fs::File::create(directory.join("state.csv"))?;
-            writeln!(trace,"tick,selected,x,y,camera_x,camera_y,state,phase,animation_frame,blocked,transition,map,transition_stage,completed_transitions")?;
+            writeln!(trace,"tick,selected,x,y,camera_x,camera_y,state,phase,animation_frame,blocked,transition,map,transition_stage,completed_transitions,shots,hits,ammo,reserves,projectiles")?;
             let mut total = 0;
             for line in input
                 .lines()
@@ -193,7 +193,7 @@ fn run() -> Result<(), Box<dyn Error>> {
                     let (x, y) = runner.position();
                     writeln!(
                         trace,
-                        "{total},{},{x},{y},{},{},{},{},{},{},{},{},{},{}",
+                        "{total},{},{x},{y},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                         game.selected,
                         game.camera.0,
                         game.camera.1,
@@ -208,7 +208,12 @@ fn run() -> Result<(), Box<dyn Error>> {
                         game.transition
                             .map(|a| format!("{:?}", a.stage))
                             .unwrap_or_default(),
-                        game.completed_transitions
+                        game.completed_transitions,
+                        game.combat.shots,
+                        game.combat.hits,
+                        runner.raw[0x4e],
+                        runner.raw[0x4f],
+                        game.combat.pool.iter().filter(|p| p[0x10] & 1 != 0).count()
                     )?;
                     total += 1;
                 }

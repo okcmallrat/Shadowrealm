@@ -1,0 +1,286 @@
+//! Native player-fire integration. Host input/camera remain separate from the
+//! recovered weapon, flight, damage, animation and FX routines.
+use crate::{
+    actors::AnimationClock,
+    avoidance::State,
+    collision::Collision,
+    damage::DamageWorld,
+    input::Controller,
+    party::Runner,
+    projectiles::{self, FlightContext, FlightEvent},
+    weapons::{self, LaunchResult, LaunchWorld},
+    RomError,
+};
+
+pub struct Runtime {
+    pub pool: [[u8; 256]; 6],
+    pub launch: LaunchWorld,
+    pub damage: DamageWorld,
+    pub flight: FlightContext,
+    pub shots: u64,
+    pub hits: u64,
+    pub status: &'static str,
+    pub player_attempt: bool,
+}
+impl Default for Runtime {
+    fn default() -> Self {
+        Self {
+            pool: [[0; 256]; 6],
+            launch: Default::default(),
+            damage: Default::default(),
+            flight: Default::default(),
+            shots: 0,
+            hits: 0,
+            status: "",
+            player_attempt: false,
+        }
+    }
+}
+pub fn handler(actor: &Runner) -> u32 {
+    u32::from_be_bytes(actor.raw[0x3a..0x3e].try_into().unwrap())
+}
+pub fn action(actor: &Runner) -> bool {
+    matches!(handler(actor), 0xb3ee | 0xb07e | 0xb38a)
+}
+pub fn holds_movement(actor: &Runner) -> bool {
+    action(actor) || actor.raw[0x10] & 0x50 != 0 || actor.raw[0x4c] == 0
+}
+
+/// $5fdc then $600e up to frame lookup: use last tick's stored increment,
+/// mark terminal state, clamp/loop frame, then load the next increment.
+pub fn tick_animation(rom: &[u8], actor: &mut Runner) -> Result<(), RomError> {
+    let seq = actor.sequence(rom)?;
+    let mut clock = AnimationClock {
+        phase: actor.word(0x1a),
+        frame: actor.word(0x1e),
+        ended: false,
+    };
+    let advanced =
+        (actor.word(0x1a).wrapping_add(actor.word(0x18)) as i16) >= (actor.word(0x1c) as i16);
+    clock.tick(
+        actor.word(0x1c),
+        actor.word(0x18),
+        seq.frames.len() as u16,
+        seq.terminal,
+    )?;
+    if advanced {
+        actor.raw[0x11] |= 1;
+    }
+    actor.set_word(0x1a, clock.phase);
+    actor.set_word(0x1e, clock.frame);
+    actor.set_word(0x18, seq.increment(actor.word(0xca), clock.frame));
+    if clock.ended {
+        actor.set_word(0x16, actor.word(0x16) | 0x8000);
+    }
+    actor.clock = clock;
+    Ok(())
+}
+fn actor(raw: [u8; 256]) -> Runner {
+    Runner {
+        clock: AnimationClock {
+            phase: u16::from_be_bytes([raw[0x1a], raw[0x1b]]),
+            frame: u16::from_be_bytes([raw[0x1e], raw[0x1f]]),
+            ended: u16::from_be_bytes([raw[0x16], raw[0x17]]) & 0x8000 != 0,
+        },
+        raw,
+        template: 0,
+    }
+}
+
+/// Process a current actor pose at its own dispatch position.
+pub fn prepare_actor(r: &mut Runner) {
+    if r.raw[0x10] & 1 == 0 {
+        return;
+    }
+    match handler(r) {
+        0xb38a => {
+            r.set_word(0x38, 0);
+            if (r.word(0x16) as i16) < 0 {
+                r.raw[0x10] |= 0x40;
+            }
+        }
+        0xb3ee | 0xb07e => {
+            r.set_word(0x38, 0);
+            if handler(r) == 0xb07e {
+                r.raw[0xce] = r.raw[0xce].wrapping_sub(1);
+            }
+            if (r.word(0x16) as i16) < 0 {
+                r.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
+                r.select_motion(false);
+                r.set_word(0x1a, 0);
+                r.set_word(0x1e, 0);
+                r.clock = Default::default();
+            }
+        }
+        _ => {}
+    }
+}
+
+impl Runtime {
+    pub fn has_live(&self) -> bool {
+        self.pool.iter().any(|p| p[0x10] & 1 != 0)
+    }
+    pub fn clear_map(&mut self) {
+        self.pool = [[0; 256]; 6];
+        self.flight = Default::default();
+        self.launch.signals = Default::default();
+    }
+    pub fn sprites(&self) -> Vec<Runner> {
+        self.pool
+            .iter()
+            .filter(|p| p[0x10] & 1 != 0)
+            .map(|p| actor(*p))
+            .collect()
+    }
+
+    /// Service input at the selected actor's dispatch position, after pose
+    /// preparation. NPCs/companions do not gain invented automatic attacks.
+    pub fn player(
+        &mut self,
+        rom: &[u8],
+        actors: &mut [Runner],
+        selected: u16,
+        input: Controller,
+        random: &mut State,
+    ) -> Result<(), RomError> {
+        self.player_attempt = false;
+        let index = actors
+            .iter()
+            .position(|r| r.word(0x3e) == selected)
+            .ok_or(RomError("controlled actor missing"))?;
+        let source = &actors[index];
+        if self.status == "Reloading" && (source.word(0xdc) as i16) < 0 {
+            self.status = "";
+        }
+        if source.raw[0x10] & 0x53 != 3
+            || source.raw[0x4c] == 0
+            || source.raw[0x9c] == 0
+            || holds_movement(source)
+            || source.word(0x16) & 0x7ff > 0x3c
+        {
+            return Ok(());
+        }
+        if !weapons::controlled_fire_request(source, &mut self.launch.signals, input) {
+            return Ok(());
+        }
+        self.player_attempt = true;
+        if source.raw[0x56] >= 8 || !(1..=12).contains(&source.raw[0x57]) {
+            self.status = "This weapon is not available yet";
+            return Ok(());
+        }
+        if actors
+            .iter()
+            .any(|a| a.raw[0x10] & 1 != 0 && a.raw[0xdf] & 3 != 0)
+        {
+            self.status = "This weapon effect is not available yet";
+            return Ok(());
+        }
+        let mut source = source.clone();
+        source.raw[0x43] = 0;
+        let pointer = u32::from_be_bytes(source.raw[0xa2..0xa6].try_into().unwrap());
+        let target_index = actors
+            .iter()
+            .position(|r| 0xff0100 + u32::from(r.word(0x3e)) * 256 == pointer);
+        let mut target = target_index.map(|i| actors[i].clone());
+        if pointer != 0 && target.is_none() {
+            source.raw[0xa2..0xa6].fill(0);
+        }
+        let result = weapons::launch_ranged(
+            rom,
+            &mut source,
+            target.as_mut(),
+            &mut self.pool,
+            &mut self.launch,
+            random,
+        )?;
+        if let Some(i) = target_index {
+            actors[i] = target.unwrap();
+        }
+        match result.0 {
+            LaunchResult::Initialized { fx, .. } => {
+                let angle = u16::from_be_bytes([self.pool[fx][0x2e], self.pool[fx][0x2f]]);
+                weapons::prepare_ranged(rom, &mut source, angle)?;
+                self.shots += 1;
+                self.status = "";
+            }
+            LaunchResult::FxPoolFull { .. } => {
+                self.shots += 1;
+                let reloaded =
+                    weapons::failed_controlled_launch(rom, &mut source, input.direction())?;
+                self.player_attempt = !reloaded;
+                self.status = if reloaded {
+                    "Reloading"
+                } else if source.raw[0x4e] == 0 {
+                    "No ammunition"
+                } else {
+                    ""
+                };
+            }
+            LaunchResult::Rejected(_) => {
+                if weapons::failed_controlled_launch(rom, &mut source, input.direction())? {
+                    self.player_attempt = false;
+                    self.status = "Reloading";
+                } else {
+                    self.status = if source.raw[0x4e] == 0 {
+                        "No ammunition"
+                    } else {
+                        ""
+                    };
+                }
+            }
+        }
+        actors[index] = source;
+        Ok(())
+    }
+
+    /// After actor motion, in projectile slot order; then the frame clock for
+    /// each active projectile/FX. All damage uses the shared simulation RNG.
+    pub fn projectiles(
+        &mut self,
+        rom: &[u8],
+        collision: &Collision,
+        actors: &mut [Runner],
+        random: &mut State,
+    ) -> Result<(), RomError> {
+        for raw in &mut self.pool {
+            if raw[0x10] & 1 == 0 {
+                continue;
+            }
+            let mut r = actor(*raw);
+            match handler(&r) {
+                0x14e0a => {
+                    let update = projectiles::advance(
+                        rom,
+                        collision,
+                        &mut r.raw,
+                        actors,
+                        &mut self.flight,
+                        random,
+                    )?;
+                    if matches!(update.event, FlightEvent::DamagePending { .. }) {
+                        projectiles::complete_impact(
+                            rom,
+                            &mut r.raw,
+                            actors,
+                            update.event,
+                            &mut self.damage,
+                            random,
+                        )?;
+                        self.hits += 1;
+                    }
+                }
+                0xac4e => {
+                    if (r.word(0x16) as i16) < 0 {
+                        r.raw[0x10] &= !1;
+                    }
+                }
+                _ => return Err(RomError("unknown live projectile handler")),
+            }
+            if r.raw[0x10] & 1 != 0 {
+                tick_animation(rom, &mut r)?;
+            }
+            *raw = r.raw;
+        }
+        Ok(())
+    }
+}
