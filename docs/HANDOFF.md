@@ -8,7 +8,7 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-Latest local milestone (2026-11-02): normal Joshua defeat now snapshots the
+Latest milestone (2026-11-02): normal Joshua defeat now snapshots the
 original 74-byte runner archives, removes companions and applies original opinion
 penalties, then continues through uninsured Little Chiba or the two DocWagon
 passages and Seattle General arrival. Trent's negative-opinion conversation and
@@ -27,7 +27,9 @@ mission callbacks, companion combat and general recruiting remain unfinished.
 
 Continue with companion firearm combat and original decision scheduling, then
 mission-aware recovery/jobs. Do not redo completed navigation or medical work.
-The current user requested continuing development; no new push was requested.
+The user authorized pushing all completed work to GitHub and then stopping.
+The implementation checkpoint is `5041da9`; resume with companion combat.
+Do not publish environment configuration, private inputs or generated analysis.
 The remaining historical sections record earlier milestones and their old counts.
 
 The user resumed development after cloud setup. The current local milestone
@@ -82,8 +84,9 @@ Repository: https://github.com/okcmallrat/Shadowrealm
 Remote branch: `main`; this environment's local branch is `work`.
 Starting checkpoint: `115ee95` (street encounters, physical defeat and uninsured
 solo clinic recovery). The archive/insurance/rehire work is local after that
-checkpoint; inspect `git status` before continuing. Do not push without a new user
-request or publish environment configuration.
+checkpoint, implemented in `5041da9`. The user authorized publishing this checkpoint
+and its final handoff update to `origin/main`, then stopping. Inspect `git status`
+and the remote head on resume. Environment configuration and private inputs are excluded.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
 SHA-256: `a8843c9eecf5d21a8f34b1abe46ae702ab28f93649aabf44570a0115605d5870`.
