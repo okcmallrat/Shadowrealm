@@ -93,8 +93,8 @@ claim is made for these systems. This ZIP is a development milestone.
 
 Equipped firearms now use recovered ammo/reload/cooldown rules, original attack
 and resistance dice, projectile collision, muzzle/impact sprites, damage and
-hurt/death setup. There are no fabricated enemies or a training arena; the world
-and NPC spawning are still incomplete. Neutral/protected NPCs retain the original
+hurt/death setup. There are no fabricated enemies or a training arena; general world
+and scripted NPC spawning are still incomplete. Neutral/protected NPCs retain the original
 collision filters. Audio playback and the full defeat/game-over flow are absent.
 
 VALIDATION
@@ -107,7 +107,17 @@ The Windows executable was cross-compiled and its PE format and DLL imports were
 inspected. A Windows GUI session was not available here, so window creation and
 keyboard interaction have not yet been verified on an actual Windows PC.
 
-Ordinary firearm NPCs now acquire party targets, pursue into range and fire once
-the recovered hostile/alarm conditions engage them. Alarm expiry clears combat
-links. General encounter spawning, ambient patrol and special combat AI remain
-incomplete; no enemies or training arena have been fabricated for this checkpoint.
+Supported street firearm groups now spawn from the original district tables and
+collision-grid placement rules, then approach and fire through native combat.
+Try: Shadowrealm.exe Shadowrun.bin 5 --solo
+With the host's deterministic initial seed and idle input, the solo map 5 session
+spawns two attackers; other play changes the shared RNG. T selects, F fires and
+R resets. Scripted encounters, creatures/magic, ambient patrol and the full
+defeat/restart flow remain incomplete. Windows GUI playtesting remains pending.
+
+Uninsured solo Joshua now follows the recovered defeat delay into the original
+Little Chiba passage, pays the original clinic fee and returns to play on map 2.
+Enter/Z continues the passage; equipment, remaining money and ammunition survive.
+Try the solo roster with: Shadowrealm.exe Shadowrun.bin 5 --solo
+Companion/archive, insured and mission recovery remain outside this subset and
+retain the frozen defeat notice with R to reset the development session.

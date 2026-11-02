@@ -117,6 +117,11 @@ impl LaunchWorld {
         if (self.timeout as i16) >= 0 {
             return false;
         }
+        self.end_combat(actors);
+        true
+    }
+    /// Original $1dbf0 link cleanup, also called when the last encounter actor dies.
+    pub fn end_combat(&mut self, actors: &mut [Runner]) {
         self.engaged = 0;
         for a in actors {
             a.raw[0xa2..0xa6].fill(0);
@@ -125,7 +130,6 @@ impl LaunchWorld {
             a.raw[0xb0] &= !0x40;
             a.raw[0x11] &= !0x10;
         }
-        true
     }
     pub(crate) fn alert(&mut self) {
         if self.map_id == 54 && self.map54_override == 0 {

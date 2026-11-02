@@ -136,6 +136,9 @@ impl Runtime {
         self.npc_force = true;
         self.npc_fire = Default::default();
     }
+    pub fn actors_changed(&mut self) {
+        self.npc_force = true;
+    }
     pub fn sprites(&self) -> Vec<Runner> {
         self.pool
             .iter()
@@ -176,7 +179,11 @@ impl Runtime {
         let due = npc_combat::decision_due(&mut source, party_serviced);
         actors[index] = source.clone();
         let branch = npc_combat::dispatch_branch(&source, self.launch.engaged != 0);
-        let supported = matches!(branch, DispatchBranch::Combat | DispatchBranch::Alert)
+        let offscreen = branch == DispatchBranch::Offscreen
+            && self.launch.engaged != 0
+            && self.launch.mode == 0;
+        let supported = (matches!(branch, DispatchBranch::Combat | DispatchBranch::Alert)
+            || offscreen)
             && source.bank() != 13
             && source.raw[0x56] < 8
             && (1..=12).contains(&source.raw[0x57])
@@ -186,6 +193,15 @@ impl Runtime {
         }
         if !due {
             return Ok(self.launch.engaged != 0);
+        }
+        if offscreen {
+            let leader = actors
+                .iter()
+                .find(|a| a.raw[0x10] & 3 == 3)
+                .ok_or(RomError("offscreen NPC leader missing"))?;
+            crate::followers::decide(rom, collision, &mut source, leader)?;
+            actors[index] = source;
+            return Ok(true);
         }
         if branch == DispatchBranch::Alert {
             self.launch.alert();

@@ -496,3 +496,20 @@ are now 54 passing unit tests and 17 explicitly enabled ROM integration tests;
 earlier target, contact/travel, follower, world, transition, interior, dialogue
 and hiring comparisons remain passing. Linux/Windows builds and the packaged
 Windows executable are refreshed. Windows GUI playtesting remains outstanding.
+
+## Street encounters follow-up
+
+The subsequent [street encounter milestone](street-encounters.md) connects real
+ordinary firearm groups, original placement/allocation and offscreen pursuit.
+It supersedes earlier statements that world spawning is entirely absent; scripted,
+creature and magical encounter continuations remain deferred. No training actors
+are inserted into the product. Full defeat/restart remains unfinished.
+
+The [defeat follow-up](defeat-and-recovery.md) connects the original countdown
+to a frozen host notice and manual session reset. Full medical recovery remains
+unimplemented; 1,024 additional original prefix comparisons cover delay/expiry.
+
+The uninsured solo clinic follow-up now enables one bounded original medical
+recovery path, including passage, fee and playable arrival. It supersedes the
+earlier statement that all medical recovery is deferred. Other recovery contexts
+still use the host notice; see the linked defeat/recovery scope.

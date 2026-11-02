@@ -67,6 +67,17 @@ with tempfile.TemporaryDirectory() as temp:
     out = Path(temp) / 'combat'
     subprocess.run([str(root / 'target/release/shadowrealm'), 'combat-data', str(a.rom.resolve()), str(out)], check=True)
     data = json.loads((out / 'combat.json').read_text())
+    stops=[c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop(),begin=p,end=p) for p in [0x1ddda,0x1ddf0]]
+    try:
+        for i,case in enumerate(data['defeat_ticks']):
+            putw(0xffe166,case['before']);c.reg_write(UC_M68K_REG_SR,0x2700)
+            c.emu_start(0x1ddc6,0x400000,count=100)
+            pc=c.reg_read(UC_M68K_REG_PC)
+            assert pc in [0x1ddda,0x1ddf0]
+            assert getw(0xffe166)==case['after'] and (pc==0x1ddda)==case['expired'],f'defeat delay {i}'
+    finally:
+        for hook in stops:c.hook_del(hook)
+    print(f"Defeat countdown prefixes: {len(data['defeat_ticks'])}; no stubs; stop before callback scheduling")
     patch_code(0x1dbf0,rom[0x1dbf0:0x1dbf2])
     for i,case in enumerate(data['alert_ticks']):
         c.mem_write(0xff0100,bytes(case['before']));putw(0xffdf84,case['engaged']);putw(0xffdf86,case['timeout']);putw(0xffddc4,case['map'])

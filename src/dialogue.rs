@@ -21,6 +21,7 @@ pub struct Dialogue {
     pub page: usize,
     pub caption: &'static str,
     pub funds: Option<u32>,
+    hint: Option<&'static str>,
 }
 
 #[cfg(test)]
@@ -68,6 +69,26 @@ impl Dialogue {
     }
     fn build(rom: &[u8], node: usize, text_address: usize) -> Result<Self, RomError> {
         let text = Self::read_text(rom, text_address)?;
+        Self::with_text(rom, node, text_address, text)
+    }
+    /// Host session UI; this text is not a translated original dialogue node.
+    pub fn defeat_notice(rom: &[u8]) -> Result<Self, RomError> {
+        let mut result = Self::with_text(
+            rom,
+            0,
+            0,
+            "Your party is down.\n\nPress R to restart this session.".into(),
+        )?;
+        result.caption = "PARTY DEFEATED";
+        result.hint = Some("R: RESTART  ESC: EXIT");
+        Ok(result)
+    }
+    fn with_text(
+        rom: &[u8],
+        node: usize,
+        text_address: usize,
+        text: String,
+    ) -> Result<Self, RomError> {
         let (font, _) = decompress(
             rom.get(0xc1064..)
                 .ok_or(RomError("dialogue font missing"))?,
@@ -82,6 +103,7 @@ impl Dialogue {
             page: 0,
             caption: "LOCATION",
             funds: None,
+            hint: None,
         })
     }
     pub fn from_record(
@@ -283,7 +305,9 @@ impl Dialogue {
                 if self.choices.is_empty() { 198 } else { 128 },
             )?;
         }
-        let hint = if self.choices.is_empty() {
+        let hint = if let Some(hint) = self.hint {
+            hint
+        } else if self.choices.is_empty() {
             "ENTER / Z: CONTINUE"
         } else if !self.choices[self.selected].available {
             "* UNAVAILABLE IN THIS BUILD"

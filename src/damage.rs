@@ -20,6 +20,16 @@ pub struct DamageWorld {
     pub defeat_timer: u16,
 }
 
+/// $1ddc6..$1ddda: zero holds; expiry requests the defeat callback once.
+/// The original callback performs medical recovery, which is still separate.
+pub fn tick_defeat(timer: &mut u16) -> bool {
+    if *timer == 0 {
+        return false;
+    }
+    *timer = timer.wrapping_sub(1);
+    *timer == 0
+}
+
 /// $aff2 reaction setup, including the $abb6 party-defeat check on death.
 /// Returns the immediate death sound ID; living hurt sounds are delayed by the
 /// original reaction handler and are not played here.

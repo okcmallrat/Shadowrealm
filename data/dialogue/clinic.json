@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "scope": "Uninsured solo Joshua recovery; no mission or companion archive context.",
+  "routine": "0x00c64c",
+  "node": "0x0c25bc",
+  "text": "0x0c23d7",
+  "target_map": 2,
+  "spawn": "0x002b24"
+}

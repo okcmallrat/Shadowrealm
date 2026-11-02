@@ -8,20 +8,25 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-Tonight's milestone connects ordinary firearm NPC combat to the native game loop:
-original decision scheduling, party-target acquisition, range/strafe goals,
-collision-aware pursuit, launch/animation and player damage. Original alarm expiry
-also clears combat links and aiming flags. Tests demonstrate hostile pursuit and
-calm actors returning fire after an alarm. No enemy spawns were fabricated.
-60 unit tests and 30 ROM integration tests pass. Differential checks include
-256 complete NPC decisions, 1,024 branch classifications, 1,024 range goals,
-1,088 movement cases, 512 alarm cleanups, 1,024 timers and 3,264 fire gates.
-Full decision comparisons omit only audio/HUD transfers. The Windows package
-is rebuilt for this connected milestone; Windows GUI playtesting remains pending.
-Next prioritize recovered encounter spawning and a complete defeat/restart loop.
-Special/script actors, ambient patrol, companion combat, melee/magic/throwables,
-ongoing effects and general missions remain incomplete. Empty NPC firearms reach
-the recovered equipment-clearing boundary; melee continuation is deferred.
+Tonight's milestone connects the normal uninsured solo Joshua recovery loop:
+real street encounter -> physical defeat -> original 60-tick delay -> original
+Little Chiba passage and one-time fee -> acknowledged fade/reload -> playable
+map 2 arrival with health/condition restored by the original core. Equipment,
+ammunition, wallet remainder and knowledge persist. A small typed Serde/JSON
+clinic reference joins the existing dialogue pilot; Rust still executes logic.
+See `docs/defeat-and-recovery.md` and `docs/street-encounters.md`.
+60 unit tests and 37 ROM integration tests pass. Recovery adds 1,024 full-actor/
+fee comparisons plus original node, route prefix and arrival checks, without
+instruction stubs. Existing combat (including 1,024 defeat prefixes), encounter
+and fixed-room NPC oracles pass. Windows package refreshed and verified; actual
+Windows GUI/input playtesting remains pending.
+Unrecovered companion/archive, insurance and mission contexts retain the frozen
+host defeat notice and manual R session reset; no fee is charged in those cases.
+Next recover companion archives/history and insurance/mission recovery, additional
+encounter continuations and companion combat. Map 2 is explorable after recovery;
+its additional scripted doors and clinic services remain incomplete.
+The user authorized pushing this combined street/defeat/clinic checkpoint to
+GitHub and then stopping for the night. Do not publish environment configuration.
 
 The user resumed development after cloud setup. The current local milestone
 adds original fallback wall hugging and physical actor-contact separation to
@@ -73,21 +78,15 @@ migrate unrelated systems or invent missing quest rules.
 
 Repository: https://github.com/okcmallrat/Shadowrealm
 Remote branch: `main`; this environment's local branch is `work`.
-Previous verified published commit: `a9b51529fb6cbffae2fce80f11e811304e015433` — enabled
-native player gunfire, projectile effects and physical damage, including source,
-tests, notes and Windows ZIP. The user explicitly requested this push; GitHub
-main was checked after success. Its parent is `5127868`.
-
-The user authorized tonight's ordinary-NPC combat checkpoint and GitHub push,
-then a stop for the night. This checkpoint follows the verified firing commit
-above; identify its commit with `git log` (the file cannot contain its own hash).
-Do not publish environment configuration. The versioned Windows ZIP includes
-ordinary NPC firearm dispatch, updated instructions and matching hashes.
-Linux desktop and Windows cross-builds are checked; actual Windows GUI/input
-playtesting remains outstanding.
+Previous verified published commit: `b5769ee3e89ed1e38dcf1e55bea2669ec06dcc75`
+(ordinary NPC firearm targeting/pursuit/retaliation; parent `a9b5152`). Tonight's
+checkpoint includes subsequent real street encounters, defeat UI and uninsured
+solo clinic recovery, source/tests/notes and a rebuilt Windows package. Identify
+the checkpoint itself with `git log`; this file cannot contain its own hash.
+The user explicitly requested this push and a stop after completion.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `584646c2bc70080d5727dfcf9643a67717ee732c583c4a603d4c3cb371d91678`.
+SHA-256: `be2c454041e594f52b35eefdfc38cc6dda8d2e32374922cea4aa84054a1c5414`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -449,8 +448,8 @@ Serde/JSON dialogue/hiring records remain in use.
 
 ## Best next milestone
 
-Firing is now enabled for equipped firearms. Recover hostile/companion combat
-AI and mission-aware death/defeat handling next, followed by melee/magic and
+Firing and bounded street firearm encounters are now enabled. Recover the full
+defeat/restart flow and companion combat next, followed by melee/magic and
 ongoing effects. Connect earning money and contract resolution through a verified job
 flow, introducing JSON only in small source-backed records. Full combat and
 additional scripted travel remain unfinished.

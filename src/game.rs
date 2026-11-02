@@ -32,6 +32,12 @@ pub struct Game {
     pub nuyen: u32,
     pub targeting: Targeting,
     pub combat: crate::combat_runtime::Runtime,
+    pub encounters: crate::encounters::Runtime,
+    pub defeated: bool,
+    defeat_notice: Option<Dialogue>,
+    clinic_plan: Option<TransitionPlan>,
+    /// Original recovery/insurance flag word ($fffc1e); baseline starts uninsured.
+    pub recovery_flags: u32,
     catalog: Catalog,
     hiring_quote: Option<Quote>,
     npc_dialogue_cooldown: u8,
@@ -100,6 +106,11 @@ impl Game {
             nuyen: hiring::initial_balance(rom)?,
             targeting: Targeting::default(),
             combat: Default::default(),
+            encounters: Default::default(),
+            defeated: false,
+            defeat_notice: None,
+            clinic_plan: None,
+            recovery_flags: 0,
             hiring_quote: None,
             catalog,
             npc_dialogue_cooldown: 0,
@@ -303,6 +314,11 @@ impl Game {
         for (slot, runner) in party.iter_mut().enumerate() {
             runner.set_position(plan.positions[slot].0, plan.positions[slot].1);
             runner.select_motion(false);
+            if plan.kind == TransitionKind::Clinic {
+                runner.set_word(0x1a, 0);
+                runner.set_word(0x1e, 0);
+                runner.clock = Default::default();
+            }
             if crate::combat_runtime::action(runner) && runner.raw[0x4c] != 0 {
                 runner.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
                 runner.set_word(0x1a, 0);
@@ -330,11 +346,16 @@ impl Game {
         };
         self.saved_exterior = match plan.kind {
             TransitionKind::EnterSpaceNeedle => plan.exterior_return,
-            TransitionKind::ReturnToExterior => None,
+            TransitionKind::ReturnToExterior | TransitionKind::Clinic => None,
             TransitionKind::Exterior => self.saved_exterior,
         };
         self.npcs = npcs;
         self.combat.clear_map();
+        if plan.kind == TransitionKind::Clinic {
+            self.combat.status = "";
+            self.targeting.enabled = false;
+        }
+        self.encounters.clear_map();
         self.map = map;
         self.scene = scene;
         self.collision = collision;
@@ -411,7 +432,11 @@ impl Game {
         if slot >= self.party.len() {
             return Err(RomError("party slot is inactive"));
         }
-        if self.transition.is_some() || self.dialogue.is_some() {
+        if self.transition.is_some()
+            || self.dialogue.is_some()
+            || self.defeated
+            || self.combat.damage.defeat_timer != 0
+        {
             return Ok(());
         }
         if slot != self.selected && self.targeting.enabled {
@@ -429,6 +454,24 @@ impl Game {
         self.refresh_hud(rom)
     }
     pub fn update(&mut self, rom: &[u8], buttons: u8) -> Result<(), RomError> {
+        if self.defeated {
+            self.input.update(buttons);
+            if self.clinic_plan.is_some()
+                && self.input.pressed & (crate::input::A | crate::input::START) != 0
+            {
+                let plan = self.clinic_plan.take().unwrap();
+                self.dialogue = None;
+                self.defeated = false;
+                self.transition = Some(ActiveTransition {
+                    plan,
+                    stage: TransitionStage::FadeOut,
+                    ticks: 0,
+                    target_palette: self.scene.palette,
+                });
+            }
+            return Ok(());
+        }
+
         self.tick = self.tick.wrapping_add(1);
         self.input.update(buttons);
         if self.transition.is_some() {
@@ -503,6 +546,7 @@ impl Game {
             self.npc_dialogue_cooldown -= 1;
         }
         if self.map.id == 10
+            && self.combat.damage.defeat_timer == 0
             && self.input.held & crate::input::A == 0
             && !self.combat.has_live()
             && self.saved_exterior.is_some()
@@ -678,6 +722,11 @@ impl Game {
         }
         for index in 0..self.npcs.len() {
             crate::combat_runtime::prepare_actor(&mut self.npcs[index]);
+            if self.encounters.finish_death(&self.npcs[index]) {
+                let mut actors = self.combat_actors();
+                self.combat.launch.end_combat(&mut actors);
+                self.accept_combat_actors(&actors);
+            }
             let mut actors = self.combat_actors();
             let managed = self.combat.npc(
                 rom,
@@ -700,6 +749,11 @@ impl Game {
             }
         }
         self.dispatch_projectiles(rom)?;
+        if crate::damage::tick_defeat(&mut self.combat.damage.defeat_timer) {
+            self.begin_recovery(rom)?;
+            return Ok(());
+        }
+        self.dispatch_encounters(rom)?;
         for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
             if crate::combat_runtime::action(runner) {
                 crate::combat_runtime::tick_animation(rom, runner)?;
@@ -731,6 +785,42 @@ impl Game {
             .1
             .min(self.collision.bounds[3].saturating_sub(224));
         self.sync_projections();
+        Ok(())
+    }
+    fn begin_recovery(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        if let Some(recovery) = crate::clinic::prepare(
+            &self.party,
+            self.nuyen,
+            self.recovery_flags,
+            self.combat.launch.mode,
+        ) {
+            let record = crate::clinic::Record::load(rom)?;
+            let mut notice = Dialogue::exposition(rom, record.node.0)?;
+            notice.caption = "LITTLE CHIBA";
+            let plan = TransitionPlan::clinic(rom, self.map.id, &record)?;
+            // Validate destination assets before charging; apply_transition loads the same ROM again.
+            let map = MapDescriptor::read(rom, plan.target_map)?;
+            let mut scene = MapScene::load(rom, map.id)?;
+            let collision = Collision::load(rom, &map)?;
+            scene.apply_collision_overflow(&collision.overflow_writes)?;
+            Environment::load(rom, &map)?;
+            let mut hud = Hud::load(rom, &mut scene)?;
+            recovery.actor.update_hud(rom, &mut scene, &mut hud, 0)?;
+            self.party[0] = recovery.actor;
+            self.nuyen = recovery.balance;
+            self.dialogue = Some(notice);
+            self.clinic_plan = Some(plan);
+            self.defeat_notice = None;
+            self.defeated = true;
+            self.combat.status = "Medical recovery - Enter to continue";
+            let mut actors = self.combat_actors();
+            self.combat.launch.end_combat(&mut actors);
+            self.accept_combat_actors(&actors);
+        } else {
+            self.defeat_notice = Some(Dialogue::defeat_notice(rom)?);
+            self.defeated = true;
+            self.combat.status = "Party defeated - R to restart";
+        }
         Ok(())
     }
     pub fn selected_target(&self) -> Option<&Runner> {
@@ -798,6 +888,45 @@ impl Game {
         self.combat.launch.tick_alert(&mut actors, false);
         if self.accept_combat_actors(&actors) {
             self.refresh_hud(rom)?;
+        }
+        Ok(())
+    }
+    fn dispatch_encounters(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        let mut actors = self.combat_actors();
+        let before = actors.iter().map(|a| a.raw[0x10]).collect::<Vec<_>>();
+        self.encounters.update(
+            rom,
+            &self.map,
+            (
+                self.camera.0.wrapping_mul(16),
+                self.camera.1.wrapping_mul(16),
+            ),
+            &self.collision,
+            &mut actors,
+            self.tick as u16,
+            &mut self.combat.launch,
+            &mut self.avoidance,
+        )?;
+        self.accept_combat_actors(&actors);
+        for actor in actors
+            .into_iter()
+            .filter(|a| a.word(0x3e) >= 3 && a.raw[0x10] & 1 != 0)
+        {
+            if !self.npcs.iter().any(|a| a.word(0x3e) == actor.word(0x3e)) {
+                self.npcs.push(actor);
+            }
+        }
+        self.npcs.retain(|a| a.raw[0x10] & 1 != 0);
+        self.npcs.sort_by_key(|a| a.word(0x3e));
+        if self
+            .combat_actors()
+            .iter()
+            .map(|a| a.raw[0x10])
+            .collect::<Vec<_>>()
+            != before
+        {
+            self.combat.actors_changed();
+            self.targeting.force_refresh = true;
         }
         Ok(())
     }
@@ -893,6 +1022,9 @@ impl Game {
         }
         if let Some(dialogue) = &self.dialogue {
             dialogue.render(rom, &mut pixels)?;
+        }
+        if let Some(notice) = &self.defeat_notice {
+            notice.render(rom, &mut pixels)?;
         }
         Ok(pixels)
     }

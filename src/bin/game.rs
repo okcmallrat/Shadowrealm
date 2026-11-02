@@ -120,6 +120,9 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
         if window.is_key_pressed(Key::R, KeyRepeat::No) {
             game = load_session()?;
+            paused = false;
+            accumulator = Duration::ZERO;
+            last = Instant::now();
         }
         let mut held = 0;
         for (keys, button) in [

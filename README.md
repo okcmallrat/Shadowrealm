@@ -244,7 +244,17 @@ The gradual [dialogue JSON pilot](docs/dialogue-json-pilot.md) covers this one
 interaction. Rust remains the engine; the embedded JSON stores verified ROM
 references and a few recovered flag effects, with text still read from the ROM.
 
-Ordinary firearm NPCs now acquire party targets, pursue into range and fire once
-the recovered hostile/alarm conditions engage them. Alarm expiry clears combat
-links. General encounter spawning, ambient patrol and special combat AI remain
-incomplete; no enemies or training arena have been fabricated for this checkpoint.
+Ordinary firearm NPCs now acquire party targets, pursue and fire. Supported street
+encounter groups now spawn through the recovered district/RNG and placement rules.
+Try `Shadowrealm.exe Shadowrun.bin 5 --solo` for a reproducible initial encounter.
+Scripted encounters, creatures/magic and full defeat/restart remain incomplete.
+See [street encounter scope and verification](docs/street-encounters.md).
+
+Uninsured solo Joshua now follows the recovered defeat delay into the original
+Little Chiba passage, pays the original clinic fee and returns to play on map 2.
+Enter/Z continues the passage; equipment, remaining money and ammunition survive.
+Try the solo roster with: Shadowrealm.exe Shadowrun.bin 5 --solo
+Companion/archive, insured and mission recovery remain outside this subset and
+retain the frozen defeat notice with R to reset the development session.
+
+See [defeat and recovery scope](docs/defeat-and-recovery.md).

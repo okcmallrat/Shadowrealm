@@ -1,7 +1,9 @@
 use shadowrealm::Rom;
 mod avoidance_export;
+mod clinic_export;
 mod combat_export;
 mod dialogue_export;
+mod encounter_export;
 mod follower_export;
 mod hiring_export;
 mod interior_export;
@@ -28,6 +30,18 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = fs::read(&args[2])?;
     let rom = Rom::parse(&data)?;
     match args[1].as_str() {
+        "encounter-data" => {
+            if args.len() != 4 {
+                return Err("encounter-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            encounter_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "clinic-data" => {
+            if args.len() != 4 {
+                return Err("clinic-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            clinic_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
         "combat-data" => {
             if args.len() != 4 {
                 return Err("combat-data ROM NEW_OUTPUT_DIRECTORY".into());

@@ -33,6 +33,20 @@ fn ids(list: &[ActorId]) -> Vec<u32> {
 }
 pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
     fs::create_dir(out)?;
+    let defeat_ticks = (0..1024u16)
+        .map(|i| {
+            let before = match i {
+                0 => 0,
+                1 => 1,
+                2 => 60,
+                3 => 0xffff,
+                _ => i.wrapping_mul(9349),
+            };
+            let mut timer = before;
+            let expired = shadowrealm::damage::tick_defeat(&mut timer);
+            json!({"before":before,"after":timer,"expired":expired})
+        })
+        .collect::<Vec<_>>();
     let mut alert_ticks = vec![];
     for i in 0..512usize {
         let mut actors = fixture_actors(rom, i)?;
@@ -830,7 +844,7 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
     fs::write(
         out.join("combat.json"),
         serde_json::to_vec(
-            &json!({"alert_ticks":alert_ticks,"npc_actions":npc_actions,"npc_branches":npc_branches,"npc_goals":npc_goals,"npc_movement":npc_movement,"npc_timers":npc_timers,"npc_fire":npc_fire,"failures":failures,"controls":controls,"reloads":reloads,"animations":animations,"reactions":reactions,"damages":damages,"flights":flights,"dice":dice_cases,"attack_rolls":attack_rolls,"launches":launches,"resources":resources,"admissions":admissions,"weapon_timing":weapon_timing,"selections":selections,"range":range,"ticks":ticks,"lines":lines,"line_grids":line_grids}),
+            &json!({"defeat_ticks":defeat_ticks,"alert_ticks":alert_ticks,"npc_actions":npc_actions,"npc_branches":npc_branches,"npc_goals":npc_goals,"npc_movement":npc_movement,"npc_timers":npc_timers,"npc_fire":npc_fire,"failures":failures,"controls":controls,"reloads":reloads,"animations":animations,"reactions":reactions,"damages":damages,"flights":flights,"dice":dice_cases,"attack_rolls":attack_rolls,"launches":launches,"resources":resources,"admissions":admissions,"weapon_timing":weapon_timing,"selections":selections,"range":range,"ticks":ticks,"lines":lines,"line_grids":line_grids}),
         )?,
     )?;
     println!(
