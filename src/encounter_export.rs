@@ -157,7 +157,7 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
     fs::write(out.join("street-trace.csv"), trace)?;
     // Explicit wounded-party fixture for the host defeat UI, not a new-game rule.
     let mut wounded = shadowrealm::game::Game::load(rom, 5, &[0])?;
-    wounded.recovery_flags = 1; // Preserve the unsupported-insurance host notice fixture.
+    wounded.recovery_flags = 2; // Preserve the unsupported-flag host notice fixture.
     wounded.party[0].raw[0x4c] = 1;
     for _ in 0..12_000 {
         wounded.update(rom, 0)?;

@@ -32,13 +32,18 @@ fn word(rom: &[u8], p: usize) -> Result<u16, RomError> {
     Ok(u16::from_be_bytes([b[0], b[1]]))
 }
 impl TransitionPlan {
-    /// $2a44/$2b78 uninsured arrival, driven by the bounded JSON reference.
+    /// $2a32/$2a44/$2b78 medical arrival, driven by the bounded JSON reference.
     pub fn clinic(
         rom: &[u8],
         source: usize,
         record: &crate::clinic::Record,
+        insured: bool,
     ) -> Result<Self, RomError> {
-        let spawn = record.spawn.0;
+        let spawn = if insured {
+            record.insured.spawn.0
+        } else {
+            record.spawn.0
+        };
         let mut positions = [(0, 0); 3];
         for (i, p) in positions.iter_mut().enumerate() {
             *p = (word(rom, spawn + 4 + i * 4)?, word(rom, spawn + 6 + i * 4)?);
@@ -47,7 +52,11 @@ impl TransitionPlan {
             kind: TransitionKind::Clinic,
             exterior_return: None,
             source_map: source,
-            target_map: record.target_map,
+            target_map: if insured {
+                record.insured.target_map
+            } else {
+                record.target_map
+            },
             spawn_address: spawn,
             camera_fixed: (word(rom, spawn)? & 0xff80, word(rom, spawn + 2)? & 0xff80),
             positions,

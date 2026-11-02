@@ -518,3 +518,70 @@ fn hired_companion_follows_and_changes_leader() {
     assert_eq!(game.party[1].raw[0x8f], 0);
     game.render(&rom).unwrap();
 }
+
+#[test]
+#[ignore = "requires the user-supplied ROM"]
+fn defeat_then_negative_opinion_rehire_preserves_trent_equipment_and_stats() {
+    let rom = rom();
+    let mut game = Game::load(&rom, 0, &[0, 5]).unwrap();
+    game.recovery_flags = 1;
+    game.nuyen = 10_000;
+    game.party[1].raw[0x4e] = 2;
+    game.party[1].raw[0x6e] = 47;
+    game.party[1].raw[0x7a] = 7;
+    game.party[1].raw[0x8f] = 255;
+    for actor in &mut game.party {
+        actor.raw[0x4c] = 0;
+        actor.raw[0x10] |= 0x40;
+    }
+    game.combat.damage.defeat_timer = 1;
+    game.update(&rom, 0).unwrap();
+    assert_eq!(game.archives.opinions[2], 255);
+    assert_eq!(game.nuyen, 8750);
+    press(&mut game, &rom, input::A);
+    press(&mut game, &rom, input::A);
+    drive_until_settled(&mut game, &rom, 0, 0);
+    // Seed only the approach coordinates, then use the normal door/contact/input route.
+    game.party[0].set_position(528 * 16, 144 * 16);
+    game.party[0].set_word(0x2e, 0);
+    game.camera = (392, 32);
+    for _ in 0..20 {
+        game.update(&rom, input::UP).unwrap();
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0x110b5e);
+    press(&mut game, &rom, input::A);
+    drive_until_settled(&mut game, &rom, 0, 10);
+    game.party[0].set_position(112 * 16, 85 * 16);
+    game.party[0].set_word(0x2e, 0);
+    for _ in 0..8 {
+        game.update(&rom, input::UP).unwrap();
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfeb84);
+    press(&mut game, &rom, input::A); // negative information branch
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfebd8);
+    press(&mut game, &rom, input::C); // action 4 selects negative topic record
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfec2c);
+    press(&mut game, &rom, input::B); // negative hire pitch
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfed24);
+    press(&mut game, &rom, input::A); // quote
+                                      // Negative opinion uses the original 3x fee multiplier: 430 / 4300.
+    assert!(game.dialogue.as_ref().unwrap().text.contains("430"));
+    press(&mut game, &rom, input::B); // permanent rehire
+    assert_eq!(game.party.len(), 2);
+    assert_eq!(game.party[1].template, 5);
+    assert_eq!(game.party[1].raw[0x4c], 10);
+    assert_eq!(game.party[1].raw[0x9c], 10);
+    assert_eq!(game.party[1].raw[0x4e], 2);
+    assert_eq!(game.party[1].raw[0x6e], 47);
+    assert_eq!(game.party[1].raw[0x7a], 7);
+    assert_eq!(game.party[1].raw[0x8f], 255);
+    assert_eq!(game.nuyen, 4450);
+    assert!(game.npcs.is_empty());
+    game.render(&rom).unwrap();
+}

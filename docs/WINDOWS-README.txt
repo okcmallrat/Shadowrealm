@@ -115,9 +115,10 @@ spawns two attackers; other play changes the shared RNG. T selects, F fires and
 R resets. Scripted encounters, creatures/magic, ambient patrol and the full
 defeat/restart flow remain incomplete. Windows GUI playtesting remains pending.
 
-Uninsured solo Joshua now follows the recovered defeat delay into the original
-Little Chiba passage, pays the original clinic fee and returns to play on map 2.
-Enter/Z continues the passage; equipment, remaining money and ammunition survive.
-Try the solo roster with: Shadowrealm.exe Shadowrun.bin 5 --solo
-Companion/archive, insured and mission recovery remain outside this subset and
-retain the frozen defeat notice with R to reset the development session.
+Normal Joshua defeat recovery now supports companions: their equipment, stats
+and contracts are archived in memory before removal, and Joshua returns through
+Little Chiba. Rehiring Trent preserves those fields and uses his original
+negative-opinion dialogue and fees. Insured recovery also implements both DocWagon
+passages and the Seattle General arrival; insurance purchasing is still absent.
+Mission-specific recovery, other runner recruitment, disk saves and companion
+combat remain unfinished. Enter/Z acknowledges each recovery passage.

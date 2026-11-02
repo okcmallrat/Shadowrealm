@@ -1,9 +1,18 @@
 {
-  "schema_version": 1,
-  "scope": "Uninsured solo Joshua recovery; no mission or companion archive context.",
+  "schema_version": 2,
+  "scope": "Normal Joshua recovery, companion archive/opinion penalties, and uninsured/DocWagon routes; no mission callbacks.",
   "routine": "0x00c64c",
   "node": "0x0c25bc",
   "text": "0x0c23d7",
   "target_map": 2,
-  "spawn": "0x002b24"
+  "spawn": "0x002b24",
+  "insured": {
+    "node": "0x0c25a0",
+    "text": "0x0c22c4",
+    "more_text": "0x0fe5bf",
+    "continuation": "0x0c25b4",
+    "continuation_text": "0x0c238f",
+    "target_map": 0,
+    "spawn": "0x002aea"
+  }
 }

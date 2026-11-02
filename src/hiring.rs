@@ -1,5 +1,5 @@
-//! First-hire Trent subset of $21226/$21326/$21332/$42e6. This does not implement
-//! job completion, dismissal, rehire archives, or companion AI.
+//! Bounded Trent hire/rehire through $21226/$21326/$21332/$42e6.
+//! Job completion, dismissal and companion AI remain unimplemented.
 use crate::{
     dialogue_data::{long, HiringRecord},
     party::Runner,
@@ -72,6 +72,7 @@ pub fn quote(
 }
 pub fn prepare(
     rom: &[u8],
+    archives: &crate::archives::Archives,
     party: &[Runner],
     npc: &Runner,
     balance: u32,
@@ -93,6 +94,7 @@ pub fn prepare(
         return Ok(Outcome::InsufficientFunds);
     }
     let mut member = Runner::load(rom, 5, party.len())?;
+    archives.restore(&mut member)?;
     member.set_position(npc.position().0, npc.position().1);
     member.raw[0x4c] = 10;
     member.raw[0x9c] = 10;

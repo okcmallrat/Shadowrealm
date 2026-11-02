@@ -201,6 +201,36 @@ impl Catalog {
     pub fn node(&self, address: usize) -> Option<&NodeRecord> {
         self.trent.nodes.iter().find(|n| n.address.0 == address)
     }
+    /// $21174 opinion branch; the native session currently produces zero or $ff.
+    pub fn runner_root(&self, rom: &[u8], opinion: i8) -> Result<usize, RomError> {
+        long(
+            rom,
+            0xfe640
+                + usize::from(self.trent.runner_index) * 16
+                + if opinion < 0 {
+                    12
+                } else if opinion.wrapping_sub(4) >= 0 {
+                    8
+                } else {
+                    0
+                },
+        )
+    }
+    /// $211e8 chooses negative / zero / positive topic tables.
+    pub fn runner_topic(&self, rom: &[u8], opinion: i8) -> Result<usize, RomError> {
+        long(
+            rom,
+            0xfe6e0
+                + usize::from(self.trent.runner_index) * 12
+                + if opinion < 0 {
+                    8
+                } else if opinion > 0 {
+                    4
+                } else {
+                    0
+                },
+        )
+    }
     pub fn action(&self, id: usize) -> Option<&ActionRecord> {
         self.trent.actions.iter().find(|a| a.id == id)
     }
@@ -245,6 +275,9 @@ impl Catalog {
             if long(rom, 0x12ccb4 + a.id * 4)? != a.routine.0 {
                 return Err(RomError("JSON action source differs from ROM"));
             }
+        }
+        if self.runner_root(rom, -1)? != 0xfeb84 || self.runner_topic(rom, -1)? != 0xfec2c {
+            return Err(RomError("negative Trent pointers differ from ROM"));
         }
         let h = &self.trent.hiring;
         for a in h.actions() {

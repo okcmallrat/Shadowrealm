@@ -1,6 +1,6 @@
 """Check the small JSON conversation pilot against original M68000 execution.
 
-The unlinked/target-linked Space Needle contact and zero-opinion dialogue scope are
+The unlinked/target-linked Space Needle contact and zero/negative-opinion dialogue scope are
 implemented. Original rendering, AI, targeting and hiring are outside this test.
 """
 import argparse
@@ -75,6 +75,7 @@ with tempfile.TemporaryDirectory() as temp:
         c.mem_write(0xfff0ae, b'\x02')
         # Optional-choice gates are initialized by $1f452/$1f4ae in the original UI.
         # All selected edges here refer to real non-null option slots.
+        c.mem_write(0xfffc14, bytes([edge['opinion'] & 255]))
         putw(c, 0xfffc2a, 0xa000)
         c.mem_write(0xfffc2c, struct.pack('>I', 0x10000000))
         execute(c, 0x1f522, 0x1f3c4)

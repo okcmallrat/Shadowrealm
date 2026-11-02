@@ -67,6 +67,28 @@ impl Dialogue {
         }
         Self::build(rom, node, text_address)
     }
+    /// Verified $c25a0 two-passage DocWagon chain or $c25bc Little Chiba notice.
+    pub fn medical(
+        rom: &[u8],
+        record: &crate::clinic::Record,
+        insured: bool,
+    ) -> Result<Self, RomError> {
+        let mut result = if insured {
+            let r = &record.insured;
+            let mut notice = Self::build(rom, r.node.0, r.text.0)?;
+            notice.choices.push(Choice {
+                text_address: r.more_text.0,
+                text: Self::read_text(rom, r.more_text.0)?,
+                destination: r.continuation.0,
+                available: true,
+            });
+            notice
+        } else {
+            Self::exposition(rom, record.node.0)?
+        };
+        result.caption = if insured { "DOCWAGON" } else { "LITTLE CHIBA" };
+        Ok(result)
+    }
     fn build(rom: &[u8], node: usize, text_address: usize) -> Result<Self, RomError> {
         let text = Self::read_text(rom, text_address)?;
         Self::with_text(rom, node, text_address, text)
@@ -159,6 +181,7 @@ impl Dialogue {
         catalog: &Catalog,
         slot: usize,
         knowledge: &mut Knowledge,
+        opinion: i8,
     ) -> Result<Option<Self>, RomError> {
         let Some(choice) = self.choices.get(slot).filter(|c| c.available) else {
             return Ok(None);
@@ -167,7 +190,11 @@ impl Dialogue {
         if choice.destination < 250 && action.is_none() {
             return Ok(None);
         }
-        let destination = action.map(|a| a.next.0).unwrap_or(choice.destination);
+        let destination = if choice.destination == 4 {
+            catalog.runner_topic(rom, opinion)?
+        } else {
+            action.map(|a| a.next.0).unwrap_or(choice.destination)
+        };
         let next = Self::from_record(
             rom,
             catalog

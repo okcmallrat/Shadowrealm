@@ -38,6 +38,7 @@ pub struct Game {
     clinic_plan: Option<TransitionPlan>,
     /// Original recovery/insurance flag word ($fffc1e); baseline starts uninsured.
     pub recovery_flags: u32,
+    pub archives: crate::archives::Archives,
     catalog: Catalog,
     hiring_quote: Option<Quote>,
     npc_dialogue_cooldown: u8,
@@ -95,6 +96,7 @@ impl Game {
             runner.raw[0x10] = (runner.raw[0x10] & !2) | if slot == 0 { 2 } else { 0 };
             party.push(runner);
         }
+        let archives = crate::archives::Archives::load(rom, &party)?;
         let hud = Hud::load(rom, &mut scene)?;
         let mut result = Self {
             scene,
@@ -111,6 +113,7 @@ impl Game {
             defeat_notice: None,
             clinic_plan: None,
             recovery_flags: 0,
+            archives,
             hiring_quote: None,
             catalog,
             npc_dialogue_cooldown: 0,
@@ -168,7 +171,12 @@ impl Game {
                 )?);
                 self.hiring_quote = None;
             } else {
-                let quote = hiring::quote(rom, hire, &self.party[0], self.catalog.trent.opinion)?;
+                let quote = hiring::quote(
+                    rom,
+                    hire,
+                    &self.party[0],
+                    self.archives.opinion(self.catalog.trent.runner_index),
+                )?;
                 self.dialogue = Some(Dialogue::hiring_offer(
                     rom,
                     &self.catalog,
@@ -198,8 +206,11 @@ impl Game {
             } else {
                 Contract::Permanent
             };
+            let mut archives = self.archives.clone();
+            archives.snapshot(&self.party)?;
             let outcome = hiring::prepare(
                 rom,
+                &archives,
                 &self.party,
                 &self.npcs[npc_index],
                 self.nuyen,
@@ -239,6 +250,7 @@ impl Game {
                         i == self.selected,
                     )?;
                 }
+                self.archives = archives;
                 self.party = party;
                 self.scene = scene;
                 self.hud = hud;
@@ -250,7 +262,13 @@ impl Game {
             self.hiring_quote = None;
             return Ok(());
         }
-        if let Some(next) = dialogue.follow(rom, &self.catalog, slot, &mut self.knowledge)? {
+        if let Some(next) = dialogue.follow(
+            rom,
+            &self.catalog,
+            slot,
+            &mut self.knowledge,
+            self.archives.opinion(self.catalog.trent.runner_index),
+        )? {
             self.dialogue = Some(next);
             self.hiring_quote = None;
         }
@@ -459,6 +477,12 @@ impl Game {
             if self.clinic_plan.is_some()
                 && self.input.pressed & (crate::input::A | crate::input::START) != 0
             {
+                if let Some(next) = self.dialogue.as_ref().and_then(|d| d.choices.first()) {
+                    let mut notice = Dialogue::exposition(rom, next.destination)?;
+                    notice.caption = "DOCWAGON";
+                    self.dialogue = Some(notice);
+                    return Ok(());
+                }
                 let plan = self.clinic_plan.take().unwrap();
                 self.dialogue = None;
                 self.defeated = false;
@@ -556,13 +580,17 @@ impl Game {
                 .iter()
                 .any(|n| npc::trent_contact(&self.party[self.selected], n))
         {
-            self.dialogue = Some(Dialogue::from_record(
-                rom,
-                self.catalog
-                    .node(self.catalog.trent.root.0)
-                    .ok_or(RomError("missing Trent conversation"))?,
-                &self.catalog,
-            )?);
+            self.dialogue =
+                Some(Dialogue::from_record(
+                    rom,
+                    self.catalog
+                        .node(self.catalog.runner_root(
+                            rom,
+                            self.archives.opinion(self.catalog.trent.runner_index),
+                        )?)
+                        .ok_or(RomError("missing Trent conversation"))?,
+                    &self.catalog,
+                )?);
             self.knowledge.runner_known |= 1 << self.catalog.trent.runner_index;
             self.npc_dialogue_cooldown = 60;
             return Ok(());
@@ -795,9 +823,9 @@ impl Game {
             self.combat.launch.mode,
         ) {
             let record = crate::clinic::Record::load(rom)?;
-            let mut notice = Dialogue::exposition(rom, record.node.0)?;
-            notice.caption = "LITTLE CHIBA";
-            let plan = TransitionPlan::clinic(rom, self.map.id, &record)?;
+            let notice = Dialogue::medical(rom, &record, recovery.insured)?;
+            let archives = self.archives.after_defeat(&self.party)?;
+            let plan = TransitionPlan::clinic(rom, self.map.id, &record, recovery.insured)?;
             // Validate destination assets before charging; apply_transition loads the same ROM again.
             let map = MapDescriptor::read(rom, plan.target_map)?;
             let mut scene = MapScene::load(rom, map.id)?;
@@ -806,7 +834,24 @@ impl Game {
             Environment::load(rom, &map)?;
             let mut hud = Hud::load(rom, &mut scene)?;
             recovery.actor.update_hud(rom, &mut scene, &mut hud, 0)?;
+            // $3404/$38fa remove companion panels and refresh the recovered leader
+            // before the passage, as well as validating the arrival HUD above.
+            let mut current_scene = self.scene.clone();
+            let mut current_hud = Hud::load(rom, &mut current_scene)?;
+            recovery
+                .actor
+                .update_hud(rom, &mut current_scene, &mut current_hud, 0)?;
+            current_hud.select(rom, 0)?;
+            current_hud.condition(rom, 0, recovery.actor.raw[0x9c].min(10), true)?;
+            self.scene = current_scene;
+            self.hud = current_hud;
+            self.archives = archives;
+            self.party.truncate(1);
             self.party[0] = recovery.actor;
+            self.selected = 0;
+            // $391a returns control to Joshua when the selected companion is removed.
+            self.party[0].raw[0x10] |= 2;
+            self.targeting.invalidate(&mut self.party);
             self.nuyen = recovery.balance;
             self.dialogue = Some(notice);
             self.clinic_plan = Some(plan);

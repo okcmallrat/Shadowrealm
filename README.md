@@ -9,7 +9,7 @@ portraits/equipment/meters, character animation, and environmental tile updates.
 Exterior seams between maps 0, 3 and 5 now work with fades and persistent party
 state. The Space Needle entrance now shows its ROM passage, loads the interior,
 and returns to the saved exterior formation. Trent now has a bounded conversation
-with recovered information/knowledge branches and a bounded first-hire flow,
+with recovered information/knowledge branches and bounded hire/rehire flow,
 using a small Serde/JSON pilot. General story/dialogue scripts,
 combat, AI, saves and audio remain unfinished.
 Non-selected companions now perform bounded noncombat following, formation,
@@ -250,11 +250,16 @@ Try `Shadowrealm.exe Shadowrun.bin 5 --solo` for a reproducible initial encounte
 Scripted encounters, creatures/magic and full defeat/restart remain incomplete.
 See [street encounter scope and verification](docs/street-encounters.md).
 
-Uninsured solo Joshua now follows the recovered defeat delay into the original
-Little Chiba passage, pays the original clinic fee and returns to play on map 2.
-Enter/Z continues the passage; equipment, remaining money and ammunition survive.
-Try the solo roster with: Shadowrealm.exe Shadowrun.bin 5 --solo
-Companion/archive, insured and mission recovery remain outside this subset and
-retain the frozen defeat notice with R to reset the development session.
+Normal Joshua defeat recovery now supports companions: their equipment, stats
+and contracts are archived in memory before removal, and Joshua returns through
+Little Chiba. Rehiring Trent preserves those fields and uses his original
+negative-opinion dialogue and fees. Insured recovery also implements both DocWagon
+passages and the Seattle General arrival; insurance purchasing is still absent.
+Mission-specific recovery, other runner recruitment, disk saves and companion
+combat remain unfinished. Enter/Z acknowledges each recovery passage.
 
-See [defeat and recovery scope](docs/defeat-and-recovery.md).
+Normal defeat now archives and removes companions before Joshua's medical recovery.
+Trent retains his equipment/stats on rehire, with original negative-opinion dialogue
+and fees. Insured recovery has both DocWagon passages and the hospital arrival;
+coverage purchasing and mission-specific recovery remain unfinished. These archives
+are in memory; disk save/load is absent. See [recovery scope and evidence](docs/defeat-and-recovery.md).

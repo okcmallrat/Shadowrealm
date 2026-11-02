@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "scope": "Space Needle / Trent first-hire and zero-opinion conversation subset. Rust executes verified actions; text stays in the supplied ROM.",
+  "scope": "Space Needle / Trent verified zero and negative-opinion conversation and hire/rehire subset. Rust executes verified actions; text stays in the supplied ROM.",
   "entrance": {
     "address": "0x110b5e",
     "text": "0x113dd6",
@@ -204,6 +204,70 @@
         "address": "0x0ff980",
         "text": "0x0ffad5",
         "choices": []
+      },
+      {
+        "address": "0xfeb84",
+        "text": "0x100ab4",
+        "choices": [
+          {
+            "text": "0x104051",
+            "destination": "0xfebd8"
+          },
+          {
+            "text": "0x103c5b",
+            "destination": "0xfed24"
+          },
+          {
+            "text": "0x104feb",
+            "destination": "0xff970"
+          }
+        ]
+      },
+      {
+        "address": "0xfebd8",
+        "text": "0x100b32",
+        "choices": [
+          {
+            "text": "0x104035",
+            "destination": "0xbe"
+          },
+          {
+            "text": "0x1047d4",
+            "destination": "0xfec78"
+          },
+          {
+            "text": "0x104817",
+            "destination": "0x4"
+          }
+        ]
+      },
+      {
+        "address": "0xfed24",
+        "text": "0x100fa2",
+        "choices": [
+          {
+            "text": "0xfe5bf",
+            "destination": "0x3"
+          }
+        ]
+      },
+      {
+        "address": "0xfec2c",
+        "text": "0x100b32",
+        "choices": [
+          {
+            "text": "0x104051",
+            "destination": "0xfebd8"
+          },
+          {
+            "text": "0x103c5b",
+            "destination": "0xfed24"
+          },
+          {
+            "text": "0x104feb",
+            "destination": "0xff970"
+          }
+        ]
       }
     ],
     "actions": [

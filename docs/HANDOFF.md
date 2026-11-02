@@ -8,25 +8,27 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-Tonight's milestone connects the normal uninsured solo Joshua recovery loop:
-real street encounter -> physical defeat -> original 60-tick delay -> original
-Little Chiba passage and one-time fee -> acknowledged fade/reload -> playable
-map 2 arrival with health/condition restored by the original core. Equipment,
-ammunition, wallet remainder and knowledge persist. A small typed Serde/JSON
-clinic reference joins the existing dialogue pilot; Rust still executes logic.
-See `docs/defeat-and-recovery.md` and `docs/street-encounters.md`.
-60 unit tests and 37 ROM integration tests pass. Recovery adds 1,024 full-actor/
-fee comparisons plus original node, route prefix and arrival checks, without
-instruction stubs. Existing combat (including 1,024 defeat prefixes), encounter
-and fixed-room NPC oracles pass. Windows package refreshed and verified; actual
-Windows GUI/input playtesting remains pending.
-Unrecovered companion/archive, insurance and mission contexts retain the frozen
-host defeat notice and manual R session reset; no fee is charged in those cases.
-Next recover companion archives/history and insurance/mission recovery, additional
-encounter continuations and companion combat. Map 2 is explorable after recovery;
-its additional scripted doors and clinic services remain incomplete.
-The user authorized pushing this combined street/defeat/clinic checkpoint to
-GitHub and then stopping for the night. Do not publish environment configuration.
+Latest local milestone (2026-11-02): normal Joshua defeat now snapshots the
+original 74-byte runner archives, removes companions and applies original opinion
+penalties, then continues through uninsured Little Chiba or the two DocWagon
+passages and Seattle General arrival. Trent's negative-opinion conversation and
+hire/rehire now preserve archived equipment, ammunition, stats and contracts.
+All updates are staged before payment/party removal. See `src/archives.rs` and
+`docs/defeat-and-recovery.md` for precise source references, scope and fixtures.
+
+Current verification: 60 unit tests and 40 ROM integration tests; clinic oracle
+adds 1,024 compact save/restore pairs, 1,024 snapshots, all 256 penalty bytes,
+1,024 companion-removal prefixes and 256 rehire purchases. Both medical passage/
+arrival routes and 1,024 cores match original routines. The dialogue oracle now
+checks 19 nodes, 35 branches and 469 contacts; existing hiring checks still pass.
+Windows package rebuilt/verified for this milestone; actual GUI/input testing is
+still pending. These are in-memory archives, not disk saving. Insurance purchase,
+mission callbacks, companion combat and general recruiting remain unfinished.
+
+Continue with companion firearm combat and original decision scheduling, then
+mission-aware recovery/jobs. Do not redo completed navigation or medical work.
+The current user requested continuing development; no new push was requested.
+The remaining historical sections record earlier milestones and their old counts.
 
 The user resumed development after cloud setup. The current local milestone
 adds original fallback wall hugging and physical actor-contact separation to
@@ -78,15 +80,13 @@ migrate unrelated systems or invent missing quest rules.
 
 Repository: https://github.com/okcmallrat/Shadowrealm
 Remote branch: `main`; this environment's local branch is `work`.
-Previous verified published commit: `b5769ee3e89ed1e38dcf1e55bea2669ec06dcc75`
-(ordinary NPC firearm targeting/pursuit/retaliation; parent `a9b5152`). Tonight's
-checkpoint includes subsequent real street encounters, defeat UI and uninsured
-solo clinic recovery, source/tests/notes and a rebuilt Windows package. Identify
-the checkpoint itself with `git log`; this file cannot contain its own hash.
-The user explicitly requested this push and a stop after completion.
+Starting checkpoint: `115ee95` (street encounters, physical defeat and uninsured
+solo clinic recovery). The archive/insurance/rehire work is local after that
+checkpoint; inspect `git status` before continuing. Do not push without a new user
+request or publish environment configuration.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `be2c454041e594f52b35eefdfc38cc6dda8d2e32374922cea4aa84054a1c5414`.
+SHA-256: `a8843c9eecf5d21a8f34b1abe46ae702ab28f93649aabf44570a0115605d5870`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -128,17 +128,15 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 
 ## What is NOT complete
 
-Other interior doors/story transitions stop at a trigger. The Space Needle
-path implements its traced no-mission baseline; there is no quest-state VM yet.
-Combat, other branching dialogue/quest scripts, other recruiting, contract
-completion/dismissal/rehire history, other NPC/combat AI, general contact/travel scripts, inventory/menu interactions, skills/magic, character creation,
-missions/story state, audio, and save/load are not implemented. The host camera
-is not the original look-ahead/hysteresis system. Original wall-sliding and other
-special movement cases are not ported. The Windows GUI has **not** been run or
-playtested on a Windows PC or Wine in this environment.
-
-Do not describe any of those as complete because its graphics/animation assets
-can be rendered. Full-game dynamic traces and scene comparisons remain needed.
+The native reconstruction remains unfinished. General quest/story scripting,
+mission-aware death/recovery, earning money and contract completion/dismissal,
+other runner conversations/recruitment, companion combat AI, melee/magic/ongoing
+effects, inventory/menu interactions, insurance purchasing, character creation,
+audio and disk save/load are absent or incomplete. Only the verified exterior,
+Space Needle and medical routes are enabled. The current roster/funds/camera
+are development fixtures, not a recovered new-game/save state. Windows GUI/input
+has not been playtested here. Do not describe assets or isolated routines as a
+complete game. The sections below retain historical implementation details.
 
 ## Exterior milestone
 
@@ -448,8 +446,8 @@ Serde/JSON dialogue/hiring records remain in use.
 
 ## Best next milestone
 
-Firing and bounded street firearm encounters are now enabled. Recover the full
-defeat/restart flow and companion combat next, followed by melee/magic and
+Firing, street firearm encounters and normal party medical recovery are enabled.
+Recover companion combat and mission-specific defeat callbacks next, followed by melee/magic and
 ongoing effects. Connect earning money and contract resolution through a verified job
 flow, introducing JSON only in small source-backed records. Full combat and
 additional scripted travel remain unfinished.
