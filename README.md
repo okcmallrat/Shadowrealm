@@ -243,3 +243,8 @@ tests leave the ROM-backed tests ignored; execute the command above explicitly.
 The gradual [dialogue JSON pilot](docs/dialogue-json-pilot.md) covers this one
 interaction. Rust remains the engine; the embedded JSON stores verified ROM
 references and a few recovered flag effects, with text still read from the ROM.
+
+Ordinary firearm NPCs now acquire party targets, pursue into range and fire once
+the recovered hostile/alarm conditions engage them. Alarm expiry clears combat
+links. General encounter spawning, ambient patrol and special combat AI remain
+incomplete; no enemies or training arena have been fabricated for this checkpoint.

@@ -25,7 +25,13 @@ c.ctl_set_cpu_model(UC_CPU_M68K_M68000)
 for base, size in [(0, 0x200000), (0xff0000, 0x10000), (0x400000, 0x1000), (0xfffff000, 0x1000)]:
     c.mem_map(base, size)
 c.mem_write(0, rom)
-c.mem_write(0x1dbf0, b'\x4e\x75')
+
+def patch_code(address, value):
+    c.mem_write(address, value)
+    # Invalidate linked translations when switching supplied/original routines.
+    c.ctl_remove_cache(address, address + len(value))
+
+patch_code(0x1dbf0, b'\x4e\x75')
 callbacks = [0]
 c.hook_add(UC_HOOK_CODE, lambda uc, address, size, user: callbacks.__setitem__(0, callbacks[0] + 1), begin=0x1dbf0, end=0x1dbf0)
 
@@ -61,6 +67,121 @@ with tempfile.TemporaryDirectory() as temp:
     out = Path(temp) / 'combat'
     subprocess.run([str(root / 'target/release/shadowrealm'), 'combat-data', str(a.rom.resolve()), str(out)], check=True)
     data = json.loads((out / 'combat.json').read_text())
+    patch_code(0x1dbf0,rom[0x1dbf0:0x1dbf2])
+    for i,case in enumerate(data['alert_ticks']):
+        c.mem_write(0xff0100,bytes(case['before']));putw(0xffdf84,case['engaged']);putw(0xffdf86,case['timeout']);putw(0xffddc4,case['map'])
+        c.mem_write(0xffe186,bytes([case['mode']]));c.mem_write(0xffe16f,bytes([0xff if case['script'] else 0]))
+        c.reg_write(UC_M68K_REG_A7,0xffff00);c.reg_write(UC_M68K_REG_SR,0x2700)
+        hook=c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop() if address in (0x1de3e,0x1de7c) else None)
+        try:c.emu_start(0x1de00,0x400000,count=10000)
+        finally:c.hook_del(hook)
+        assert c.reg_read(UC_M68K_REG_PC) in (0x1de3e,0x1de7c)
+        compare(case['after'],f'combat timeout {i}')
+        assert getw(0xffdf84)==case['after_engaged'] and getw(0xffdf86)==case['after_timeout']
+        assert (case['engaged']!=0 and getw(0xffdf84)==0)==case['ended']
+    patch_code(0x1dbf0,b'\x4e\x75')
+    print(f'Ordinary combat timeout/link cleanup: {len(data["alert_ticks"])}; no stubs')
+    for address in (0x530de,0x1232,0xf5c,0x3648):patch_code(address,b'\x4e\x75')
+    for i,case in enumerate(data['npc_actions']):
+        c.mem_write(0xff0000,bytes(65536));c.mem_write(0xff0100,bytes(case['before']));c.mem_write(0xff0b00,bytes(case['pool']));c.mem_write(0xff1700,bytes(4096))
+        for at,value in zip([0xffddd6,0xffddd8,0xffddd2,0xffddd4],[0,0,2048,2048]):putw(at,value)
+        c.mem_write(0xffddec,struct.pack('>I',0xff3000));c.mem_write(0xffe175,bytes([0xff if case['serviced'] else 0]));c.mem_write(0xffe186,bytes([case['mode']]))
+        putw(0xffdf84,case['engaged']);putw(0xffdf86,17);putw(0xffdfde,case['firing']);putw(0xfff9f8,case['seed'])
+        putw(0xffdfc8,len(case['party']))
+        c.mem_write(0xffdfca,b''.join(struct.pack('>I',p) for p in case['party']))
+        c.reg_write(UC_M68K_REG_A0,0xff0400)
+        call(0x13904)
+        compare(case['after'],f'complete NPC action {i}')
+        assert bytes(c.mem_read(0xff0b00,1536))==bytes(case['after_pool']),f'NPC action pool {i}'
+        assert getw(0xfff9f8)==case['after_seed'],f'NPC action RNG {i}'
+        assert getw(0xffdf84)==case['after_engaged'] and getw(0xffdf86)==case['after_timeout']
+        assert getw(0xffdfde)==case['after_firing']
+        assert bytes(c.mem_read(0xffef10,4))==bytes(case['samples'])
+        assert bool(getw(0xffdfe6))==case['busy'] and bool(getw(0xffdd3a))==case['burst']
+    for address in (0x530de,0x1232,0xf5c,0x3648):patch_code(address,rom[address:address+2])
+    print(f'Complete ordinary NPC decisions: {len(data["npc_actions"])}; only audio/HUD transfers omitted')
+    for i,case in enumerate(data['npc_branches']):
+        c.mem_write(0xff0100,bytes(case['actor']));putw(0xffdf84,0xffff if case['engaged'] else 0)
+        c.reg_write(UC_M68K_REG_A0,0xff0100);c.reg_write(UC_M68K_REG_SR,0x2700)
+        ends=(0x13a4c,0x14508,0x13946,0x13e8c,0x1e514,0x1398c,0x139c8,0x13ef4,0x139d8)
+        hook=c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop() if address in ends else None)
+        try:c.emu_start(0x13920,0x400000,count=100)
+        finally:c.hook_del(hook)
+        pc=c.reg_read(UC_M68K_REG_PC)
+        branch={0x13a4c:5,0x14508:3,0x13946:4,0x13e8c:5,0x1e514:5,0x1398c:6,0x139c8:1,0x13ef4:2,0x139d8:0}.get(pc)
+        assert branch==case['branch'],f'NPC outer branch {i}: {pc:x}'
+        compare(case['actor'],f'NPC dispatch {i}')
+    for i,case in enumerate(data['npc_goals']):
+        c.mem_write(0xff0400,bytes(case['before']));c.mem_write(0xff0100,bytes(case['target']));putw(0xffdfde,case['firing'])
+        c.reg_write(UC_M68K_REG_A0,0xff0400);c.reg_write(UC_M68K_REG_SR,0x2700);c.reg_write(UC_M68K_REG_A7,0xffff00)
+        ends=(0x13e34,0x13e56,0x13e4c)
+        hook=c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop() if address in ends else None)
+        try:c.emu_start(0x13d56,0x400000,count=10000)
+        finally:c.hook_del(hook)
+        pc=c.reg_read(UC_M68K_REG_PC)
+        assert pc in ends and (pc==0x13e34)==case['goal']
+        assert bytes(c.mem_read(0xff0400,256))==bytes(case['after']),f'NPC positioning {i}'
+    for i,case in enumerate(data['npc_movement']):
+        grid=data['line_grids'][case['grid']]
+        c.mem_write(0xff0000,bytes(65536));c.mem_write(0xff0100,bytes(case['before']))
+        c.mem_write(0xff1700,bytes(grid['cells']));c.mem_write(0xff3000,b''.join(struct.pack('>5H',*r) for r in grid['rectangles']))
+        c.mem_write(0xffddec,struct.pack('>I',0xff3000));putw(0xffdf84,0xffff)
+        for at,value in zip([0xffddd6,0xffddd8,0xffddd2,0xffddd4],grid['bounds']):putw(at,value)
+        c.reg_write(UC_M68K_REG_A0,0xff0100)
+        c.reg_write(UC_M68K_REG_A7,0xffff00);c.reg_write(UC_M68K_REG_SR,0x2700)
+        hook=c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop(),begin=0xaac6,end=0xaac6)
+        try:c.emu_start(0xaaa0,0x400000,count=500_000)
+        finally:c.hook_del(hook)
+        assert c.reg_read(UC_M68K_REG_PC)==0xaac6
+        compare(case['after'],f'NPC movement {i}')
+    print(f'NPC outer branches/range goals/engaged movement: {len(data["npc_branches"])}/{len(data["npc_goals"])}/{len(data["npc_movement"])}; no stubs')
+    for i,case in enumerate(data['npc_timers']):
+        c.mem_write(0xff0100,bytes(case['before']));c.mem_write(0xffe175,bytes([0xff if case['serviced'] else 0]))
+        c.reg_write(UC_M68K_REG_A0,0xff0100);c.reg_write(UC_M68K_REG_SR,0x2700)
+        def npc_timer_stop(uc,address,size,user):
+            if address in (0x1390c,0x13918,0x13920):uc.emu_stop()
+        hook=c.hook_add(UC_HOOK_CODE,npc_timer_stop)
+        try:c.emu_start(0x13904,0x400000,count=50)
+        finally:c.hook_del(hook)
+        pc=c.reg_read(UC_M68K_REG_PC)
+        assert pc in (0x1390c,0x13918,0x13920)
+        assert (pc==0x13920)==case['due']
+        compare(case['after'],f'NPC timer {i}')
+    npc_decisions=[0]*8
+    for i,case in enumerate(data['npc_fire']):
+        grid=data['line_grids'][case['grid']]
+        c.mem_write(0xff0000,bytes(65536));c.mem_write(0xff0400,bytes(case['source']));c.mem_write(0xff0100,bytes(case['target']))
+        c.mem_write(0xff1700,bytes(grid['cells']));c.mem_write(0xff3000,b''.join(struct.pack('>5H',*r) for r in grid['rectangles']))
+        c.mem_write(0xffddec,struct.pack('>I',0xff3000))
+        for at,value in zip([0xffddd6,0xffddd8,0xffddd2,0xffddd4],grid['bounds']):putw(at,value)
+        putw(0xffdfde,case['firing']);c.mem_write(0xffe186,bytes([case['mode']]));c.mem_write(0xffef10,bytes(case['samples']))
+        putw(0xfff9f8,0x39ab)
+        c.reg_write(UC_M68K_REG_A0,0xff0400);c.reg_write(UC_M68K_REG_SR,0x2700);c.reg_write(UC_M68K_REG_A7,0xffff00)
+        observed={'probe':False,'steps':0}
+        def npc_fire_hook(uc,address,size,user):
+            if address==0x14d8e:observed['probe']=True
+            elif address==0x14f26:observed['steps']+=1
+            elif address in (0x1413c,0x14146,0x14070,0x140a0,0x14078,0x14132,0x141a0):uc.emu_stop()
+        hook=c.hook_add(UC_HOOK_CODE,npc_fire_hook)
+        try:c.emu_start(0x14020,0x400000,count=500_000)
+        finally:c.hook_del(hook)
+        pc=c.reg_read(UC_M68K_REG_PC)
+        decision={0x1413c:0,0x14146:1,0x140a0:3,0x14078:4,0x14132:6,0x141a0:7}.get(pc)
+        if pc==0x14070:decision=5 if observed['probe'] else 2
+        assert decision==case['decision'],f'NPC fire decision {i}: PC={pc:x}, {decision} != {case["decision"]}'
+        npc_decisions[decision]+=1
+        assert getw(0xffdfde)==case['after_firing']
+        assert bytes(c.mem_read(0xffef10,4))==bytes(case['after_samples'])
+        assert bytes(c.mem_read(0xff0400,256))==bytes(case['source'])
+        assert bytes(c.mem_read(0xff0100,256))==bytes(case['target'])
+        assert getw(0xfff9f8)==0x39ab
+        assert observed['probe']==(case['probe'] is not None)
+        if case['probe'] is not None:
+            assert observed['steps']==case['probe']['steps']
+            assert bytes(c.mem_read(0xff1380,256))==bytes(case['probe']['projectile'])
+            assert getw(0xffdfd8)==0
+    assert all(npc_decisions),npc_decisions
+    print(f'NPC decision timers: {len(data["npc_timers"])}; fire gates: {len(data["npc_fire"])} (ready/cooldown/hidden/magic/throw/blocked/hold/melee={npc_decisions}); no stubs')
     for i,case in enumerate(data['controls']):
         c.mem_write(0xff0100,bytes(case['actor']));putw(0xffdd22,case['input']);putw(0xffdfe6,0xffff if case['pending'] else 0)
         c.reg_write(UC_M68K_REG_A0,0xff0100);c.reg_write(UC_M68K_REG_SR,0x2700)
@@ -74,7 +195,7 @@ with tempfile.TemporaryDirectory() as temp:
         assert (pc==0xad82)==case['request']
         assert bool(getw(0xffdfe6))==case['after_pending']
         compare(case['actor'],f'fire request {i}')
-    c.mem_write(0x530de,b'\x4e\x75');c.mem_write(0x1232,b'\x4e\x75')
+    patch_code(0x530de,b'\x4e\x75');patch_code(0x1232,b'\x4e\x75')
     for i,case in enumerate(data['reloads']):
         c.mem_write(0xff0100,bytes(case['before']));c.mem_write(0xfffc04,struct.pack('>I',0xff0100));c.reg_write(UC_M68K_REG_D1,0)
         call(0xaad2)
@@ -84,7 +205,7 @@ with tempfile.TemporaryDirectory() as temp:
         c.mem_write(0xff0100,bytes(case['before']));c.mem_write(0xfffc04,struct.pack('>I',0xff0100));putw(0xffdd04,case['direction']);c.reg_write(UC_M68K_REG_D1,0)
         call(0xadf8)
         compare(case['after'],f'controlled failure/reload {i}')
-    c.mem_write(0x530de,rom[0x530de:0x530e0]);c.mem_write(0x1232,rom[0x1232:0x1234])
+    patch_code(0x530de,rom[0x530de:0x530e0]);patch_code(0x1232,rom[0x1232:0x1234])
     for i,case in enumerate(data['animations']):
         c.mem_write(0xff0100,bytes(case['before']));c.reg_write(UC_M68K_REG_A0,0xff0100)
         call(0x5fdc)
@@ -95,7 +216,7 @@ with tempfile.TemporaryDirectory() as temp:
         compare(case['after'],f'combat animation {i}')
     print(f'Fire requests/reloads/animation clocks: {len(data["controls"])}/{len(data["reloads"])}/{len(data["animations"])}; only reload audio/HUD omitted')
     print(f'Controlled failed-launch/reload continuations: {len(data["failures"])}; only audio/HUD omitted')
-    c.mem_write(0x530de,b'\x4e\x75')
+    patch_code(0x530de,b'\x4e\x75')
     reaction_deaths=0
     for i,case in enumerate(data['reactions']):
         c.mem_write(0xff0000,bytes(65536));c.mem_write(0xff0100,bytes(case['before']))
@@ -109,11 +230,11 @@ with tempfile.TemporaryDirectory() as temp:
         assert getw(0xffe166)==case['timer']
         assert sounds==([] if case['sound'] is None else [case['sound']])
         reaction_deaths+=case['sound'] is not None
-    c.mem_write(0x530de,rom[0x530de:0x530e0])
+    patch_code(0x530de,rom[0x530de:0x530e0])
     print(f'Original reaction setup: {len(data["reactions"])} ({reaction_deaths} death sounds); only audio omitted')
     # Original baseline damage, including party helper data changes and defeat
     # bookkeeping. Only the low-level HUD tile transfer is omitted.
-    c.mem_write(0x1232,b'\x4e\x75')
+    patch_code(0x1232,b'\x4e\x75')
     damaged = defeated = 0
     for i,case in enumerate(data['damages']):
         c.mem_write(0xff0000,bytes(65536))
@@ -151,7 +272,7 @@ with tempfile.TemporaryDirectory() as temp:
         assert bytes(c.mem_read(0xfffbfa,1))==bytes([after['counter13']])
         damaged+=case['before'][case['defender']*256+0x4c]!=case['after'][case['defender']*256+0x4c]
         defeated+=case['defeat']
-    c.mem_write(0x1232,rom[0x1232:0x1234])
+    patch_code(0x1232,rom[0x1232:0x1234])
     assert damaged and defeated
     print(f'Baseline physical damage: {len(data["damages"])} ({damaged} health changes, {defeated} NPC defeat paths); only HUD transfer omitted')
     # Execute original dice and bounded $55640 with no instruction stubs.
@@ -199,14 +320,14 @@ with tempfile.TemporaryDirectory() as temp:
     # The original-roll variant omits only audio and low-level HUD transfers.
     launch_stubs = (0x55640, 0x530de, 0xf5c, 0x1232, 0x3648)
     for address in launch_stubs:
-        c.mem_write(address, b'\x4e\x75')
+        patch_code(address, b'\x4e\x75')
     full_outcomes = [0, 0, 0]
     for i, original_case in enumerate(data['launches']):
         for use_original_roll in (False, True):
             case = dict(original_case)
             if use_original_roll:
                 case.update(original_case['rolled'])
-            c.mem_write(0x55640, rom[0x55640:0x55642] if use_original_roll else b'\x4e\x75')
+            patch_code(0x55640, rom[0x55640:0x55642] if use_original_roll else b'\x4e\x75')
             putw(0xfff9f8, original_case['seed'])
             c.mem_write(0xfff0dd, b'\xac')
             source_address = 0xff0100 + case['source_slot'] * 256
@@ -271,13 +392,13 @@ with tempfile.TemporaryDirectory() as temp:
                 assert calls['dice'] == case['rolls'], f'launch dice count {i}'
                 assert bytes(c.mem_read(0xfff0dd,1)) == bytes([0xac if case['successes'] is None else case['successes']])
     for address in launch_stubs:
-        c.mem_write(address, rom[address:address + 2])
+        patch_code(address, rom[address:address + 2])
     assert all(full_outcomes), full_outcomes
     print(f'Normal-world launch pairs with supplied and original rolls: {len(data["launches"])} (rejected/FX-full/initialized={full_outcomes}); only audio/HUD transfers omitted in the original-roll variant')
     # Omit only low-level HUD/VDP transfers. Execute $3404/$3548 on item removal.
     hud_transfers = (0xf5c, 0x1232, 0x3648)
     for address in hud_transfers:
-        c.mem_write(address, b'\x4e\x75')
+        patch_code(address, b'\x4e\x75')
     for i, case in enumerate(data['resources']):
         c.mem_write(0xff0100, bytes(case['before']) + bytes(512))
         c.reg_write(UC_M68K_REG_A0, 0xff0100)
@@ -324,7 +445,7 @@ with tempfile.TemporaryDirectory() as temp:
         assert getw(0xffdd3a) == (0xffff if case['burst'] else 0)
         assert getw(0xffdfe6) == (0xffff if case['busy'] else 0)
     for address in hud_transfers:
-        c.mem_write(address, rom[address:address + 2])
+        patch_code(address, rom[address:address + 2])
     assert all(outcomes), outcomes
     print(f"Resource checks: {len(data['resources'])}; launch prefixes: {len(data['admissions'])} (ready/mode/state/empty/pool={outcomes}); only HUD transfers omitted")
     for i, case in enumerate(data['weapon_timing']):
@@ -446,7 +567,7 @@ with tempfile.TemporaryDirectory() as temp:
     assert all(line_counts[j]>0 for j in [0,1,2]),f'line outcomes not exercised: {line_counts}'
     # Live handler: execute movement, actor scans and burst rolls unchanged.
     # Stop at the real damage routine entry; omit only sound playback.
-    c.mem_write(0x530de,b'\x4e\x75')
+    patch_code(0x530de,b'\x4e\x75')
     flight_events = [0]*6
     completed_impacts=0
     for i, case in enumerate(data['flights']):
@@ -506,7 +627,7 @@ with tempfile.TemporaryDirectory() as temp:
         if case['resolved'] is not None:
             # Replay through actual damage and reaction setup, omitting only
             # sound playback and the low-level party HUD transfer.
-            c.mem_write(0x1232,b'\x4e\x75')
+            patch_code(0x1232,b'\x4e\x75')
             c.mem_write(0xff0100,bytes(case['actors']));c.mem_write(0xff0b00,bytes(case['before']))
             c.mem_write(0xffef10,bytes(case['samples']))
             putw(0xfff9f8,case['seed']);putw(0xffdf68,0xffff if case['deactivate'] else 0)
@@ -533,8 +654,8 @@ with tempfile.TemporaryDirectory() as temp:
             assert getw(0xffe166)==w['timer'] and getw(0xfff112)==w['penetration']
             assert bytes(c.mem_read(0xfff0cc,1))==bytes([w['kind']]) and bytes(c.mem_read(0xfff0dd,1))==bytes([w['successes']])
             completed_impacts+=1
-            c.mem_write(0x1232,rom[0x1232:0x1234])
-    c.mem_write(0x530de,rom[0x530de:0x530e0])
+            patch_code(0x1232,rom[0x1232:0x1234])
+    patch_code(0x530de,rom[0x530de:0x530e0])
     assert all(flight_events), flight_events
     print(f'Live projectile handlers: {len(data["flights"])} (moving/miss/damage-pending/animating/restarted/inactive={flight_events}); only audio omitted, damage stopped at entry')
     print(f'Complete live impacts through damage and reaction: {completed_impacts}; only audio/HUD transfers omitted')

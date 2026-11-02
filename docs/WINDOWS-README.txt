@@ -78,7 +78,7 @@ Companions use formation, distance/visibility-based speed, gradual turning,
 regular corner routes, static wall sliding and recovered fallback wall hugging.
 Unmodeled raster boundaries and general contact/travel scripts remain incomplete. Followers
 cannot cross area triggers independently. Sharp turns can create lag; stopping
-the leader gives them time to catch up. The room NPC remains idly animated.
+the leader gives them time to catch up. The room NPC is calm before combat is triggered.
 The host camera follows the controlled runner; exact original
 camera look-ahead behavior is not yet reconstructed.
 
@@ -86,7 +86,7 @@ NOT YET IMPLEMENTED
 
 Other interior doors and story transitions still stop at their trigger. Full combat,
 other conversations/quest scripts, other recruitment, contract completion,
-hostile/companion combat AI, melee/magic/throwable actions, ongoing combat effects,
+special/companion combat AI, melee/magic/throwable actions, ongoing combat effects,
 general contact scripts and other contact-triggered travel,
 inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
@@ -106,3 +106,8 @@ are checked against execution of original Motorola 68000 routines.
 The Windows executable was cross-compiled and its PE format and DLL imports were
 inspected. A Windows GUI session was not available here, so window creation and
 keyboard interaction have not yet been verified on an actual Windows PC.
+
+Ordinary firearm NPCs now acquire party targets, pursue into range and fire once
+the recovered hostile/alarm conditions engage them. Alarm expiry clears combat
+links. General encounter spawning, ambient patrol and special combat AI remain
+incomplete; no enemies or training arena have been fabricated for this checkpoint.

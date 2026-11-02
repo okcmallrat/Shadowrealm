@@ -4,6 +4,233 @@ use shadowrealm::{
     input, npc,
 };
 
+fn ordinary_npc_fixture(rom: &[u8], hostile: bool) -> Game {
+    use shadowrealm::{collision::Collision, party::Runner};
+    let mut game = Game::load(rom, 0, &[0]).unwrap();
+    game.party[0].set_position(160 * 16, 200 * 16);
+    game.party[0].set_word(0xc, 100);
+    game.party[0].raw[0x66..0x85].fill(0);
+    game.party[0].raw[0x76] = 0;
+    game.party[0].set_word(0x90, 0);
+    game.camera = (100, 100);
+    game.collision = Collision {
+        cells: vec![0; 4096],
+        rectangles: vec![],
+        bounds: [0, 0, 2048, 2048],
+        map_width_tiles: 128,
+        overflow_writes: vec![],
+    };
+    let mut npc = Runner::load(rom, 3, 0).unwrap();
+    npc.set_word(0x3e, 3);
+    npc.set_position(340 * 16, 200 * 16);
+    npc.set_word(0xc, 100);
+    npc.raw[0x10] = 5;
+    npc.raw[0x9e] = if hostile { 0x40 } else { 0 };
+    npc.raw[0xb0] = 0;
+    npc.raw[0xdf] = 0;
+    npc.raw[0x56] = 0;
+    npc.raw[0x57] = 2;
+    npc.raw[0x4e] = 12;
+    npc.raw[0x4f] = 0;
+    npc.raw[0x4d] = 0;
+    npc.raw[0x66..0x85].fill(0);
+    npc.raw[0x78] = 3;
+    npc.raw[0x81] = 8;
+    npc.raw[0x82] = 8;
+    npc.set_word(0xb6, 0);
+    npc.set_word(0xb8, 0x1000);
+    npc.set_word(0xdc, 0xffff);
+    npc.set_word(0x16, 0);
+    npc.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
+    npc.raw[0xa2..0xb0].fill(0);
+    game.npcs.push(npc);
+    game
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn game_hostile_npc_selects_pursues_fires_and_damages_player() {
+    let rom = rom();
+    let mut game = ordinary_npc_fixture(&rom, true);
+    let initial =
+        shadowrealm::followers::distance(game.party[0].position(), game.npcs[0].position());
+    let mut closest = initial;
+    for tick in 0..600 {
+        game.update(&rom, 0).unwrap();
+        closest = closest.min(shadowrealm::followers::distance(
+            game.party[0].position(),
+            game.npcs[0].position(),
+        ));
+        if tick % 60 == 0 {
+            game.render(&rom).unwrap();
+        }
+        if game.party[0].raw[0x4c] < 10 {
+            break;
+        }
+    }
+    assert!(
+        game.combat.npc_shots > 0,
+        "ordinary hostile actor must fire automatically"
+    );
+    assert!(closest < initial, "far target must cause pursuit");
+    assert!(
+        game.party[0].raw[0x4c] < 10,
+        "NPC projectiles must resolve real resistance/damage"
+    );
+    assert!(game.npcs[0].raw[0x4e] < 12);
+    assert_eq!(
+        game.combat.shots, 0,
+        "player need not fire to trigger the original hostile flag"
+    );
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn game_calm_npc_waits_for_combat_then_returns_fire() {
+    let rom = rom();
+    let mut game = ordinary_npc_fixture(&rom, false);
+    // Keep the calm actor in its recovered firing band; a distant one may
+    // legitimately lose the short ordinary alarm before it can close range.
+    game.npcs[0].set_position(240 * 16, 200 * 16);
+    for _ in 0..60 {
+        game.update(&rom, 0).unwrap();
+    }
+    assert_eq!(game.combat.npc_shots, 0);
+    assert_eq!(game.combat.launch.engaged, 0);
+    game.update(&rom, input::A).unwrap();
+    assert_eq!(game.combat.shots, 1);
+    for _ in 0..600 {
+        game.update(&rom, 0).unwrap();
+        if game.combat.npc_shots > 0 {
+            break;
+        }
+    }
+    assert!(game.combat.npc_shots > 0);
+    assert!(game.npcs[0].raw[0x4e] < 12);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
+fn npc_fire_gate_connects_to_existing_launch_and_player_damage() {
+    use shadowrealm::{
+        avoidance::State,
+        collision::Collision,
+        damage::DamageWorld,
+        npc_combat::{self, FireContext, FireDecision},
+        party::Runner,
+        projectiles::{self, FlightContext, FlightEvent},
+        weapons::{self, LaunchResult, LaunchWorld},
+    };
+    let rom = rom();
+    let collision = Collision {
+        cells: vec![0; 4096],
+        rectangles: vec![],
+        bounds: [0, 0, 2048, 2048],
+        map_width_tiles: 128,
+        overflow_writes: vec![],
+    };
+    let mut source = Runner::load(&rom, 3, 0).unwrap();
+    source.set_word(0x3e, 3);
+    source.set_position(1080 * 16, 1000 * 16);
+    source.set_word(0xc, 1);
+    source.set_word(0xdc, 0xffff);
+    source.set_word(0x16, 0);
+    source.raw[0x10] = 5;
+    source.raw[0xdf] = 0;
+    source.raw[0xb0] = 0;
+    source.raw[0x56] = 0;
+    source.raw[0x57] = 8;
+    source.raw[0x4e] = 5;
+    source.raw[0x81] = 60;
+    source.raw[0x83] = 60;
+    source.raw[0xa2..0xa6].copy_from_slice(&0xff0100u32.to_be_bytes());
+    let mut target = Runner::load(&rom, 0, 0).unwrap();
+    target.set_position(1000 * 16, 1000 * 16);
+    target.raw[0x10] = 0xf;
+    target.raw[0xdf] = 0;
+    target.raw[0x4c] = 10;
+    target.raw[0x4d] = 0;
+    target.raw[0x66..0x85].fill(0);
+    target.set_word(0x90, 0);
+    let mut context = FireContext::default();
+    assert_eq!(
+        npc_combat::check_fire(&rom, &collision, &source, &target, &mut context)
+            .unwrap()
+            .decision,
+        FireDecision::HoldFire
+    );
+    source.raw[0xb0] |= 0x10;
+    assert_eq!(
+        npc_combat::check_fire(&rom, &collision, &source, &target, &mut context)
+            .unwrap()
+            .decision,
+        FireDecision::ReadyForLaunch
+    );
+    assert_eq!(context.firing, 1);
+    let mut pool = [[0u8; 256]; 6];
+    let mut random = State { seed: 333 };
+    let (result, roll) = weapons::launch_ranged(
+        &rom,
+        &mut source,
+        Some(&mut target),
+        &mut pool,
+        &mut LaunchWorld::default(),
+        &mut random,
+    )
+    .unwrap();
+    assert_eq!(
+        source.raw[0x4e], 4,
+        "NPC burst launch consumes one resource unit"
+    );
+    assert!(roll.is_some());
+    let LaunchResult::Initialized { projectile, .. } = result else {
+        panic!("expected NPC launch")
+    };
+    let mut actors = vec![
+        target,
+        Runner::load(&rom, 3, 1).unwrap(),
+        Runner::load(&rom, 10, 2).unwrap(),
+        source,
+    ];
+    actors[1].raw[0x10] = 0;
+    actors[2].raw[0x10] = 0;
+    let mut flight = FlightContext::default();
+    let mut pending = None;
+    for _ in 0..20 {
+        let update = projectiles::advance(
+            &rom,
+            &collision,
+            &mut pool[projectile],
+            &mut actors,
+            &mut flight,
+            &mut random,
+        )
+        .unwrap();
+        match update.event {
+            FlightEvent::Moving => {}
+            FlightEvent::DamagePending { actor: 0, .. } => {
+                pending = Some(update.event);
+                break;
+            }
+            event => panic!("unexpected NPC flight event {event:?}"),
+        }
+    }
+    let mut world = DamageWorld::default();
+    let impact = projectiles::complete_impact(
+        &rom,
+        &mut pool[projectile],
+        &mut actors,
+        pending.unwrap(),
+        &mut world,
+        &mut random,
+    )
+    .unwrap();
+    assert!(impact.damage.health_after < impact.damage.health_before);
+    assert_eq!(actors[0].raw[0x4c], 0);
+    assert_eq!(world.defeat_timer, 60);
+    assert_eq!(actors[3].raw[0x4e], 4);
+}
+
 #[test]
 #[ignore = "requires the user-supplied ROM; run with --ignored and SHADOWREALM_TEST_ROM"]
 fn game_fire_input_consumes_ammo_renders_flash_and_retires_projectiles() {

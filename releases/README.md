@@ -17,10 +17,15 @@ A blocked projectile probe shows red brackets and a title status; yellow is
 selection feedback. Hold F to fire the equipped firearm, with or without a target.
 Ammo, finite-reserve reloads, cooldowns, flashes/impacts, burst cycling, hit/resistance
 rolls, physical damage and hurt/death setup are connected to the native game loop.
-Melee, magic, hostile/companion combat AI, ongoing effects, full game-over flow,
+Melee, magic, special/companion combat AI, ongoing effects, full game-over flow,
 audio and general missions remain unfinished.
 The executable was cross-compiled; Windows GUI playtesting remains outstanding.
 
 The ZIP includes runtime licenses and per-file hashes. `SHA256SUMS` records the
 archive hash. Build and validation details are in
 [the project notes](../docs/exploration-and-windows.md).
+
+Ordinary firearm NPCs now acquire party targets, pursue into range and fire once
+the recovered hostile/alarm conditions engage them. Alarm expiry clears combat
+links. General encounter spawning, ambient patrol and special combat AI remain
+incomplete; no enemies or training arena have been fabricated for this checkpoint.

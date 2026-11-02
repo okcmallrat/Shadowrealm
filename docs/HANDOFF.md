@@ -8,6 +8,21 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
+Tonight's milestone connects ordinary firearm NPC combat to the native game loop:
+original decision scheduling, party-target acquisition, range/strafe goals,
+collision-aware pursuit, launch/animation and player damage. Original alarm expiry
+also clears combat links and aiming flags. Tests demonstrate hostile pursuit and
+calm actors returning fire after an alarm. No enemy spawns were fabricated.
+60 unit tests and 30 ROM integration tests pass. Differential checks include
+256 complete NPC decisions, 1,024 branch classifications, 1,024 range goals,
+1,088 movement cases, 512 alarm cleanups, 1,024 timers and 3,264 fire gates.
+Full decision comparisons omit only audio/HUD transfers. The Windows package
+is rebuilt for this connected milestone; Windows GUI playtesting remains pending.
+Next prioritize recovered encounter spawning and a complete defeat/restart loop.
+Special/script actors, ambient patrol, companion combat, melee/magic/throwables,
+ongoing effects and general missions remain incomplete. Empty NPC firearms reach
+the recovered equipment-clearing boundary; melee continuation is deferred.
+
 The user resumed development after cloud setup. The current local milestone
 adds original fallback wall hugging and physical actor-contact separation to
 companion following, plus contact-triggered travel on the verified routes.
@@ -40,12 +55,11 @@ finite-reserve reload, actor firing/hurt poses, six projectile/FX slots, immedia
 hit completion, terminal frame timing and original resident sprites into Game.
 1,024 gates, 1,024 reloads, 1,024 failed-launch/reload continuations and 1,024
 animation calls match original routines.
-Next reconstruct hostile/companion combat AI, mission-aware death callbacks,
+Next extend ordinary NPC combat coverage, companion combat and mission-aware death callbacks,
 full defeat/game-over flow and the remaining weapon/effect systems. Ongoing
 modifiers, modified burst roll contexts, environment mode 2
 scripts and footprint-flag projectile collisions return explicit unsupported errors.
-59 unit tests and all 27 enabled ROM integration tests pass, including 13 combat
-tests. The 313-tick firing replay records shots, hits, ammo, reserves and pool use.
+The earlier firing checkpoint passed 59 unit tests and 27 ROM integration tests. The 313-tick firing replay records shots, hits, ammo, reserves and pool use.
 The combat oracle, including all previous timing/target/probe comparisons,
 passes. The preceding checkpoint also passed avoidance,
 followers, world, transitions, interior, dialogue and hiring validators.
@@ -59,22 +73,21 @@ migrate unrelated systems or invent missing quest rules.
 
 Repository: https://github.com/okcmallrat/Shadowrealm
 Remote branch: `main`; this environment's local branch is `work`.
-Verified published commit: `5127868318d5de673e4301bdc5a0dcd019e27a32` — contact
-travel, combat targeting/obstruction and weapon timing, including source,
-tests, notes and Windows ZIP. The user explicitly requested this push; the
-remote SHA was checked after success. Its parent is `90fa5c4`.
+Previous verified published commit: `a9b51529fb6cbffae2fce80f11e811304e015433` — enabled
+native player gunfire, projectile effects and physical damage, including source,
+tests, notes and Windows ZIP. The user explicitly requested this push; GitHub
+main was checked after success. Its parent is `5127868`.
 
-The user requested pushing the enabled-firing milestone (ammunition, launch,
-attack rolls, flight, damage, rendering and controls), then continuing development.
-This handoff is included in that checkpoint; verify the remote SHA when resuming.
-The `5127868` commit above is the preceding published checkpoint. Subsequent
-development changes should remain local until another push is requested.
-The versioned Windows ZIP is refreshed locally with enabled firing, supporting
-README and matching SHA-256. Linux desktop and Windows cross-builds are checked;
-actual Windows GUI/input playtesting remains outstanding.
+The user authorized tonight's ordinary-NPC combat checkpoint and GitHub push,
+then a stop for the night. This checkpoint follows the verified firing commit
+above; identify its commit with `git log` (the file cannot contain its own hash).
+Do not publish environment configuration. The versioned Windows ZIP includes
+ordinary NPC firearm dispatch, updated instructions and matching hashes.
+Linux desktop and Windows cross-builds are checked; actual Windows GUI/input
+playtesting remains outstanding.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `8ccf8440d26447ed314a87f3a13f0ba46a896738852e441c00ddd30be00ade30`.
+SHA-256: `584646c2bc70080d5727dfcf9643a67717ee732c583c4a603d4c3cb371d91678`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.

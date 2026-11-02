@@ -53,6 +53,52 @@ walking remains the host integration when no fire request is serviced.
 The sections below document the recovered components and their earlier isolated
 checkpoints; the runtime above now connects the supported baseline paths.
 
+## Ordinary NPC firearm combat
+
+`src/npc_combat.rs` ports `$13904..$13920` decision timing and the
+existing-target `$14020..$1413c` firearm gates. The timer wraps as a word;
+a due decision resets to 20 only when the companion-service flag permits it.
+Otherwise the timer remains negative and can be retried next frame.
+
+The fire check preserves original branch ordering: unarmed, cooldown, visibility,
+negative equipment/magic and throwable paths are distinguished before the
+projectile probe. A blocked probe clears `$dfde`; a clear probe can still hold
+fire in mode zero when source `$b0` bit 4 is clear. A ready branch sets `$dfde`
+to one and stops at launch entry. No ammunition or RNG is consumed by this
+check. Missing geometry or inconsistent actor references fail without changing
+the explicit firing flag or four-byte collision scratch. A trace-limit result
+retains the original clear-return semantics; it is not treated as a proven hit.
+
+1,024 original timer prefixes and 3,264 original fire checks match without
+instruction stubs, including complete actor records, probe projectile/step count,
+scratch output, firing flag and unchanged RNG. Outcomes are 205 ready, 1,428
+cooldown continuations, 493 hidden, 357 magic continuations, 204 throwables,
+123 blocked, 46 hold-fire and 408 melee continuations, across the same six real
+maps and eleven synthetic geometries used by projectile validation. Generated
+Ghidra views are private under `artifacts/npc-fire-reference`.
+
+Automatic ordinary NPC firearm dispatch is now connected to Game. The recovered
+outer branch order excludes protected, ignored and special/script continuations.
+Eligible engaged actors acquire party targets through the original target lists,
+use `$13d56` range/strafe goals and common steering, then move through the original
+engaged NPC collision tables. Ready shots share the existing launch, animation,
+projectile and damage systems. Cooldown/blocked continuations preserve probe and
+formation behavior. Empty weapons clear equipment before the deferred melee path.
+
+The original `$1de00` timeout prefix and `$1dbf0` combat-link cleanup are connected;
+mode, script and map guards remain explicit. Subsequent auto-target/UI continuation
+is not reconstructed. 512 cleanup comparisons, 1,024 outer branches, 1,024 range
+goals and 1,088 engaged movement cases match original execution without stubs.
+256 complete ordinary decisions match actors, slots, world state and shared RNG,
+omitting only audio/HUD transfers. Unicorn instruction patches now invalidate its
+translation cache so supplied-roll and original-roll checks cannot reuse stale code.
+
+Game-loop tests demonstrate hostile pursuit/fire/player damage and a calm NPC
+returning fire after a player shot. Fixtures create test actors only: no enemy or
+training spawns are added to the product. Ambient patrol, special/script actors,
+companion combat, melee, magic and throwable continuations remain incomplete.
+The Windows package includes this bounded automatic firearm behavior.
+
 ## Weapon timing and source setup
 
 `src/weapons.rs` ports `$abfc/$d7ea/$d81c`: stats `$78+$7b` add as a

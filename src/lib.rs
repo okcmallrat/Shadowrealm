@@ -18,6 +18,7 @@ pub mod input;
 pub mod map_render;
 pub mod maps;
 pub mod npc;
+pub mod npc_combat;
 pub mod party;
 pub mod projectiles;
 pub mod scene;

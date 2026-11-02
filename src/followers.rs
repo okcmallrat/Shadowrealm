@@ -457,7 +457,11 @@ pub fn decide(
     let goal = formation_goal(rom, c, r, leader)?;
     r.set_word(0x96, goal.0);
     r.set_word(0x98, goal.1);
-    if distance(r.position(), goal) < 0x1e0 {
+    steer_goal(rom, c, r)
+}
+/// $144e8/$145a2, shared by party formation and ordinary NPC positioning.
+pub fn steer_goal(rom: &[u8], c: &Collision, r: &mut Runner) -> Result<bool, RomError> {
+    if distance(r.position(), (r.word(0x96), r.word(0x98))) < 0x1e0 {
         r.raw[0xb0] = (r.raw[0xb0] & 0x80) | 4;
         r.raw[0xb1] = 0;
         set_behavior(r, 0xb45c);
@@ -486,6 +490,34 @@ fn probe(
 }
 /// $b574/$b6e4/$bade: noncombat party step, including diagonal/cardinal sliding.
 pub fn move_one(rom: &[u8], c: &Collision, r: &mut Runner) -> Result<(), RomError> {
+    move_with_far_table(rom, c, r, 0xbfe2, true)
+}
+/// Ordinary non-party $b574/$b6e4 movement. Special banks/flags remain outside
+/// this entry; range-dependent near tables and collision sliding are shared.
+pub fn move_npc(rom: &[u8], c: &Collision, r: &mut Runner) -> Result<(), RomError> {
+    if r.bank() == 13 || r.raw[0x10] & 8 != 0 || r.raw[0xb0] & 0x80 != 0 || r.raw[0x9e] & 0x20 != 0
+    {
+        return Err(RomError("special NPC movement not modeled"));
+    }
+    let table = {
+        if (r.raw[0x78] as i8) < 0 {
+            return Err(RomError("NPC movement stat outside model"));
+        }
+        let at = 0xbdf2 + usize::from(r.raw[0x78].min(9)) * 4;
+        let b = rom
+            .get(at..at + 4)
+            .ok_or(RomError("NPC movement table missing"))?;
+        u32::from_be_bytes(b.try_into().unwrap()) as usize
+    };
+    move_with_far_table(rom, c, r, table, false)
+}
+fn move_with_far_table(
+    rom: &[u8],
+    c: &Collision,
+    r: &mut Runner,
+    far: usize,
+    party_visibility: bool,
+) -> Result<(), RomError> {
     if behavior(r) != 0xb574 {
         let before = r.word(0x16);
         r.raw[0x11] &= !4;
@@ -508,10 +540,10 @@ pub fn move_one(rom: &[u8], c: &Collision, r: &mut Runner) -> Result<(), RomErro
     r.set_word(0x38, 1);
     r.turn_toward(r.word(0x34));
     let range = r.word(0xc8);
-    let table = if r.word(0xc) == 0 {
+    let table = if party_visibility && r.word(0xc) == 0 {
         0xc022
     } else if range >= 0x460 {
-        0xbfe2
+        far
     } else if range >= 0x360 {
         0xbd72
     } else if range >= 0x200 {

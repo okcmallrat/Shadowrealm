@@ -676,10 +676,27 @@ impl Game {
                 return Ok(());
             }
         }
-        for npc in &mut self.npcs {
-            crate::combat_runtime::prepare_actor(npc);
+        for index in 0..self.npcs.len() {
+            crate::combat_runtime::prepare_actor(&mut self.npcs[index]);
+            let mut actors = self.combat_actors();
+            let managed = self.combat.npc(
+                rom,
+                &self.collision,
+                &mut actors,
+                self.npcs[index].word(0x3e),
+                serviced,
+                self.tick as u16,
+                &mut self.avoidance,
+            )?;
+            if self.accept_combat_actors(&actors) {
+                self.refresh_hud(rom)?;
+            }
+            let npc = &mut self.npcs[index];
             if npc.raw[0x10] & 0x41 == 1 && !crate::combat_runtime::holds_movement(npc) {
-                avoidance::respond(rom, &self.collision, npc, self.tick as u16)?;
+                let responded = avoidance::respond(rom, &self.collision, npc, self.tick as u16)?;
+                if managed && !responded {
+                    followers::move_npc(rom, &self.collision, npc)?;
+                }
             }
         }
         self.dispatch_projectiles(rom)?;
@@ -778,6 +795,7 @@ impl Game {
         let mut actors = self.combat_actors();
         self.combat
             .projectiles(rom, &self.collision, &mut actors, &mut self.avoidance)?;
+        self.combat.launch.tick_alert(&mut actors, false);
         if self.accept_combat_actors(&actors) {
             self.refresh_hud(rom)?;
         }

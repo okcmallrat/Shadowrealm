@@ -107,7 +107,27 @@ pub struct LaunchWorld {
     pub fx_origin: (u16, u16),
 }
 impl LaunchWorld {
-    fn alert(&mut self) {
+    /// $1de00..$1de3e/$1dbf0 ordinary combat timeout and actor-link cleanup.
+    /// The following auto-target/UI continuation remains separate.
+    pub fn tick_alert(&mut self, actors: &mut [Runner], script_active: bool) -> bool {
+        if self.engaged == 0 || self.mode != 0 || script_active || self.map_id == 20 {
+            return false;
+        }
+        self.timeout = self.timeout.wrapping_sub(1);
+        if (self.timeout as i16) >= 0 {
+            return false;
+        }
+        self.engaged = 0;
+        for a in actors {
+            a.raw[0xa2..0xa6].fill(0);
+            a.raw[0xac..0xb0].fill(0);
+            a.raw[0x43] = 0;
+            a.raw[0xb0] &= !0x40;
+            a.raw[0x11] &= !0x10;
+        }
+        true
+    }
+    pub(crate) fn alert(&mut self) {
         if self.map_id == 54 && self.map54_override == 0 {
             return;
         }

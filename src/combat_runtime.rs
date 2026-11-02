@@ -1,4 +1,4 @@
-//! Native player-fire integration. Host input/camera remain separate from the
+//! Native player and ordinary NPC firearm integration. Host input/camera remain separate from the
 //! recovered weapon, flight, damage, animation and FX routines.
 use crate::{
     actors::AnimationClock,
@@ -21,6 +21,10 @@ pub struct Runtime {
     pub hits: u64,
     pub status: &'static str,
     pub player_attempt: bool,
+    pub npc_targets: crate::combat::TargetLists,
+    pub npc_force: bool,
+    pub npc_fire: crate::npc_combat::FireContext,
+    pub npc_shots: u64,
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -33,6 +37,10 @@ impl Default for Runtime {
             hits: 0,
             status: "",
             player_attempt: false,
+            npc_targets: Default::default(),
+            npc_force: true,
+            npc_fire: Default::default(),
+            npc_shots: 0,
         }
     }
 }
@@ -124,6 +132,9 @@ impl Runtime {
         self.pool = [[0; 256]; 6];
         self.flight = Default::default();
         self.launch.signals = Default::default();
+        self.npc_targets = Default::default();
+        self.npc_force = true;
+        self.npc_fire = Default::default();
     }
     pub fn sprites(&self) -> Vec<Runner> {
         self.pool
@@ -131,6 +142,152 @@ impl Runtime {
             .filter(|p| p[0x10] & 1 != 0)
             .map(|p| actor(*p))
             .collect()
+    }
+
+    /// Ordinary engaged NPC firearm dispatch. Returns whether the NPC belongs
+    /// to the supported combat-motion path; special/patrol/script actors defer.
+    pub fn npc(
+        &mut self,
+        rom: &[u8],
+        collision: &Collision,
+        actors: &mut [Runner],
+        slot: u16,
+        party_serviced: bool,
+        tick: u16,
+        random: &mut State,
+    ) -> Result<bool, RomError> {
+        use crate::npc_combat::{self, DispatchBranch, FireDecision, PositionDecision};
+        self.npc_targets
+            .refresh(&actors.iter().collect::<Vec<_>>(), tick, self.npc_force);
+        self.npc_force = false;
+        let index = actors
+            .iter()
+            .position(|a| a.word(0x3e) == slot)
+            .ok_or(RomError("NPC actor missing"))?;
+        if actors[index].raw[0x10] & 0x57 != 5
+            || actors[index].raw[0x4c] == 0
+            || actors[index].raw[0x9c] == 0
+            || holds_movement(&actors[index])
+            || (actors[index].word(0x16) as i16) > 0x3c
+        {
+            return Ok(false);
+        }
+        let mut source = actors[index].clone();
+        let due = npc_combat::decision_due(&mut source, party_serviced);
+        actors[index] = source.clone();
+        let branch = npc_combat::dispatch_branch(&source, self.launch.engaged != 0);
+        let supported = matches!(branch, DispatchBranch::Combat | DispatchBranch::Alert)
+            && source.bank() != 13
+            && source.raw[0x56] < 8
+            && (1..=12).contains(&source.raw[0x57])
+            && source.raw[0xdf] & 3 == 0;
+        if !supported {
+            return Ok(false);
+        }
+        if !due {
+            return Ok(self.launch.engaged != 0);
+        }
+        if branch == DispatchBranch::Alert {
+            self.launch.alert();
+        }
+        if self.launch.engaged == 0 {
+            return Ok(false);
+        }
+        self.npc_targets.acquire(&mut source, random);
+        let target_ptr = crate::combat::target(&source);
+        let Some(target_index) =
+            target_ptr.and_then(|id| actors.iter().position(|a| a.word(0x3e) == u16::from(id.0)))
+        else {
+            actors[index] = source;
+            return Ok(true);
+        };
+        let mut target = actors[target_index].clone();
+        self.npc_fire.mode = self.launch.mode;
+        let check = npc_combat::check_fire(rom, collision, &source, &target, &mut self.npc_fire)?;
+        let mut fallback = matches!(
+            check.decision,
+            FireDecision::PathBlocked | FireDecision::NotVisible
+        );
+        let mut ordinary = true;
+        match check.decision {
+            FireDecision::ReadyForLaunch => {
+                let (result, _) = weapons::launch_ranged(
+                    rom,
+                    &mut source,
+                    Some(&mut target),
+                    &mut self.pool,
+                    &mut self.launch,
+                    random,
+                )?;
+                match result {
+                    LaunchResult::Initialized { fx, .. } => {
+                        weapons::prepare_ranged(
+                            rom,
+                            &mut source,
+                            u16::from_be_bytes([self.pool[fx][0x2e], self.pool[fx][0x2f]]),
+                        )?;
+                        self.npc_shots += 1;
+                    }
+                    LaunchResult::FxPoolFull { .. } => {
+                        self.npc_shots += 1;
+                        fallback = npc_cooldown_path(
+                            rom,
+                            collision,
+                            &mut source,
+                            &target,
+                            &mut self.npc_fire,
+                        )?;
+                    }
+                    LaunchResult::Rejected(_) => {
+                        fallback = npc_cooldown_path(
+                            rom,
+                            collision,
+                            &mut source,
+                            &target,
+                            &mut self.npc_fire,
+                        )?;
+                    }
+                }
+                if source.raw[0x57] == 0 {
+                    ordinary = false;
+                }
+            }
+            FireDecision::CooldownContinuation => {
+                fallback =
+                    npc_cooldown_path(rom, collision, &mut source, &target, &mut self.npc_fire)?;
+                if source.raw[0x57] == 0 {
+                    ordinary = false;
+                }
+            }
+            FireDecision::HoldFire => {}
+            FireDecision::PathBlocked | FireDecision::NotVisible => {}
+            _ => {
+                ordinary = false;
+            }
+        }
+        if ordinary {
+            if fallback {
+                crate::followers::decide(rom, collision, &mut source, &target)?;
+            } else if npc_combat::position_goal(rom, &mut source, &target, self.npc_fire.firing)?
+                == PositionDecision::Goal
+            {
+                let reached = crate::followers::distance(
+                    source.position(),
+                    (source.word(0x96), source.word(0x98)),
+                ) < 0x1e0;
+                crate::followers::steer_goal(rom, collision, &mut source)?;
+                if reached {
+                    source.raw[0xb5] = 0;
+                }
+            }
+        } else if (source.word(0x16) as i16) <= 0x3c {
+            // Host boundary: do not enter the still-unimplemented melee/magic
+            // continuation after weapon exhaustion.
+            source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
+        }
+        actors[target_index] = target;
+        actors[index] = source;
+        Ok(ordinary)
     }
 
     /// Service input at the selected actor's dispatch position, after pose
@@ -283,4 +440,27 @@ impl Runtime {
         }
         Ok(())
     }
+}
+
+/// $14146 ordinary NPC firearm continuation. Exhausted non-party actors clear
+/// equipment before the unimplemented melee continuation; reserves are unused.
+fn npc_cooldown_path(
+    rom: &[u8],
+    collision: &Collision,
+    source: &mut Runner,
+    target: &Runner,
+    context: &mut crate::npc_combat::FireContext,
+) -> Result<bool, RomError> {
+    if source.raw[0x4e] != 0 {
+        let probe = crate::combat::line_of_fire(rom, collision, source, target, context.samples)?;
+        if probe.outcome == crate::combat::LineOutcome::OutsideModel {
+            return Err(RomError("NPC cooldown probe outside model"));
+        }
+        context.samples = probe.samples;
+        return Ok(probe.outcome == crate::combat::LineOutcome::Blocked);
+    }
+    source.raw[0x57] = 0;
+    source.raw[0x56] = 0x7f;
+    source.set_word(0xdc, weapons::cooldown(source, 0));
+    Ok(false)
 }
