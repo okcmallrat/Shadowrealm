@@ -78,3 +78,8 @@ To try the Windows build, run `Shadowrealm.exe Shadowrun.bin 5 --solo` from its
 extracted folder. T selects a target and F fires; R resets the session. The build
 is cross-compiled and checked for package integrity; Windows GUI playtesting is
 still outstanding.
+
+The companion-combat follow-up also recovers `$142ae..$142be`: an alerted
+offscreen actor continues toward the leader after an empty visible-target list
+clears combat. Both engaged and cleared-combat pursuit now compare against 256
+original decisions. See [companion combat](companion-combat.md).

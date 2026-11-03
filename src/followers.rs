@@ -89,22 +89,41 @@ pub fn formation_goal(
     runner: &Runner,
     leader: &Runner,
 ) -> Result<(u16, u16), RomError> {
+    Ok(formation_query(rom, collision, runner, leader)?.0)
+}
+fn formation_query(
+    rom: &[u8],
+    collision: &Collision,
+    runner: &Runner,
+    leader: &Runner,
+) -> Result<((u16, u16), [u8; 4]), RomError> {
     let left = runner.word(0x3e) == 0 || (runner.word(0x3e) == 1 && leader.word(0x3e) == 0);
     let angle = leader
         .word(0x2e)
         .wrapping_add(if left { 0xa000 } else { 0x6000 });
     let delta = formation_offset(rom, angle)?;
     let p = leader.position();
+    let mut samples = [0; 4];
     for sign in [1i16, -1] {
         let candidate = (
             p.0.wrapping_add(delta.0.wrapping_mul(sign as u16)),
             p.1.wrapping_add(delta.1.wrapping_mul(sign as u16)),
         );
+        let (x, y) = (candidate.0 >> 4, candidate.1 >> 4);
+        samples = if x < collision.bounds[0]
+            || y < collision.bounds[1]
+            || x >= collision.bounds[2]
+            || y >= collision.bounds[3]
+        {
+            [0, 0x7f, 0, 0x7f]
+        } else {
+            collision.footprint_samples(candidate)
+        };
         if !matches!(collision.contact(candidate)?, Contact::Blocked) {
-            return Ok(candidate);
+            return Ok((candidate, samples));
         }
     }
-    Ok(p)
+    Ok((p, samples))
 }
 fn idle(r: &mut Runner, snap: bool) {
     if snap {
@@ -454,10 +473,20 @@ pub fn decide(
     r: &mut Runner,
     leader: &Runner,
 ) -> Result<bool, RomError> {
-    let goal = formation_goal(rom, c, r, leader)?;
+    Ok(decide_with_samples(rom, c, r, leader)?.0)
+}
+/// Preserve the final $e7c8 formation-query scratch for the next firing probe.
+/// If both candidates block, the leader position is used without a third query.
+pub fn decide_with_samples(
+    rom: &[u8],
+    c: &Collision,
+    r: &mut Runner,
+    leader: &Runner,
+) -> Result<(bool, [u8; 4]), RomError> {
+    let (goal, samples) = formation_query(rom, c, r, leader)?;
     r.set_word(0x96, goal.0);
     r.set_word(0x98, goal.1);
-    steer_goal(rom, c, r)
+    Ok((steer_goal(rom, c, r)?, samples))
 }
 /// $144e8/$145a2, shared by party formation and ordinary NPC positioning.
 pub fn steer_goal(rom: &[u8], c: &Collision, r: &mut Runner) -> Result<bool, RomError> {
@@ -659,14 +688,22 @@ pub fn schedule(
     leader: &Runner,
     serviced: &mut bool,
 ) -> Result<(), RomError> {
+    if decision_due(r, serviced) {
+        decide(rom, c, r, leader)?;
+    }
+    Ok(())
+}
+/// $138b8..$138dc: only companions claim the frame's shared decision slot.
+/// Due NPCs observe this flag but do not claim it themselves.
+pub fn decision_due(r: &mut Runner, serviced: &mut bool) -> bool {
     let timer = r.word(0xb6).wrapping_sub(1);
     r.set_word(0xb6, timer);
     if (timer as i16) < 0 && !*serviced {
         *serviced = true;
         r.set_word(0xb6, 20);
-        decide(rom, c, r, leader)?;
+        return true;
     }
-    Ok(())
+    false
 }
 fn dispatch(
     rom: &[u8],
@@ -718,6 +755,27 @@ fn dispatch(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn companions_claim_one_slot_and_leave_the_other_due_for_next_frame() {
+        let mut a = Runner {
+            raw: [0; 256],
+            template: 0,
+            clock: Default::default(),
+        };
+        let mut b = a.clone();
+        let mut serviced = false;
+        assert!(decision_due(&mut a, &mut serviced));
+        assert!(!decision_due(&mut b, &mut serviced));
+        assert_eq!(a.word(0xb6), 20);
+        assert_eq!(b.word(0xb6), 0xffff);
+        serviced = false;
+        assert!(!decision_due(&mut a, &mut serviced));
+        assert!(decision_due(&mut b, &mut serviced));
+        // NPCs observe the claimed slot without resetting their negative timer.
+        a.set_word(0xb6, 0);
+        assert!(!crate::npc_combat::decision_due(&mut a, serviced));
+        assert_eq!(a.word(0xb6), 0xffff);
+    }
     #[test]
     fn stop_distance_rounding_and_word_wrap() {
         assert_eq!(distance((0, 0), (479, 0)), 479);

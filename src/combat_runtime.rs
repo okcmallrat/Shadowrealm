@@ -1,4 +1,4 @@
-//! Native player and ordinary NPC firearm integration. Host input/camera remain separate from the
+//! Native player, ordinary NPC and bounded companion firearm integration. Host input/camera remain separate from the
 //! recovered weapon, flight, damage, animation and FX routines.
 use crate::{
     actors::AnimationClock,
@@ -23,8 +23,13 @@ pub struct Runtime {
     pub player_attempt: bool,
     pub npc_targets: crate::combat::TargetLists,
     pub npc_force: bool,
+    target_tick: Option<u16>,
     pub npc_fire: crate::npc_combat::FireContext,
     pub npc_shots: u64,
+    pub companion_shots: u64,
+    pub spellbooks: Option<crate::spellbooks::Spellbooks>,
+    /// Explicit boundary for spell/inventory selection and non-firearm actions.
+    pub companion_deferred: [Option<&'static str>; 3],
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -39,8 +44,12 @@ impl Default for Runtime {
             player_attempt: false,
             npc_targets: Default::default(),
             npc_force: true,
+            target_tick: None,
             npc_fire: Default::default(),
             npc_shots: 0,
+            companion_shots: 0,
+            spellbooks: None,
+            companion_deferred: [None; 3],
         }
     }
 }
@@ -134,10 +143,22 @@ impl Runtime {
         self.launch.signals = Default::default();
         self.npc_targets = Default::default();
         self.npc_force = true;
+        self.target_tick = None;
         self.npc_fire = Default::default();
+        self.companion_deferred = [None; 3];
     }
     pub fn actors_changed(&mut self) {
         self.npc_force = true;
+    }
+    /// $13874 runs once before actor dispatch, so list membership is stable
+    /// throughout a frame even on the periodic refresh phases.
+    pub fn begin_tick(&mut self, actors: &[Runner], tick: u16) {
+        if self.target_tick != Some(tick) || self.npc_force {
+            self.npc_targets
+                .refresh(&actors.iter().collect::<Vec<_>>(), tick, self.npc_force);
+            self.target_tick = Some(tick);
+            self.npc_force = false;
+        }
     }
     pub fn sprites(&self) -> Vec<Runner> {
         self.pool
@@ -159,10 +180,8 @@ impl Runtime {
         tick: u16,
         random: &mut State,
     ) -> Result<bool, RomError> {
-        use crate::npc_combat::{self, DispatchBranch, FireDecision, PositionDecision};
-        self.npc_targets
-            .refresh(&actors.iter().collect::<Vec<_>>(), tick, self.npc_force);
-        self.npc_force = false;
+        use crate::npc_combat::{self, DispatchBranch};
+        self.begin_tick(actors, tick);
         let index = actors
             .iter()
             .position(|a| a.word(0x3e) == slot)
@@ -180,8 +199,8 @@ impl Runtime {
         actors[index] = source.clone();
         let branch = npc_combat::dispatch_branch(&source, self.launch.engaged != 0);
         let offscreen = branch == DispatchBranch::Offscreen
-            && self.launch.engaged != 0
-            && self.launch.mode == 0;
+            && self.launch.mode == 0
+            && (self.launch.engaged != 0 || source.raw[0x9e] & 0x40 != 0);
         let supported = (matches!(branch, DispatchBranch::Combat | DispatchBranch::Alert)
             || offscreen)
             && source.bank() != 13
@@ -192,14 +211,15 @@ impl Runtime {
             return Ok(false);
         }
         if !due {
-            return Ok(self.launch.engaged != 0);
+            return Ok(self.launch.engaged != 0 || offscreen);
         }
         if offscreen {
             let leader = actors
                 .iter()
                 .find(|a| a.raw[0x10] & 3 == 3)
                 .ok_or(RomError("offscreen NPC leader missing"))?;
-            crate::followers::decide(rom, collision, &mut source, leader)?;
+            self.npc_fire.samples =
+                crate::followers::decide_with_samples(rom, collision, &mut source, leader)?.1;
             actors[index] = source;
             return Ok(true);
         }
@@ -218,8 +238,140 @@ impl Runtime {
             return Ok(true);
         };
         let mut target = actors[target_index].clone();
+        let ordinary = self.firearm(rom, collision, &mut source, &mut target, random)?;
+        actors[target_index] = target;
+        actors[index] = source;
+        Ok(ordinary)
+    }
+
+    /// $138b8: shared companion scheduling, formation and ordinary firearms.
+    /// Recovered spell selection uses session books. Unsupported equipment/cast
+    /// actions defer with staged source/RNG instead of an invented gun preference.
+    pub fn companion(
+        &mut self,
+        rom: &[u8],
+        collision: &Collision,
+        actors: &mut [Runner],
+        slot: u16,
+        serviced: &mut bool,
+        tick: u16,
+        random: &mut State,
+    ) -> Result<(), RomError> {
+        self.begin_tick(actors, tick);
+        if slot >= 3 {
+            return Err(RomError("companion slot outside party"));
+        }
+        let index = actors
+            .iter()
+            .position(|a| a.word(0x3e) == slot)
+            .ok_or(RomError("companion actor missing"))?;
+        if actors[index].raw[0x10] & 0x5b != 9
+            || holds_movement(&actors[index])
+            || actors[index].raw[0x9c] == 0
+        {
+            return Ok(());
+        }
+        if !crate::followers::decision_due(&mut actors[index], serviced) {
+            return Ok(());
+        }
+        let mut source = actors[index].clone();
+        let leader = actors
+            .iter()
+            .find(|a| a.raw[0x10] & 3 == 3)
+            .ok_or(RomError("companion leader missing"))?
+            .clone();
+        if source.raw[0x4d] == 0 || self.launch.engaged == 0 {
+            self.companion_deferred[usize::from(slot)] = None;
+            self.npc_fire.samples =
+                crate::followers::decide_with_samples(rom, collision, &mut source, &leader)?.1;
+            actors[index] = source;
+            return Ok(());
+        }
+        // $138f4/$13a92: selection is skipped while cooling down. Mundane
+        // archetypes ($9b >= 2 signed) return immediately from $13a92.
+        if (source.word(0xdc) as i16) < 0
+            && (source.raw[0x9b] as i8) < 2
+            && ((source.raw[0x56] as i8) < 0 || (source.raw[0x9c] as i8) >= 5)
+        {
+            if let Some(books) = &self.spellbooks {
+                let mut staged = State { seed: random.seed };
+                let (selection, _) =
+                    crate::spellbooks::select(rom, books, &source, actors, &mut staged)?;
+                match selection {
+                    crate::spellbooks::Selection::KeepEquipped => {
+                        random.seed = staged.seed;
+                    }
+                    crate::spellbooks::Selection::Spell(_) => {
+                        self.companion_deferred[usize::from(slot)] =
+                            Some("Companion spell casting is not available yet");
+                        return Ok(());
+                    }
+                    crate::spellbooks::Selection::InventoryWeapon => {
+                        let mut equipped = source.clone();
+                        crate::spell_equipment::equip_inventory(rom, &mut equipped)?;
+                        if equipped.raw[0x56] < 8 && (1..=12).contains(&equipped.raw[0x57]) {
+                            source = equipped;
+                            random.seed = staged.seed;
+                        } else {
+                            self.companion_deferred[usize::from(slot)] =
+                                Some("Companion melee action is not available yet");
+                            return Ok(());
+                        }
+                    }
+                }
+            } else {
+                self.companion_deferred[usize::from(slot)] =
+                    Some("Companion spellbook state is not available yet");
+                return Ok(());
+            }
+        }
+        if source.raw[0x56] >= 8
+            || !(1..=12).contains(&source.raw[0x57])
+            || source.raw[0xdf] & 3 != 0
+            || source.raw[0x4d] > 8
+        {
+            self.companion_deferred[usize::from(slot)] =
+                Some("Companion weapon action is not available yet");
+            return Ok(());
+        }
+        self.companion_deferred[usize::from(slot)] = None;
+        if self.npc_targets.acquire(&mut source, random) {
+            // $14492 calls the real ordinary shutdown when the NPC list is empty.
+            actors[index] = source;
+            self.launch.end_combat(actors);
+            // $13ffe then tails into leader formation; $13d56 sees no target.
+            source = actors[index].clone();
+            self.npc_fire.samples =
+                crate::followers::decide_with_samples(rom, collision, &mut source, &leader)?.1;
+            actors[index] = source;
+            return Ok(());
+        }
+        let target_index = crate::combat::target(&source)
+            .and_then(|id| actors.iter().position(|a| a.word(0x3e) == u16::from(id.0)))
+            .ok_or(RomError("companion target missing from actor pool"))?;
+        let mut target = actors[target_index].clone();
+        let ordinary = self.firearm(rom, collision, &mut source, &mut target, random)?;
+        if !ordinary {
+            self.companion_deferred[usize::from(slot)] =
+                Some("Companion melee action is not available yet");
+        }
+        actors[target_index] = target;
+        actors[index] = source;
+        Ok(())
+    }
+
+    /// $139d8/$13ffe and $13d56: firearm action and common goal steering.
+    fn firearm(
+        &mut self,
+        rom: &[u8],
+        collision: &Collision,
+        source: &mut Runner,
+        target: &mut Runner,
+        random: &mut State,
+    ) -> Result<bool, RomError> {
+        use crate::npc_combat::{self, FireDecision, PositionDecision};
         self.npc_fire.mode = self.launch.mode;
-        let check = npc_combat::check_fire(rom, collision, &source, &target, &mut self.npc_fire)?;
+        let check = npc_combat::check_fire(rom, collision, source, target, &mut self.npc_fire)?;
         let mut fallback = matches!(
             check.decision,
             FireDecision::PathBlocked | FireDecision::NotVisible
@@ -229,8 +381,8 @@ impl Runtime {
             FireDecision::ReadyForLaunch => {
                 let (result, _) = weapons::launch_ranged(
                     rom,
-                    &mut source,
-                    Some(&mut target),
+                    source,
+                    Some(&mut *target),
                     &mut self.pool,
                     &mut self.launch,
                     random,
@@ -239,29 +391,27 @@ impl Runtime {
                     LaunchResult::Initialized { fx, .. } => {
                         weapons::prepare_ranged(
                             rom,
-                            &mut source,
+                            source,
                             u16::from_be_bytes([self.pool[fx][0x2e], self.pool[fx][0x2f]]),
                         )?;
-                        self.npc_shots += 1;
+                        if source.raw[0x10] & 8 != 0 {
+                            self.companion_shots += 1;
+                        } else {
+                            self.npc_shots += 1;
+                        }
                     }
                     LaunchResult::FxPoolFull { .. } => {
-                        self.npc_shots += 1;
-                        fallback = npc_cooldown_path(
-                            rom,
-                            collision,
-                            &mut source,
-                            &target,
-                            &mut self.npc_fire,
-                        )?;
+                        if source.raw[0x10] & 8 != 0 {
+                            self.companion_shots += 1;
+                        } else {
+                            self.npc_shots += 1;
+                        }
+                        fallback =
+                            npc_cooldown_path(rom, collision, source, target, &mut self.npc_fire)?;
                     }
                     LaunchResult::Rejected(_) => {
-                        fallback = npc_cooldown_path(
-                            rom,
-                            collision,
-                            &mut source,
-                            &target,
-                            &mut self.npc_fire,
-                        )?;
+                        fallback =
+                            npc_cooldown_path(rom, collision, source, target, &mut self.npc_fire)?;
                     }
                 }
                 if source.raw[0x57] == 0 {
@@ -269,8 +419,7 @@ impl Runtime {
                 }
             }
             FireDecision::CooldownContinuation => {
-                fallback =
-                    npc_cooldown_path(rom, collision, &mut source, &target, &mut self.npc_fire)?;
+                fallback = npc_cooldown_path(rom, collision, source, target, &mut self.npc_fire)?;
                 if source.raw[0x57] == 0 {
                     ordinary = false;
                 }
@@ -283,15 +432,16 @@ impl Runtime {
         }
         if ordinary {
             if fallback {
-                crate::followers::decide(rom, collision, &mut source, &target)?;
-            } else if npc_combat::position_goal(rom, &mut source, &target, self.npc_fire.firing)?
+                self.npc_fire.samples =
+                    crate::followers::decide_with_samples(rom, collision, source, target)?.1;
+            } else if npc_combat::position_goal(rom, source, target, self.npc_fire.firing)?
                 == PositionDecision::Goal
             {
                 let reached = crate::followers::distance(
                     source.position(),
                     (source.word(0x96), source.word(0x98)),
                 ) < 0x1e0;
-                crate::followers::steer_goal(rom, collision, &mut source)?;
+                crate::followers::steer_goal(rom, collision, source)?;
                 if reached {
                     source.raw[0xb5] = 0;
                 }
@@ -301,13 +451,11 @@ impl Runtime {
             // continuation after weapon exhaustion.
             source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
         }
-        actors[target_index] = target;
-        actors[index] = source;
         Ok(ordinary)
     }
 
     /// Service input at the selected actor's dispatch position, after pose
-    /// preparation. NPCs/companions do not gain invented automatic attacks.
+    /// preparation. Companion/NPC decisions use their separate original entries.
     pub fn player(
         &mut self,
         rom: &[u8],
@@ -458,8 +606,8 @@ impl Runtime {
     }
 }
 
-/// $14146 ordinary NPC firearm continuation. Exhausted non-party actors clear
-/// equipment before the unimplemented melee continuation; reserves are unused.
+/// $14146 firearm continuation. Party actors reload finite reserves; exhausted
+/// non-party actors clear equipment before the unimplemented melee continuation.
 fn npc_cooldown_path(
     rom: &[u8],
     collision: &Collision,
@@ -475,8 +623,43 @@ fn npc_cooldown_path(
         context.samples = probe.samples;
         return Ok(probe.outcome == crate::combat::LineOutcome::Blocked);
     }
+    if source.raw[0x10] & 8 != 0 && source.raw[0x4f] != 0 {
+        weapons::reload_firearm(rom, source)?;
+        return Ok(false);
+    }
     source.raw[0x57] = 0;
     source.raw[0x56] = 0x7f;
     source.set_word(0xdc, weapons::cooldown(source, 0));
     Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn periodic_target_refresh_is_stable_through_actor_dispatch() {
+        let mut a = Runner {
+            raw: [0; 256],
+            template: 0,
+            clock: Default::default(),
+        };
+        a.set_word(0x3e, 3);
+        a.set_word(0xc, 100);
+        a.raw[0x10] = 5;
+        let mut actors = vec![a];
+        let mut runtime = Runtime::default();
+        runtime.begin_tick(&actors, 11);
+        assert_eq!(runtime.npc_targets.npcs.len(), 1);
+        actors[0].raw[0x10] |= 0x40;
+        runtime.begin_tick(&actors, 11);
+        assert_eq!(runtime.npc_targets.npcs.len(), 1);
+        runtime.begin_tick(&actors, 12);
+        assert_eq!(runtime.npc_targets.npcs.len(), 1);
+        runtime.begin_tick(&actors, 75);
+        assert!(runtime.npc_targets.npcs.is_empty());
+        actors[0].raw[0x10] = 5;
+        runtime.actors_changed();
+        runtime.begin_tick(&actors, 75);
+        assert_eq!(runtime.npc_targets.npcs.len(), 1);
+    }
 }

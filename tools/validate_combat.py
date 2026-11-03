@@ -67,6 +67,61 @@ with tempfile.TemporaryDirectory() as temp:
     out = Path(temp) / 'combat'
     subprocess.run([str(root / 'target/release/shadowrealm'), 'combat-data', str(a.rom.resolve()), str(out)], check=True)
     data = json.loads((out / 'combat.json').read_text())
+    for i,case in enumerate(data['companion_timers']):
+        c.mem_write(0xff0200,bytes(case['before']));c.mem_write(0xffe175,bytes([0xff if case['serviced'] else 0]))
+        c.reg_write(UC_M68K_REG_A0,0xff0200);c.reg_write(UC_M68K_REG_SR,0x2700)
+        ends=(0x138c0,0x138cc,0x138dc)
+        hook=c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop() if address in ends else None)
+        try:c.emu_start(0x138b8,0x400000,count=100)
+        finally:c.hook_del(hook)
+        pc=c.reg_read(UC_M68K_REG_PC)
+        assert pc in ends and (pc==0x138dc)==case['due'],f'companion timer {i}'
+        assert bytes(c.mem_read(0xff0200,256))==bytes(case['after'])
+        assert bool(c.mem_read(0xffe175,1)[0])==case['after_serviced']
+    for i,case in enumerate(data['companion_goals']):
+        c.mem_write(0xff0200,bytes(case['before']));c.mem_write(0xff0400,bytes(case['target']));putw(0xffdfde,case['firing'])
+        c.reg_write(UC_M68K_REG_A0,0xff0200);c.reg_write(UC_M68K_REG_SR,0x2700)
+        ends=(0x13e34,0x13e56,0x13e4c)
+        hook=c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop() if address in ends else None)
+        try:c.emu_start(0x13d56,0x400000,count=10000)
+        finally:c.hook_del(hook)
+        pc=c.reg_read(UC_M68K_REG_PC)
+        assert pc in ends and (pc==0x13e34)==case['goal'],f'companion goal branch {i}'
+        assert bytes(c.mem_read(0xff0200,256))==bytes(case['after']),f'companion goal {i}'
+    for address in (0x530de,0x1232,0xf5c,0x3648):patch_code(address,b'\x4e\x75')
+    # Restore the real ordinary shutdown for empty-list companion decisions.
+    patch_code(0x1dbf0,rom[0x1dbf0:0x1dbf2])
+    for i,case in enumerate(data['companion_actions']):
+        c.mem_write(0xff0000,bytes(65536));c.mem_write(0xff0100,bytes(case['before']));c.mem_write(0xff0b00,bytes(case['pool']))
+        for at,value in zip([0xffddd6,0xffddd8,0xffddd2,0xffddd4],[0,0,2048,2048]):putw(at,value)
+        c.mem_write(0xffddec,struct.pack('>I',0xff3000));putw(0xffddea,128)
+        c.mem_write(0xfffc04,struct.pack('>I',0xff0100));c.mem_write(0xffe175,bytes([0xff if case['serviced'] else 0]))
+        putw(0xffdf84,case['engaged']);putw(0xffdf86,17);putw(0xffdfde,case['firing']);putw(0xfff9f8,case['seed'])
+        putw(0xffdf94,len(case['npcs']));c.mem_write(0xffdf96,b''.join(struct.pack('>I',p) for p in case['npcs']))
+        if case['wall']:
+            c.mem_write(0xff1700,bytes(0x7f if j%64==32 else 0 for j in range(4096)))
+        c.reg_write(UC_M68K_REG_A0,0xff0200)
+        if case['deferred']:
+            # Stop before the real spellbook selector reads missing session state.
+            hook=c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop(),begin=0x13b12,end=0x13b12)
+            try:
+                c.reg_write(UC_M68K_REG_SR,0x2700);c.reg_write(UC_M68K_REG_A7,0xffff00)
+                c.emu_start(0x138b8,0x400000,count=1000)
+            finally:c.hook_del(hook)
+            assert c.reg_read(UC_M68K_REG_PC)==0x13b12
+        else:
+            call(0x138b8)
+        compare(case['after'],f'complete companion action {i}')
+        assert bytes(c.mem_read(0xff0b00,1536))==bytes(case['after_pool']),f'companion pool {i}'
+        assert getw(0xfff9f8)==case['after_seed'],f'companion RNG {i}'
+        assert getw(0xffdf84)==case['after_engaged'] and getw(0xffdf86)==case['after_timeout'],f'companion alert {i}'
+        assert getw(0xffdfde)==case['after_firing'],f'companion firing flag {i}'
+        assert bytes(c.mem_read(0xffef10,4))==bytes(case['samples']),f'companion collision scratch {i}'
+        assert bool(getw(0xffdfe6))==case['busy'] and bool(getw(0xffdd3a))==case['burst']
+        assert bool(c.mem_read(0xffe175,1)[0])==case['after_serviced']
+    for address in (0x530de,0x1232,0xf5c,0x3648):patch_code(address,rom[address:address+2])
+    patch_code(0x1dbf0,b'\x4e\x75')
+    print(f"Companion timers/range goals/complete firearm decisions: {len(data['companion_timers'])}/{len(data['companion_goals'])}/{sum(not c['deferred'] for c in data['companion_actions'])}; spellbook-entry prefixes: {sum(c['deferred'] for c in data['companion_actions'])}; only audio/HUD transfers omitted in complete decisions")
     stops=[c.hook_add(UC_HOOK_CODE,lambda uc,address,size,user:uc.emu_stop(),begin=p,end=p) for p in [0x1ddda,0x1ddf0]]
     try:
         for i,case in enumerate(data['defeat_ticks']):

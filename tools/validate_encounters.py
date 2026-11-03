@@ -58,5 +58,5 @@ with tempfile.TemporaryDirectory() as temp:
   assert rw(0xfff9f8)==t['after_seed'] and c.mem_read(0xffe177,1)[0]==t['count'],f'group {i}'
   assert rw(0xffdf84)==(0xffff if t['count'] else 0),f'alert {i}'
  for i,t in enumerate(data['offscreen']):
-  reset();load_map(5);c.mem_write(0xff0100,bytes(t['before']));w(0xffdf84,0xffff);l(0xfffc04,0xff0100);c.reg_write(UC_M68K_REG_A0,0xff0400);call(0x13904);actors(t)
+  reset();load_map(5);c.mem_write(0xff0100,bytes(t['before']));w(0xffdf84,t['engaged']);l(0xfffc04,0xff0100);c.reg_write(UC_M68K_REG_A0,0xff0400);call(0x13904);actors(t)
  print('PASS: '+', '.join(f'{len(data[k])} {k}' for k in data)+'; no instruction stubs')

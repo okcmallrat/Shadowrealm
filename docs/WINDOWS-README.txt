@@ -122,3 +122,22 @@ negative-opinion dialogue and fees. Insured recovery also implements both DocWag
 passages and the Seattle General arrival; insurance purchasing is still absent.
 Mission-specific recovery, other runner recruitment, disk saves and companion
 combat remain unfinished. Enter/Z acknowledges each recovery passage.
+
+Uncontrolled mundane firearm companions now use original decision scheduling,
+targeting, range goals, gunfire and finite-reserve reloads. Tab transfers control;
+Joshua can fire as a companion when Ricky is selected. In a normal map-5 default
+roster test with idle input, Joshua fired after a real encounter at tick 148.
+Spell-capable companions needing spellbook selection remain deferred with a
+title message: default Ricky/Freya do not yet gain automatic firearm attacks.
+Melee, spell selection/actions and mission-aware combat remain unfinished.
+Windows GUI/input playtesting is still pending.
+
+Session spellbooks now load from original ROM records through a validated embedded
+JSON catalog. Companion spell selection and drain estimates are recovered and
+checked against original routines. Actual spell casting and equipment conversion
+remain deferred; this does not yet enable magic-capable companions to cast.
+
+The latest checkpoint connects unsafe-current-spell fallback to supported inventory
+firearms and recovers equipment conversion and post-cast drain APIs. Spell effects,
+resistance and casting remain unfinished; selecting a spell does not apply drain
+or create a fabricated effect. Windows GUI/input playtesting remains pending.

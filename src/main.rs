@@ -7,6 +7,7 @@ mod encounter_export;
 mod follower_export;
 mod hiring_export;
 mod interior_export;
+mod spellbook_export;
 use std::{
     env,
     error::Error,
@@ -30,6 +31,12 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = fs::read(&args[2])?;
     let rom = Rom::parse(&data)?;
     match args[1].as_str() {
+        "spellbook-data" => {
+            if args.len() != 4 {
+                return Err("spellbook-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            spellbook_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
         "encounter-data" => {
             if args.len() != 4 {
                 return Err("encounter-data ROM NEW_OUTPUT_DIRECTORY".into());

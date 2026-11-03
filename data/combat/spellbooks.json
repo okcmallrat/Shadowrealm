@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "initialization": "0x566a2",
+  "record_size": 34,
+  "records": ["0x166ad8", "0x166afa", "0x166b1c", "0x166b3e", "0x166b60"],
+  "classification_routine": "0x13c74",
+  "attack_ids": [0, 1, 7, 8],
+  "healing_id": 11
+}

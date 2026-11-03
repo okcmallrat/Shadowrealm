@@ -25,6 +25,8 @@ pub mod npc_combat;
 pub mod party;
 pub mod projectiles;
 pub mod scene;
+pub mod spell_equipment;
+pub mod spellbooks;
 pub mod transitions;
 pub mod video;
 pub mod weapons;

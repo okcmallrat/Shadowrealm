@@ -184,7 +184,21 @@ fn run() -> Result<(), Box<dyn Error>> {
             "Shadowrealm — {} — {status}{target_status}{}",
             game.party[game.selected].name(),
             if game.combat.status.is_empty() {
-                String::new()
+                game.combat
+                    .companion_deferred
+                    .iter()
+                    .enumerate()
+                    .filter(|(slot, _)| {
+                        game.combat.launch.engaged != 0
+                            && *slot != game.selected
+                            && game
+                                .party
+                                .get(*slot)
+                                .is_some_and(|a| a.raw[0x10] & 0x51 == 1)
+                    })
+                    .filter_map(|(_, message)| *message)
+                    .next()
+                    .map_or_else(String::new, |message| format!(" | {message}"))
             } else {
                 format!(" | {}", game.combat.status)
             }

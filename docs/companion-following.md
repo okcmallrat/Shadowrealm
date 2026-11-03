@@ -2,7 +2,8 @@
 
 Healthy, non-selected party members now follow the selected runner in the native
 game core, including hired Trent. Tab changes the leader; the previous leader
-then follows. This is a bounded noncombat dispatcher, not full NPC/combat AI.
+then follows. The later [companion firearm milestone](companion-combat.md) connects this
+scheduler and steering to bounded combat; general combat AI remains unfinished.
 The corrected [Ghidra export](ghidra-reference.md) was used as a reference, with
 instruction/data checks and original-routine execution validating the behavior.
 

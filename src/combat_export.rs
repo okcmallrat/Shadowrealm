@@ -71,6 +71,139 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
         let ended = world.tick_alert(&mut actors, script);
         alert_ticks.push(json!({"before":before,"after":raw(&actors),"engaged":engaged,"mode":mode,"map":map,"timeout":timeout,"script":script,"after_engaged":world.engaged,"after_timeout":world.timeout,"ended":ended}));
     }
+    let mut companion_timers = vec![];
+    for i in 0..1024usize {
+        let mut a = Runner::load(rom, 0, 1)?;
+        a.set_word(0xb6, [0, 1, 20, 0x7fff, 0x8000, 0x8001, 0xffff][i % 7]);
+        let before = a.raw.to_vec();
+        let serviced = i / 7 % 2 != 0;
+        let mut after_serviced = serviced;
+        let due = shadowrealm::followers::decision_due(&mut a, &mut after_serviced);
+        companion_timers.push(json!({"before":before,"after":a.raw.to_vec(),"serviced":serviced,"after_serviced":after_serviced,"due":due}));
+    }
+    let mut companion_goals = vec![];
+    for i in 0..2304usize {
+        let mut a = Runner::load(rom, 0, 1)?;
+        a.raw[0x10] = 0xd;
+        a.raw[0x4d] = (i % 9) as u8;
+        a.raw[0xb5] = [0, 6, 255][i / 9 % 3];
+        a.raw[0xb0] = (i / 27 % 32) as u8;
+        a.set_position(16000, 16000);
+        a.set_word(0x16, [0, 0x3c, 0x40, 0x8000][i / 13 % 4]);
+        a.raw[0xa2..0xa6].copy_from_slice(&0xff0400u32.to_be_bytes());
+        let mut target = Runner::load(rom, 3, 0)?;
+        target.set_word(0x3e, 3);
+        let delta = [
+            0u16, 0x1df, 0x1e0, 0x3bf, 0x3c0, 0x45f, 0x460, 0x59f, 0x5a0, 0x63f, 0x640, 0x77f,
+            0x780, 0x900, 0xff00, 0xf800,
+        ][i / 9 % 16];
+        target.set_position(
+            16000u16.wrapping_add(delta),
+            16000u16.wrapping_add([0, 0x400, 0xff00][i / 144 % 3]),
+        );
+        let before = a.raw.to_vec();
+        let firing = [0u16, 1, 0xffff][i / 17 % 3];
+        let outcome = shadowrealm::npc_combat::position_goal(rom, &mut a, &target, firing)?;
+        companion_goals.push(json!({"before":before,"after":a.raw.to_vec(),"target":target.raw.to_vec(),"firing":firing,"goal":outcome==shadowrealm::npc_combat::PositionDecision::Goal}));
+    }
+    let mut companion_actions = vec![];
+    let mut companion_arena = Collision {
+        cells: vec![0; 4096],
+        rectangles: vec![],
+        bounds: [0, 0, 2048, 2048],
+        map_width_tiles: 128,
+        overflow_writes: vec![],
+    };
+    for i in 0..1536usize {
+        let mut actors = fixture_actors(rom, i)?;
+        for a in &mut actors {
+            a.raw[0x10] = 0;
+            a.raw[0x4c] = 10;
+            a.raw[0x9c] = 10;
+            a.raw[0xdf] = 0;
+            a.raw[0x9e] = 0;
+            a.raw[0xb0] = 0;
+            a.set_word(0xc, 100);
+        }
+        actors[0].raw[0x10] = 0xf;
+        actors[0].set_position(15500, 16000);
+        for slot in 3..5 {
+            actors[slot].raw[0x10] = if i % 31 == 0 { 0 } else { 5 };
+            actors[slot].set_position(
+                16000u16.wrapping_add([0x100, 0x5a0, 0x780, 0x900][i / 3 % 4]),
+                16000 + (slot as u16 - 3) * 500,
+            );
+        }
+        let source = &mut actors[1];
+        source.raw[0x10] = 0xd;
+        source.set_word(0xe, 3);
+        source.set_position(16000, 16000);
+        source.raw[0x9b] = if i >= 1024 {
+            (i % 2) as u8
+        } else {
+            [2, 3, 127][i / 5 % 3]
+        };
+        if (1024..1280).contains(&i) {
+            source.raw[0x9c] = [1, 4][i % 2];
+        }
+        companion_arena.cells.fill(0);
+        let wall = i % 4 == 0;
+        if wall {
+            for row in 0..64 {
+                companion_arena.cells[row * 64 + 32] = 0x7f;
+            }
+        }
+        source.raw[0x4d] = (i % 9) as u8;
+        source.raw[0x56] = 0;
+        source.raw[0x57] = [2, 8, 12][i / 9 % 3];
+        source.raw[0x4e] = [0, 5, 32][i / 11 % 3];
+        source.raw[0x4f] = 2;
+        source.raw[0xb0] = if i % 2 == 0 { 0x10 } else { 0 };
+        source.raw[0xb5] = 6;
+        source.set_word(0x16, 0);
+        source.set_word(0xb6, [0, 1, 0xffff][i / 7 % 3]);
+        source.set_word(0xb8, 0x1000);
+        source.set_word(0xdc, [0xffff, 0, 1][i / 13 % 3]);
+        source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
+        source.raw[0xa2..0xa6]
+            .copy_from_slice(&(if i % 2 == 0 { 0xff0400u32 } else { 0 }).to_be_bytes());
+        source.raw[0xac..0xb0].fill(0);
+        let mut runtime = shadowrealm::combat_runtime::Runtime::default();
+        runtime.launch.engaged = if i % 23 == 0 { 0 } else { 0xffff };
+        runtime.launch.timeout = 17;
+        runtime.npc_fire.firing = [0, 1, 0xffff][i / 19 % 3];
+        for (slot, p) in runtime.pool.iter_mut().enumerate() {
+            p[0x10] = match i % 7 {
+                0 => 1,
+                1 => u8::from(slot != 0),
+                _ => 0,
+            };
+        }
+        if i >= 1280 {
+            actors[1].raw[0x4d] = 2;
+            actors[1].set_word(0xb6, 0);
+            actors[1].set_word(0xdc, 0xffff);
+            runtime.launch.engaged = 0xffff;
+        }
+        let pool = runtime.pool.iter().flatten().copied().collect::<Vec<_>>();
+        let before = raw(&actors);
+        let engaged = runtime.launch.engaged;
+        let firing = runtime.npc_fire.firing;
+        let serviced = i < 1280 && i % 29 == 0;
+        let mut after_serviced = serviced;
+        let seed = (i as u16).wrapping_mul(971);
+        let mut random = State { seed };
+        runtime.companion(
+            rom,
+            &companion_arena,
+            &mut actors,
+            1,
+            &mut after_serviced,
+            1,
+            &mut random,
+        )?;
+        companion_actions.push(json!({"before":before,"after":raw(&actors),"pool":pool,"after_pool":runtime.pool.iter().flatten().copied().collect::<Vec<_>>(),"seed":seed,"after_seed":random.seed,"serviced":serviced,"after_serviced":after_serviced,"engaged":engaged,"firing":firing,"after_engaged":runtime.launch.engaged,"after_timeout":runtime.launch.timeout,"after_firing":runtime.npc_fire.firing,"samples":runtime.npc_fire.samples,"busy":runtime.launch.signals.controlled_busy,"burst":runtime.launch.signals.burst,"shots":runtime.companion_shots,"npcs":ids(&runtime.npc_targets.npcs),"wall":wall,"deferred":runtime.companion_deferred[1].is_some()}));
+    }
     let mut npc_actions = vec![];
     let arena = Collision {
         cells: vec![0; 4096],
@@ -844,7 +977,7 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
     fs::write(
         out.join("combat.json"),
         serde_json::to_vec(
-            &json!({"defeat_ticks":defeat_ticks,"alert_ticks":alert_ticks,"npc_actions":npc_actions,"npc_branches":npc_branches,"npc_goals":npc_goals,"npc_movement":npc_movement,"npc_timers":npc_timers,"npc_fire":npc_fire,"failures":failures,"controls":controls,"reloads":reloads,"animations":animations,"reactions":reactions,"damages":damages,"flights":flights,"dice":dice_cases,"attack_rolls":attack_rolls,"launches":launches,"resources":resources,"admissions":admissions,"weapon_timing":weapon_timing,"selections":selections,"range":range,"ticks":ticks,"lines":lines,"line_grids":line_grids}),
+            &json!({"companion_timers":companion_timers,"companion_goals":companion_goals,"companion_actions":companion_actions,"defeat_ticks":defeat_ticks,"alert_ticks":alert_ticks,"npc_actions":npc_actions,"npc_branches":npc_branches,"npc_goals":npc_goals,"npc_movement":npc_movement,"npc_timers":npc_timers,"npc_fire":npc_fire,"failures":failures,"controls":controls,"reloads":reloads,"animations":animations,"reactions":reactions,"damages":damages,"flights":flights,"dice":dice_cases,"attack_rolls":attack_rolls,"launches":launches,"resources":resources,"admissions":admissions,"weapon_timing":weapon_timing,"selections":selections,"range":range,"ticks":ticks,"lines":lines,"line_grids":line_grids}),
         )?,
     )?;
     println!(

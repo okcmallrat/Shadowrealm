@@ -132,6 +132,7 @@ impl Game {
             input: Controller::default(),
             avoidance: avoidance::State::default(),
         };
+        result.combat.spellbooks = Some(crate::spellbooks::Spellbooks::load(rom)?);
         result.refresh_hud(rom)?;
         result.sync_projections();
         Ok(result)
@@ -595,6 +596,8 @@ impl Game {
             self.npc_dialogue_cooldown = 60;
             return Ok(());
         }
+        self.combat
+            .begin_tick(&self.combat_actors(), self.tick as u16);
         let mut serviced = false;
         for slot in 0..self.party.len() {
             crate::combat_runtime::prepare_actor(&mut self.party[slot]);
@@ -610,15 +613,23 @@ impl Game {
                 continue;
             }
             if slot != self.selected {
-                let leader = self.party[self.selected].clone();
                 if self.party[slot].raw[0x10] & 8 != 0 {
-                    followers::schedule(
+                    let mut actors = self.combat_actors();
+                    self.combat.companion(
                         rom,
                         &self.collision,
-                        &mut self.party[slot],
-                        &leader,
+                        &mut actors,
+                        self.party[slot].word(0x3e),
                         &mut serviced,
+                        self.tick as u16,
+                        &mut self.avoidance,
                     )?;
+                    if self.accept_combat_actors(&actors) {
+                        self.refresh_hud(rom)?;
+                    }
+                    if crate::combat_runtime::holds_movement(&self.party[slot]) {
+                        continue;
+                    }
                 }
                 avoidance::scan(
                     rom,

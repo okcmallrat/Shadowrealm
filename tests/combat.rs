@@ -1008,3 +1008,161 @@ fn selecting_trent_preserves_the_original_wider_conversation_contact() {
     assert_eq!(game.knowledge.runner_known, 4);
     assert_eq!(game.npcs[0].health(), health);
 }
+
+fn companion_game_fixture(rom: &[u8], templates: &[usize]) -> Game {
+    let base = ordinary_npc_fixture(rom, true);
+    let mut game = Game::load(rom, 0, templates).unwrap();
+    game.collision = base.collision;
+    game.npcs = base.npcs;
+    game.camera = (100, 100);
+    for (slot, a) in game.party.iter_mut().enumerate() {
+        a.set_position((160 + slot as u16 * 40) * 16, 200 * 16);
+        a.set_word(0xc, 100);
+        a.set_word(0xdc, 0xffff);
+        a.set_word(0xb6, 0);
+        a.set_word(0xb8, 0x1000);
+        a.raw[0x66..0x85].fill(0);
+        a.raw[0x78] = 3;
+        a.raw[0x81] = 20;
+        a.raw[0x82] = 20;
+        a.raw[0x83] = 20;
+        a.raw[0x84] = 20;
+        a.set_word(0x90, 0);
+    }
+    game
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM"]
+fn game_companions_fire_without_player_input_and_resolve_damage() {
+    let rom = rom();
+    let mut game = companion_game_fixture(&rom, &[0, 4, 6]);
+    for _ in 0..600 {
+        game.update(&rom, 0).unwrap();
+        if game.combat.companion_shots > 0 && game.npcs[0].raw[0x4c] < 10 {
+            break;
+        }
+    }
+    assert!(game.combat.companion_shots > 0);
+    assert_eq!(game.combat.shots, 0);
+    assert!(game.npcs[0].raw[0x4c] < 10);
+    assert!(game.party.iter().skip(1).any(|a| a.raw[0x4e] < 12));
+    assert!(game.combat.companion_deferred.iter().all(Option::is_none));
+    game.render(&rom).unwrap();
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM"]
+fn switched_joshua_fights_and_selected_runner_only_fires_on_input() {
+    let rom = rom();
+    let mut game = companion_game_fixture(&rom, &[0, 4]);
+    game.select(&rom, 1).unwrap(); // Same selection API as Tab.
+    let selected_ammo = game.party[1].raw[0x4e];
+    assert_eq!(game.selected, 1);
+    for _ in 0..600 {
+        game.update(&rom, 0).unwrap();
+        if game.combat.companion_shots > 0 {
+            break;
+        }
+    }
+    assert!(game.combat.companion_shots > 0);
+    assert_eq!(game.combat.shots, 0);
+    assert!(game.party[0].raw[0x4e] < 12);
+    assert_eq!(game.party[1].raw[0x4e], selected_ammo);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM"]
+fn companion_reload_preserves_party_reserves_and_spell_boundary_is_explicit() {
+    use shadowrealm::{avoidance::State, combat_runtime::Runtime, party::Runner};
+    let rom = rom();
+    let game = ordinary_npc_fixture(&rom, true);
+    let mut actors = vec![
+        game.party[0].clone(),
+        Runner::load(&rom, 0, 1).unwrap(),
+        game.npcs[0].clone(),
+    ];
+    actors[1].raw[0x10] = 0xd;
+    actors[1].set_position(240 * 16, 200 * 16);
+    actors[1].set_word(0xc, 100);
+    actors[1].set_word(0xb6, 0);
+    actors[1].set_word(0xb8, 0x1000);
+    actors[1].set_word(0xdc, 0xffff);
+    actors[1].set_word(0x16, 0);
+    actors[1].raw[0xb0] = 0x10;
+    actors[1].raw[0x4e] = 0;
+    actors[1].raw[0x4f] = 2;
+    let mut runtime = Runtime::default();
+    runtime.launch.engaged = 0xffff;
+    let mut random = State { seed: 123 };
+    runtime
+        .companion(
+            &rom,
+            &game.collision,
+            &mut actors,
+            1,
+            &mut false,
+            1,
+            &mut random,
+        )
+        .unwrap();
+    assert_eq!(actors[1].raw[0x4e], 12);
+    assert_eq!(actors[1].raw[0x4f], 1);
+    assert_eq!(runtime.companion_shots, 0);
+    assert!(actors[1].word(0xdc) > 0);
+    // A ready spell-capable companion must stop before missing spellbook state,
+    // without a fabricated gun preference or target-selection RNG draw.
+    actors[1].raw[0x9b] = 0;
+    actors[1].set_word(0xb6, 0);
+    actors[1].set_word(0xdc, 0xffff);
+    let before = actors[1].raw;
+    let seed = random.seed;
+    runtime
+        .companion(
+            &rom,
+            &game.collision,
+            &mut actors,
+            1,
+            &mut false,
+            2,
+            &mut random,
+        )
+        .unwrap();
+    assert!(runtime.companion_deferred[1].is_some());
+    assert_eq!(runtime.companion_shots, 0);
+    assert_eq!(random.seed, seed);
+    let mut expected = before;
+    expected[0xb6..0xb8].copy_from_slice(&20u16.to_be_bytes());
+    assert_eq!(actors[1].raw, expected);
+}
+
+#[test]
+#[ignore = "requires the user-supplied ROM"]
+fn default_roster_switched_leader_enables_joshua_in_real_street_encounter() {
+    let rom = rom();
+    let mut game = Game::load(&rom, 5, &[0, 3, 10]).unwrap();
+    game.select(&rom, 1).unwrap();
+    for _ in 0..12_000 {
+        game.update(&rom, 0).unwrap();
+        if game.combat.companion_shots > 0 {
+            break;
+        }
+    }
+    assert!(
+        game.encounters.spawned > 0,
+        "must use a real ROM encounter group"
+    );
+    assert!(
+        game.combat.companion_shots > 0,
+        "Joshua must fire: tick={}, selected={}, engaged={}, npc_shots={}, deferred={:?}, party={:?}, npcs={:?}", game.tick, game.selected, game.combat.launch.engaged, game.combat.npc_shots,game.combat.companion_deferred,
+        game.party.iter().map(|a|(a.position(),a.word(0xc),a.raw[0x10],a.raw[0x4c],a.raw[0x9c],a.word(0xb6),a.word(0xdc),a.raw[0x4d],a.raw[0x9b])).collect::<Vec<_>>(),
+        game.npcs.iter().map(|a|(a.position(),a.word(0xc),a.raw[0x10],a.raw[0x4c],a.raw[0x9e])).collect::<Vec<_>>()
+    );
+    assert_eq!(game.combat.shots, 0);
+    assert!(game.party[0].raw[0x4e] < 12);
+    eprintln!(
+        "Real map-5 companion shot at tick {}, spawned {}, companion shots {}",
+        game.tick, game.encounters.spawned, game.combat.companion_shots
+    );
+    game.render(&rom).unwrap();
+}

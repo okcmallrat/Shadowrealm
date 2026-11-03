@@ -61,7 +61,7 @@ fn rom_word(rom: &[u8], at: usize) -> Result<u16, RomError> {
         .ok_or(RomError("NPC range table outside ROM"))?;
     Ok(u16::from_be_bytes([b[0], b[1]]))
 }
-/// $13d56..$13e40 ordinary non-party goal selection, before common steering.
+/// $13d56..$13e40 ordinary firearm goal selection, before common steering.
 /// Retains the original $b5 range-band counter and $b0 firing-position flag.
 pub fn position_goal(
     rom: &[u8],
@@ -70,12 +70,14 @@ pub fn position_goal(
     firing: u16,
 ) -> Result<PositionDecision, RomError> {
     let mut staged = actor.clone();
-    if staged.raw[0x10] & 8 != 0 {
-        return Err(RomError("party combat range bands not implemented"));
-    }
     let (angle, range) = crate::followers::heading(rom, staged.position(), target.position())?;
     staged.raw[0xb0] &= !0x10;
-    let chase = if staged.raw[0xb5] != 0 {
+    let band = if staged.raw[0x10] & 8 != 0 {
+        if staged.raw[0x4d] > 8 {
+            return Err(RomError("companion combat behavior outside range table"));
+        }
+        Some((0x13e58, usize::from(staged.raw[0x4d])))
+    } else if staged.raw[0xb5] != 0 {
         staged.raw[0xb5] = staged.raw[0xb5].wrapping_sub(1);
         let table = if (staged.raw[0x56] as i8) < 0 {
             0xd4ea0i32
@@ -90,8 +92,13 @@ pub fn position_goal(
         if band >= 4 {
             return Err(RomError("NPC weapon range band outside model"));
         }
-        let near = rom_word(rom, 0x13e7c + band * 4)?;
-        let far = rom_word(rom, 0x13e7e + band * 4)?;
+        Some((0x13e7c, band))
+    } else {
+        None
+    };
+    let chase = if let Some((table, band)) = band {
+        let near = rom_word(rom, table + band * 4)?;
+        let far = rom_word(rom, table + band * 4 + 2)?;
         if range < near {
             false
         } else if range >= far {

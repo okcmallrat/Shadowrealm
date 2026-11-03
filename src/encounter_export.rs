@@ -83,7 +83,7 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
     // Real offscreen $13904 -> $1450e pursuit, using the complete native decision.
     let desc = MapDescriptor::read(rom, 5)?;
     let c = Collision::load(rom, &desc)?;
-    for i in 0..128u16 {
+    for i in 0..256u16 {
         let mut actors = vec![];
         for slot in 0..10u16 {
             let mut a = Runner::load(rom, 0, 0)?;
@@ -111,12 +111,16 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
         actors[3].set_position(origin.0.wrapping_add(0x1000), origin.1.wrapping_add(0x800));
         actors[3].set_word(0xc, 0);
         actors[3].set_word(0xb6, 0);
-        let before = actors.iter().flat_map(|a| a.raw).collect::<Vec<_>>();
         let mut runtime = shadowrealm::combat_runtime::Runtime::default();
-        runtime.launch.engaged = 0xffff;
+        runtime.launch.engaged = if i < 128 { 0xffff } else { 0 };
+        if i >= 128 {
+            actors[3].raw[0x9e] |= 0x40;
+        }
+        let before = actors.iter().flat_map(|a| a.raw).collect::<Vec<_>>();
+        let engaged = runtime.launch.engaged;
         runtime.npc(rom, &c, &mut actors, 3, false, i, &mut rng)?;
         offscreen.push(
-            json!({"before":before,"after":actors.iter().flat_map(|a|a.raw).collect::<Vec<_>>()}),
+            json!({"before":before,"after":actors.iter().flat_map(|a|a.raw).collect::<Vec<_>>(),"engaged":engaged}),
         );
     }
     // Reproducible native gameplay evidence: normal map 5 arrival and real RNG.

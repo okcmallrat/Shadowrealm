@@ -8,27 +8,64 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-Latest milestone (2026-11-02): normal Joshua defeat now snapshots the
-original 74-byte runner archives, removes companions and applies original opinion
-penalties, then continues through uninsured Little Chiba or the two DocWagon
-passages and Seattle General arrival. Trent's negative-opinion conversation and
-hire/rehire now preserve archived equipment, ammunition, stats and contracts.
-All updates are staged before payment/party removal. See `src/archives.rs` and
-`docs/defeat-and-recovery.md` for precise source references, scope and fixtures.
+Latest checkpoint (2026-11-03): companion equipment conversion and post-cast
+drain APIs, plus native unsafe-current-spell fallback to an inventory firearm.
+Read `docs/spell-equipment.md`. 8,192 complete equipment conversions and 4,096
+complete drain applications match original instructions (only HUD omitted).
+The previous companion firearms and JSON spellbook milestones are included.
+This checkpoint still does not enable spell casting. Effect scheduling,
+resistance and impact remain unfinished. Spell conversion requires the original
+incoming D5 capacity index explicitly; do not guess its caller provenance.
+Next recover the effect scheduler and one complete spell action. Maintain typed
+Serde/JSON content records with Rust mechanics and source-backed rules.
+The user authorized publishing all completed local work after this milestone.
+Verification: 66 unit tests and all 49 ROM-backed integration tests pass. The
+spellbook/equipment/drain, combat and encounter original-routine checks pass.
+Linux/Windows builds and Windows ZIP integrity/import checks pass. Windows GUI
+playtesting is still pending. Verify remote main and git status on resume.
 
-Current verification: 60 unit tests and 40 ROM integration tests; clinic oracle
-adds 1,024 compact save/restore pairs, 1,024 snapshots, all 256 penalty bytes,
-1,024 companion-removal prefixes and 256 rehire purchases. Both medical passage/
-arrival routes and 1,024 cores match original routines. The dialogue oracle now
-checks 19 nodes, 35 branches and 469 contacts; existing hiring checks still pass.
-Windows package rebuilt/verified for this milestone; actual GUI/input testing is
-still pending. These are in-memory archives, not disk saving. Insurance purchase,
-mission callbacks, companion combat and general recruiting remain unfinished.
+Latest continuation (2026-11-03): recovered session spellbooks and companion
+spell selection. Read `docs/spellbooks.md` and `src/spellbooks.rs`. The embedded
+Serde JSON catalog in `data/combat/spellbooks.json` drives verified source-record
+references and classifications; Rust executes arithmetic and selection. All 170
+initialization bytes, 4,096 drain estimates and 4,096 selection prefixes compare
+against original instructions without stubs. Equipment mutation/casting remains
+explicitly deferred with staged RNG/source state. This is progress toward full
+companion magic, not enabled casting. Do not invent an empty book or gun preference.
+Continue with original equipment conversion and one complete spell action,
+including resistance and actual drain, then the verified job/contract loop.
+Verification: 65 unit tests and all 46 ROM-backed integration tests pass; the
+new spellbook oracle and existing combat regression oracle pass. Native Linux
+and Windows builds are refreshed; actual Windows GUI testing remains pending.
+The user's latest instruction reaffirms gradual JSON integration and original
+behavior fidelity. Prefer JSON for reviewed content records, Rust for mechanics.
 
-Continue with companion firearm combat and original decision scheduling, then
-mission-aware recovery/jobs. Do not redo completed navigation or medical work.
-The user authorized pushing all completed work to GitHub and then stopping.
-The implementation checkpoint is `5041da9`; resume with companion combat.
+Latest milestone (2026-11-03): bounded companion firearm combat now runs through
+original decision scheduling, target retention, behavior-specific range goals,
+finite-reserve reloads and shared live projectiles/damage. Joshua fights as a
+companion after control switches. Read `docs/companion-combat.md` first.
+
+The original spell-selection entry is explicitly deferred when session spellbook
+state is required. Default Ricky/Freya do not get an invented firearm preference.
+Mundane companions and the original low-condition firearm branch are supported.
+Do not label this full companion AI. A real map-5/default-roster test, with Ricky
+selected and no player firing or actor/stat edits, records Joshua firing at tick
+148. Alerted offscreen enemies now continue approaching even after an empty
+visible target list clears combat, matching the recovered `$142ae` branch.
+
+New combat oracle evidence: 1,024 scheduler cases, 2,304 range goals, 1,280 complete
+companion decisions (including walls/reloads/pool failures) and 256 deferred
+spellbook-entry prefixes. The encounter oracle adds 128 cleared-combat pursuit
+decisions (256 total). Existing original-routine combat checks remain passing.
+62 unit tests and all 44 ROM-backed integration tests pass. Combat, encounter
+and follower original-routine oracles pass. The Windows package is rebuilt and
+its ZIP hashes, x64 PE format and imports are verified. Windows GUI/input playtesting remains pending.
+
+Session spellbook initialization and `$13a92` selection have since been recovered
+as described above; casting and equipment mutation remain unfinished. Do not redo
+completed navigation, firearm, archive or medical work. Changes in this milestone
+are local; the previous archive/recovery checkpoint was already published in
+`5041da9` with the handoff update `90bfc84`.
 Do not publish environment configuration, private inputs or generated analysis.
 The remaining historical sections record earlier milestones and their old counts.
 
@@ -82,14 +119,13 @@ migrate unrelated systems or invent missing quest rules.
 
 Repository: https://github.com/okcmallrat/Shadowrealm
 Remote branch: `main`; this environment's local branch is `work`.
-Starting checkpoint: `115ee95` (street encounters, physical defeat and uninsured
-solo clinic recovery). The archive/insurance/rehire work is local after that
-checkpoint, implemented in `5041da9`. The user authorized publishing this checkpoint
-and its final handoff update to `origin/main`, then stopping. Inspect `git status`
-and the remote head on resume. Environment configuration and private inputs are excluded.
+Published starting checkpoint: `5041da9` (archives, medical recovery and rehire),
+with published handoff update `90bfc84`. The companion firearm follow-up is local
+on top of that checkpoint. These local changes are included in the newly authorized publication.
+Inspect `git status` on resume. Environment configuration/private inputs are excluded.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `a8843c9eecf5d21a8f34b1abe46ae702ab28f93649aabf44570a0115605d5870`.
+SHA-256: `a0a21a0da5fa77cbdc842172268d0474fef90c4f00ad95a035fccf5c3bbead01`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
@@ -133,7 +169,7 @@ instructions. The ROM is excluded. The user must extract the ZIP and put their
 
 The native reconstruction remains unfinished. General quest/story scripting,
 mission-aware death/recovery, earning money and contract completion/dismissal,
-other runner conversations/recruitment, companion combat AI, melee/magic/ongoing
+other runner conversations/recruitment, full companion combat AI, melee/magic/ongoing
 effects, inventory/menu interactions, insurance purchasing, character creation,
 audio and disk save/load are absent or incomplete. Only the verified exterior,
 Space Needle and medical routes are enabled. The current roster/funds/camera
@@ -450,7 +486,7 @@ Serde/JSON dialogue/hiring records remain in use.
 ## Best next milestone
 
 Firing, street firearm encounters and normal party medical recovery are enabled.
-Recover companion combat and mission-specific defeat callbacks next, followed by melee/magic and
+Recover companion spellbook/selection and mission-specific defeat callbacks next, followed by melee/magic and
 ongoing effects. Connect earning money and contract resolution through a verified job
 flow, introducing JSON only in small source-backed records. Full combat and
 additional scripted travel remain unfinished.

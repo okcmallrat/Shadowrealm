@@ -24,6 +24,22 @@ Blocked projectile probes show red target brackets; shots still obey collision.
 See [companion behavior](docs/companion-following.md) and
 [actor contacts and limits](docs/actor-contacts.md). Combat AI remains unfinished.
 
+Uncontrolled mundane firearm companions now target, pursue, shoot and reload
+through the original companion scheduler. Joshua uses this path after Tab
+transfers control. Spell-capable companion selection remains deferred with a
+title message; Ricky/Freya do not gain a fabricated gun preference.
+See [companion combat scope and checks](docs/companion-combat.md).
+
+Session spellbooks and companion spell-selection decisions now use a small
+validated Serde/JSON reference catalog with Rust execution. Original-routine
+comparisons cover initialization, drain estimates and selection. Spell casting
+is still deferred; see [spellbook scope and production approach](docs/spellbooks.md).
+
+The latest checkpoint adds original equipment conversion and post-cast drain APIs,
+including focus consumption and health spillover. Unsafe equipped spells can fall
+back to an inventory firearm in native companion dispatch. Actual spell casting
+remains unfinished; see [equipment/drain evidence and limits](docs/spell-equipment.md).
+
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
 The corrected uploaded [Ghidra analysis reference](docs/ghidra-reference.md) is now
 part of the reverse-engineering workflow; the desktop runtime remains native Rust.
