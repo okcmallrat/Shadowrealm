@@ -17,7 +17,7 @@ A blocked projectile probe shows red brackets and a title status; yellow is
 selection feedback. Hold F to fire the equipped firearm, with or without a target.
 Ammo, finite-reserve reloads, cooldowns, flashes/impacts, burst cycling, hit/resistance
 rolls, physical damage and hurt/death setup are connected to the native game loop.
-Melee, magic, special/companion combat AI, ongoing effects, full game-over flow,
+Melee, other spell actions, full companion combat AI, ongoing effects, full game-over flow,
 audio and general missions remain unfinished.
 The executable was cross-compiled; Windows GUI playtesting remains outstanding.
 
@@ -47,15 +47,22 @@ Joshua can fire as a companion when Ricky is selected. In a normal map-5 default
 roster test with idle input, Joshua fired after a real encounter at tick 148.
 Spell-capable companions needing spellbook selection remain deferred with a
 title message: default Ricky/Freya do not yet gain automatic firearm attacks.
-Melee, spell selection/actions and mission-aware combat remain unfinished.
+Melee, automatic spell equipment conversion and mission-aware combat remain unfinished.
 Windows GUI/input playtesting is still pending.
 
-Session spellbooks now load from original ROM records through a validated embedded
-JSON catalog. Companion spell selection and drain estimates are recovered and
-checked against original routines. Actual spell casting and equipment conversion
-remain deferred; this does not yet enable magic-capable companions to cast.
+Native spellcasting now supports Flame Dart/Bolt, Mana Zap/Blast and Heal with
+original rolls, drain, sprites, timing, resistance/damage and recovery behavior.
+For Mana Blast, Tab to Freya, M once from her starting weapon, T to target and
+F to cast. Her original spellbook supplies force 3. M cycles actual learned
+spells/forces; G restores an inventory weapon. For Heal, cycle M until Heal,
+use P to choose a party member (including fallen active members), then F.
+M/G/P are host keyboard shortcuts; original equipment/target menus, automatic
+companion spell equipment conversion, area/ongoing spells and full magic AI
+remain unfinished. Mana Zap is supported for its original learned books; the
+default Samurai Joshua does not learn it. Windows GUI/input testing is pending.
 
-The latest checkpoint connects unsafe-current-spell fallback to supported inventory
-firearms and recovers equipment conversion and post-cast drain APIs. Spell effects,
-resistance and casting remain unfinished; selecting a spell does not apply drain
-or create a fabricated effect. Windows GUI/input playtesting remains pending.
+Equipped attack-spell companions now use original combat positioning: blocked-path
+recovery, offscreen pursuit, cooldown movement and formation when combat ends.
+Tab to Freya, M once for learned force-3 Mana Blast, then Tab back to Joshua;
+she can approach and cast without F input. Automatic gun-to-spell conversion,
+Heal pursuit, other spell actions and full magic AI remain unfinished.

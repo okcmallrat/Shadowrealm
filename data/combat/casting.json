@@ -1,0 +1,72 @@
+{
+  "schema_version": 3,
+  "cast_routine": "0x1033e",
+  "damage_routine": "0x55b78",
+  "effects": [
+    {
+      "item": 1,
+      "handler": "0x521e",
+      "frames": "0x58b6",
+      "frame_count": 4,
+      "period": 1,
+      "kind": "damage",
+      "palette": 8192,
+      "initializer": "0x49a0",
+      "clear_marker": false,
+      "reaction": "allocation",
+      "defeat": "0xb0ac"
+    },
+    {
+      "item": 2,
+      "handler": "0x5152",
+      "frames": "0x589e",
+      "frame_count": 6,
+      "period": 4,
+      "kind": "damage",
+      "palette": 8192,
+      "initializer": "0x49a0",
+      "clear_marker": true,
+      "reaction": "allocation",
+      "defeat": "0xb0ac"
+    },
+    {
+      "item": 8,
+      "handler": "0x508a",
+      "frames": "0x5142",
+      "frame_count": 3,
+      "period": 1,
+      "kind": "damage",
+      "palette": 16384,
+      "initializer": "0x49a0",
+      "clear_marker": false,
+      "reaction": "allocation",
+      "defeat": "0xb0e4"
+    },
+    {
+      "item": 9,
+      "handler": "0x4fe2",
+      "frames": "0x512a",
+      "frame_count": 6,
+      "period": 4,
+      "kind": "damage",
+      "palette": 16384,
+      "initializer": "0x49a0",
+      "clear_marker": true,
+      "reaction": "health",
+      "defeat": "0xb0e4"
+    },
+    {
+      "item": 12,
+      "handler": "0x56de",
+      "frames": "0x5756",
+      "frame_count": 16,
+      "period": 4,
+      "kind": "healing",
+      "palette": 24576,
+      "initializer": "0xb574",
+      "clear_marker": false,
+      "reaction": "none",
+      "defeat": null
+    }
+  ]
+}

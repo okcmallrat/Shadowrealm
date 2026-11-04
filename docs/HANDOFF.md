@@ -8,6 +8,104 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
+Latest local milestone (2026-11-04): equipped attack-spell companions now use the
+original post-action positioning path, blocked/offscreen approach, cooldown
+movement and immediate leader formation when targets disappear. Read
+`docs/companion-casting-movement.md` first. Tab to Freya, M once for her learned
+force-3 Mana Blast, then Tab back to Joshua: she can approach and cast without F.
+A real map-5 test completes her spell at tick 116 with idle input after handoff,
+without inserted enemies or actor/stat edits. Automatic gun-to-spell conversion
+still defers at its incoming D5 context; Heal pursuit, other spell actions,
+original menus and full magic AI remain partial.
+
+Full original-routine comparisons pass 2,040 complete companion decisions with
+270 successful casts plus eight exhausted-equipment prefixes stopped at the
+melee entry. The common positioning helper is shared with firearms. Successful
+casts now retain the original `$afe2` pose entry; failed rolls use `$afe0`.
+The broad cases also recovered the `$106d0` EXT/DIVU-overflow drain boundary.
+Typed casting/spellbook JSON stays at its existing schema and reference scope.
+Verification: 68 unit tests and all 71 ROM-backed integration tests pass. The
+new companion oracle and casting, Heal, spellbook/equipment/drain and physical-
+combat regressions pass. Native Linux desktop and Windows builds pass. The
+516,639-byte local Windows ZIP is refreshed and verified for archive integrity,
+all 22 payload hashes, README/build identity and PE/DLL imports.
+This snapshot is the user-authorized publication checkpoint for native attack
+spells, Heal, mana attacks and companion caster movement. Verify `main` after
+publication and record its commit/tree in the local publication record. Preserve
+the staged work; connector publication can leave local HEAD at an older commit.
+Windows GUI/input testing remains pending.
+
+Previous local milestone (2026-11-04): Mana Zap and Mana Blast now connect original
+roll/drain, willpower resistance with the party-defense D7 quirk, original effects
+and the mana-specific NPC defeat animation/cleanup. Read `docs/mana-spells.md`
+first. With the default roster, Tab to Freya, M once from her starting weapon
+for learned force-3 Mana Blast, T to target and F to cast. A real map-5 encounter
+test completes the effect at tick 90 without inserted enemies or actor/stat edits.
+Mana Zap uses original Gator Shaman Joshua/Walking Bear books; desktop character
+creation and those new roster choices remain unfinished.
+
+Verification: 68 unit tests and all 65 ROM-backed integration tests pass. The
+expanded attack-spell oracle passes 2,048 full casts, 4,096 damage/resistance
+cases and 2,048 effect steps, alongside the Heal and physical-combat regressions.
+Linux desktop/Windows release builds pass; the 515,782-byte Windows ZIP is
+refreshed and verified for payload hashes, README/build identity and PE/DLL imports.
+
+Casting JSON is now schema version 3 with five verified records, including
+explicit completion metadata. All four classified attack spells and Heal are
+supported in the represented contexts. Automatic companion spell equipment
+conversion still defers at its incoming D5 context; original menus, other spells
+and full magic AI remain unfinished. Preserve the existing staged work. This
+milestone is included in the spellcasting publication checkpoint; Windows GUI/input testing is pending.
+
+Previous local milestone (2026-11-04): Heal now connects self/party targeting,
+original roll/drain and initializer movement, the sixteen-frame effect, health/
+condition restoration and fallen-state clearing. Read `docs/healing.md` first.
+Tab to Freya, M until Heal, P to cycle party targets and F to cast. Her original
+book supplies force 4. M/G/P are host keyboard bridges, not original menus.
+A real map-5/default-roster test heals an encounter injury (Joshua 9 -> 10) at
+tick 296 without inserted enemies or actor/stat edits. Already equipped Heal
+companions can prioritize a critically wounded party member during combat.
+Automatic gun-to-spell equipment conversion and broader magic AI remain partial.
+
+The typed casting JSON catalog is schema version 2: effect kind, initializer,
+handler, frames/count/period and palette are validated against ROM tables. Rust
+owns execution. Heal's initializer really calls `$b574`; do not remove it or
+replace it with a fabricated immediate heal. Travel/special movement callbacks
+defer with staged state/RNG. The new oracle covers 1,024 callbacks, 2,048
+completions, 1,024 full casts and 1,024 effect steps. Final verification/package
+results are recorded in the healing document. Windows GUI testing is pending.
+All 68 unit tests and 60 ROM-backed integration tests pass, along with Heal,
+casting, physical-combat, follower and encounter differential checks. Native
+Linux desktop and Windows release builds pass. The local Windows ZIP is refreshed
+and its payload hashes, README/executable identity and PE/DLL imports verified.
+This milestone and the earlier Flame Dart/Bolt continuation are included in the
+spellcasting publication checkpoint. Preserve the staged published tree described below.
+
+Latest local continuation (2026-11-03): native Flame Dart/Bolt casting now connects
+admission, roll/focus/totem modifiers, casting pose, actual drain, visible-target
+effect timing, original sprites, resistance/damage and normal reactions/deaths.
+Read `docs/spell-casting.md`, `src/casting.rs` and `data/combat/casting.json` first.
+M cycles the selected magic runner's actual book entries/forces; G restores an
+inventory weapon; T targets and F attacks. This is an explicit host equipment
+bridge, not the original equipment menu or a recovered companion D5 caller.
+Other spell actions/ongoing/area effects and general spell AI remain incomplete.
+Do not claim full magic or complete game reconstruction.
+
+A real map-5/default-roster test selects Ricky and a known Flame Bolt through
+that bridge, then completes a real encounter spell effect at tick 192 without
+actor/stat edits or inserted enemies. New differential checks compare complete
+casts, poses, target-effect handlers and magic resistance/damage. See the casting
+document. Verification: 68 unit tests and all 54 ROM-backed integration tests pass.
+The casting, physical-combat, spellbook/equipment/drain and encounter original-
+routine oracles pass; Linux and Windows builds pass. The Windows ZIP and PE/DLL
+imports are verified. Windows GUI testing remains pending.
+This continuation is included in the spellcasting publication checkpoint. Its base is
+`950f3d2c2c721fb8ab94ba6f9f842497eea88833` (tree `4d13586304eeedf6e582752ae435fc2fe2da4680`).
+The cloud shell Git proxy was unavailable during that publication, so local HEAD
+remained `90bfc84` and the index holds the published tree. Preserve that staged
+work; current unstaged/new files are the casting follow-up. Publication evidence
+is also in `/workspace/work/published-shadowrealm-checkpoint.json` if retained.
+
 Latest checkpoint (2026-11-03): companion equipment conversion and post-cast
 drain APIs, plus native unsafe-current-spell fallback to an inventory firearm.
 Read `docs/spell-equipment.md`. 8,192 complete equipment conversions and 4,096
@@ -119,13 +217,18 @@ migrate unrelated systems or invent missing quest rules.
 
 Repository: https://github.com/okcmallrat/Shadowrealm
 Remote branch: `main`; this environment's local branch is `work`.
-Published starting checkpoint: `5041da9` (archives, medical recovery and rehire),
-with published handoff update `90bfc84`. The companion firearm follow-up is local
-on top of that checkpoint. These local changes are included in the newly authorized publication.
-Inspect `git status` on resume. Environment configuration/private inputs are excluded.
+Publication baseline before this checkpoint: `950f3d2c2c721fb8ab94ba6f9f842497eea88833`
+(companion firearms, JSON spellbooks, equipment conversion and drain). This
+checkpoint adds native attack spells, Heal and companion caster movement.
+The GitHub connector can publish while local HEAD retains `90bfc84`; after
+publication, the index records the published tree. Staged changes against that
+older HEAD do not by themselves mean unpublished work. Consult remote `main`,
+`/workspace/work/published-shadowrealm-checkpoint.json` when retained, and the
+worktree/index diff before continuing. Do not reset away the staged work.
+Environment configuration and private inputs are excluded.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `a0a21a0da5fa77cbdc842172268d0474fef90c4f00ad95a035fccf5c3bbead01`.
+SHA-256: `44158f45e2a997783ff066513269191d697b9beb0aab8a41889672e58d71c08b`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.

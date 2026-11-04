@@ -118,6 +118,15 @@ fn run() -> Result<(), Box<dyn Error>> {
             let selected = (game.selected + 1) % game.party.len();
             game.select(&rom, selected)?;
         }
+        if !paused && window.is_key_pressed(Key::M, KeyRepeat::No) {
+            game.cycle_spell(&rom)?;
+        }
+        if !paused && window.is_key_pressed(Key::G, KeyRepeat::No) {
+            game.equip_inventory_weapon(&rom)?;
+        }
+        if !paused && window.is_key_pressed(Key::P, KeyRepeat::No) {
+            game.cycle_party_target();
+        }
         if window.is_key_pressed(Key::R, KeyRepeat::No) {
             game = load_session()?;
             paused = false;
@@ -166,7 +175,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         } else if game.pending_transition.is_some() {
             "This entrance is not available in this build"
         } else {
-            "WASD/arrows: walk | F: fire | T: target | Tab: switch | Space: pause | R: reset"
+            "WASD/arrows: walk | F: attack/cast | T: target | P: party | M: spell | G: weapon"
         };
         let line_status = match game.selected_fire_probe(&rom)?.map(|probe| probe.outcome) {
             Some(shadowrealm::combat::LineOutcome::Blocked) => " [path blocked]",
@@ -181,8 +190,10 @@ fn run() -> Result<(), Box<dyn Error>> {
             String::new()
         };
         window.set_title(&format!(
-            "Shadowrealm — {} — {status}{target_status}{}",
+            "Shadowrealm — {} — {status}{target_status}{}{}",
             game.party[game.selected].name(),
+            game.selected_spell_label(&rom)?
+                .map_or_else(String::new, |label| format!(" | {label}")),
             if game.combat.status.is_empty() {
                 game.combat
                     .companion_deferred

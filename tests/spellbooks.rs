@@ -36,7 +36,7 @@ fn original_spellbook_initialization_classification_and_map_clear_preserve_sessi
 }
 #[test]
 #[ignore = "requires the user-supplied ROM"]
-fn default_magic_companion_selection_defers_casting_without_spending_rng_or_ammunition() {
+fn default_magic_companion_defers_automatic_equipment_without_spending_rng_or_ammunition() {
     let rom = rom();
     let mut game = Game::load(&rom, 0, &[0, 3, 10]).unwrap();
     let mut actors = game.party.clone();
@@ -68,7 +68,7 @@ fn default_magic_companion_selection_defers_casting_without_spending_rng_or_ammu
         .unwrap();
     assert!(game.combat.companion_deferred[1]
         .unwrap()
-        .contains("casting"));
+        .contains("spell equipment"));
     assert_eq!(rng.seed, 321);
     assert_eq!(actors[1].raw[0x4e], ammo);
     assert!(!game.combat.has_live());

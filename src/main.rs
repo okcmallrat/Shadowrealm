@@ -1,10 +1,13 @@
 use shadowrealm::Rom;
 mod avoidance_export;
+mod caster_movement_export;
+mod casting_export;
 mod clinic_export;
 mod combat_export;
 mod dialogue_export;
 mod encounter_export;
 mod follower_export;
+mod healing_export;
 mod hiring_export;
 mod interior_export;
 mod spellbook_export;
@@ -31,6 +34,24 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = fs::read(&args[2])?;
     let rom = Rom::parse(&data)?;
     match args[1].as_str() {
+        "caster-movement-data" => {
+            if args.len() != 4 {
+                return Err("caster-movement-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            caster_movement_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "healing-data" => {
+            if args.len() != 4 {
+                return Err("healing-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            healing_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "casting-data" => {
+            if args.len() != 4 {
+                return Err("casting-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            casting_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
         "spellbook-data" => {
             if args.len() != 4 {
                 return Err("spellbook-data ROM NEW_OUTPUT_DIRECTORY".into());

@@ -1,5 +1,8 @@
 # Bounded companion firearm combat
 
+The later [native casting milestone](spell-casting.md) enables Flame Dart/Bolt.
+Earlier casting limits below describe the preceding checkpoints.
+
 The later [spellbook continuation](spellbooks.md) recovers session books and
 selection decisions. Casting and equipment mutation remain deferred; the
 spell-selection boundary below describes the preceding firearm checkpoint.

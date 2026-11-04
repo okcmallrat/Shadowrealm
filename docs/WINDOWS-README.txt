@@ -1,7 +1,7 @@
 SHADOWREALM — WINDOWS EXPLORATION BUILD
 
 This is a native Rust reconstruction in progress, not the complete Shadowrun game.
-It renders the original assets and runs exploration with bounded player gunfire.
+It renders the original assets and runs exploration with bounded gunfire and spells.
 
 RUN ON WINDOWS 10/11 (64-BIT)
 
@@ -17,7 +17,7 @@ The supplied 2 MB Genesis ROM revision is the supported input.
 CONTROLS
 
 Arrow keys or WASD: move the selected runner.
-F outside dialogue: hold to fire the equipped firearm; tap for one request.
+F outside dialogue: fire the equipped firearm or cast a supported equipped spell.
 Firing uses finite ammo, cooldowns and automatic reloads while reserves remain.
 Without a selected target, shots follow the runner's facing direction.
 Tab: select the next runner (also selects its HUD panel).
@@ -86,7 +86,7 @@ NOT YET IMPLEMENTED
 
 Other interior doors and story transitions still stop at their trigger. Full combat,
 other conversations/quest scripts, other recruitment, contract completion,
-special/companion combat AI, melee/magic/throwable actions, ongoing combat effects,
+full companion combat AI, melee/remaining spell/throwable actions, ongoing combat effects,
 general contact scripts and other contact-triggered travel,
 inventory/menu interactions, missions, audio, and save/load are not functional. No completion
 claim is made for these systems. This ZIP is a development milestone.
@@ -129,15 +129,22 @@ Joshua can fire as a companion when Ricky is selected. In a normal map-5 default
 roster test with idle input, Joshua fired after a real encounter at tick 148.
 Spell-capable companions needing spellbook selection remain deferred with a
 title message: default Ricky/Freya do not yet gain automatic firearm attacks.
-Melee, spell selection/actions and mission-aware combat remain unfinished.
+Melee, automatic spell equipment conversion and mission-aware combat remain unfinished.
 Windows GUI/input playtesting is still pending.
 
-Session spellbooks now load from original ROM records through a validated embedded
-JSON catalog. Companion spell selection and drain estimates are recovered and
-checked against original routines. Actual spell casting and equipment conversion
-remain deferred; this does not yet enable magic-capable companions to cast.
+Native spellcasting now supports Flame Dart/Bolt, Mana Zap/Blast and Heal with
+original rolls, drain, sprites, timing, resistance/damage and recovery behavior.
+For Mana Blast, Tab to Freya, M once from her starting weapon, T to target and
+F to cast. Her original spellbook supplies force 3. M cycles actual learned
+spells/forces; G restores an inventory weapon. For Heal, cycle M until Heal,
+use P to choose a party member (including fallen active members), then F.
+M/G/P are host keyboard shortcuts; original equipment/target menus, automatic
+companion spell equipment conversion, area/ongoing spells and full magic AI
+remain unfinished. Mana Zap is supported for its original learned books; the
+default Samurai Joshua does not learn it. Windows GUI/input testing is pending.
 
-The latest checkpoint connects unsafe-current-spell fallback to supported inventory
-firearms and recovers equipment conversion and post-cast drain APIs. Spell effects,
-resistance and casting remain unfinished; selecting a spell does not apply drain
-or create a fabricated effect. Windows GUI/input playtesting remains pending.
+Equipped attack-spell companions now use original combat positioning: blocked-path
+recovery, offscreen pursuit, cooldown movement and formation when combat ends.
+Tab to Freya, M once for learned force-3 Mana Blast, then Tab back to Joshua;
+she can approach and cast without F input. Automatic gun-to-spell conversion,
+Heal pursuit, other spell actions and full magic AI remain unfinished.

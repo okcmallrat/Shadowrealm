@@ -413,6 +413,16 @@ impl Game {
                 for runner in self.party.iter_mut().chain(self.npcs.iter_mut()) {
                     runner.tick_animation(rom)?;
                 }
+                let mut spell_actors = self.combat_actors();
+                self.combat.casting.advance(
+                    rom,
+                    &mut spell_actors,
+                    &mut self.combat.damage,
+                    &mut self.avoidance,
+                )?;
+                if self.accept_combat_actors(&spell_actors) {
+                    self.refresh_hud(rom)?;
+                }
                 self.environment.tick(rom, &mut self.scene)?;
                 if active.ticks == 31 {
                     active.stage = TransitionStage::FadeIn;
@@ -446,6 +456,125 @@ impl Game {
                 .condition(rom, slot, condition, slot == self.selected)?;
         }
         Ok(())
+    }
+    /// Host keyboard equipment bridge; book entries/forces and conversion
+    /// utilities are original, while the full original equipment menu is pending.
+    pub fn cycle_spell(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        if self.dialogue.is_some()
+            || self.transition.is_some()
+            || self.defeated
+            || self.combat.has_live()
+        {
+            return Ok(());
+        }
+        let source = &self.party[self.selected];
+        if (source.raw[0x9b] as i8) >= 2 {
+            self.combat.status = "This runner cannot select spells";
+            return Ok(());
+        }
+        let books = self
+            .combat
+            .spellbooks
+            .as_ref()
+            .ok_or(RomError("session spellbook missing"))?;
+        let entries = books.known(source.word(0xa0))?;
+        let valid = entries
+            .iter()
+            .filter(|s| s.id < 13)
+            .copied()
+            .collect::<Vec<_>>();
+        if valid.is_empty() {
+            self.combat.status = "No known spells";
+            return Ok(());
+        }
+        let current = if (source.raw[0x56] as i8) < 0 {
+            valid.iter().position(|s| s.id + 1 == source.raw[0x57])
+        } else {
+            None
+        };
+        let spell = valid[current.map_or(0, |i| (i + 1) % valid.len())];
+        let mut next = source.clone();
+        let timer = next.word(0xdc);
+        if (next.raw[0x56] as i8) >= 0 {
+            // Explicit host equipment context: the current weapon's capacity.
+            // This does not claim the ambiguous companion-call D5 is recovered.
+            let capacity_index = u16::from(next.raw[0x57].saturating_sub(1));
+            crate::spell_equipment::equip_spell(rom, &mut next, spell, capacity_index)?;
+        } else {
+            next.raw[0x57] = spell.id + 1;
+            next.raw[0x9d] = spell.force;
+        }
+        next.raw[0x56] = 255;
+        next.set_word(0xdc, timer);
+        self.party[self.selected] = next;
+        if self.heal_selected() {
+            let slot = self.party[self.selected].word(0x3e);
+            self.party[self.selected].raw[0xa2..0xa6]
+                .copy_from_slice(&(0xff0100 + u32::from(slot) * 256).to_be_bytes());
+            self.targeting.enabled = true;
+        }
+        self.refresh_hud(rom)?;
+        self.combat.status = "";
+        Ok(())
+    }
+    pub fn heal_selected(&self) -> bool {
+        (self.party[self.selected].raw[0x56] as i8) < 0 && self.party[self.selected].raw[0x57] == 12
+    }
+    /// Host party-target chooser for the original Heal target pointer.
+    pub fn cycle_party_target(&mut self) {
+        if self.dialogue.is_some() || self.transition.is_some() || self.defeated {
+            return;
+        }
+        if !self.heal_selected() {
+            self.combat.status = "Select Heal with M before choosing a party target";
+            return;
+        }
+        let ids = self
+            .party
+            .iter()
+            .filter(|a| a.raw[0x10] & 1 != 0)
+            .map(|a| a.word(0x3e) as u8)
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return;
+        }
+        let current = combat::target(&self.party[self.selected]);
+        let next = current
+            .and_then(|id| ids.iter().position(|slot| *slot == id.0))
+            .map_or(0, |i| (i + 1) % ids.len());
+        self.party[self.selected].raw[0xa2..0xa6]
+            .copy_from_slice(&(0xff0100 + u32::from(ids[next]) * 256).to_be_bytes());
+        self.targeting.enabled = true;
+        self.combat.status = "";
+    }
+    pub fn equip_inventory_weapon(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        if self.dialogue.is_some()
+            || self.transition.is_some()
+            || self.defeated
+            || self.combat.has_live()
+        {
+            return Ok(());
+        }
+        if (self.party[self.selected].raw[0x56] as i8) < 0 {
+            crate::spell_equipment::equip_inventory(rom, &mut self.party[self.selected])?;
+            self.refresh_hud(rom)?;
+            self.combat.status = "";
+        }
+        Ok(())
+    }
+    pub fn selected_spell_label(&self, rom: &[u8]) -> Result<Option<String>, RomError> {
+        let a = &self.party[self.selected];
+        if (a.raw[0x56] as i8) >= 0 || !(1..=13).contains(&a.raw[0x57]) {
+            return Ok(None);
+        }
+        let at = 0xd4ea0 + usize::from(a.raw[0x57] - 1) * 48;
+        let name = std::str::from_utf8(
+            rom.get(at..at + 12)
+                .ok_or(RomError("spell name outside ROM"))?,
+        )
+        .map_err(|_| RomError("spell name is not text"))?
+        .trim();
+        Ok(Some(format!("{name} (force {})", a.raw[0x9d])))
     }
     pub fn select(&mut self, rom: &[u8], slot: usize) -> Result<(), RomError> {
         if slot >= self.party.len() {
@@ -555,7 +684,15 @@ impl Game {
             self.targeting.enabled = !self.targeting.enabled;
             self.targeting.invalidate(&mut self.party);
         }
-        if self.targeting.enabled {
+        if self.targeting.enabled
+            && self.heal_selected()
+            && combat::target(&self.party[self.selected]).is_none()
+        {
+            let slot = self.party[self.selected].word(0x3e);
+            self.party[self.selected].raw[0xa2..0xa6]
+                .copy_from_slice(&(0xff0100 + u32::from(slot) * 256).to_be_bytes());
+        }
+        if self.targeting.enabled && !self.heal_selected() {
             let actors: Vec<_> = self.party.iter().chain(self.npcs.iter()).collect();
             self.targeting
                 .lists
@@ -600,7 +737,21 @@ impl Game {
             .begin_tick(&self.combat_actors(), self.tick as u16);
         let mut serviced = false;
         for slot in 0..self.party.len() {
+            let completed_cast = matches!(
+                crate::combat_runtime::handler(&self.party[slot]),
+                0xafe0 | 0xafe2
+            ) && (self.party[slot].word(0x16) as i16) < 0;
             crate::combat_runtime::prepare_actor(&mut self.party[slot]);
+            if completed_cast && self.party[slot].raw[0x4c] == 0 {
+                let mut actors = self.combat_actors();
+                crate::damage::react(
+                    rom,
+                    &mut actors,
+                    self.party[slot].word(0x3e) as u8,
+                    &mut self.combat.damage,
+                )?;
+                self.accept_combat_actors(&actors);
+            }
             if slot == self.selected {
                 self.dispatch_weapon(rom)?;
             }
@@ -800,6 +951,16 @@ impl Game {
                 runner.tick_animation(rom)?;
             }
         }
+        let mut spell_actors = self.combat_actors();
+        self.combat.casting.advance(
+            rom,
+            &mut spell_actors,
+            &mut self.combat.damage,
+            &mut self.avoidance,
+        )?;
+        if self.accept_combat_actors(&spell_actors) {
+            self.refresh_hud(rom)?;
+        }
         self.environment.tick(rom, &mut self.scene)?;
         // Host camera keeps the controlled runner in the playable area. Original
         // look-ahead/hysteresis scheduling is still separate and not claimed here.
@@ -884,10 +1045,14 @@ impl Game {
             return None;
         }
         let id = combat::target(&self.party[self.selected])?;
-        self.party
-            .iter()
-            .chain(self.npcs.iter())
-            .find(|r| r.word(0x3e) == u16::from(id.0) && r.raw[0x10] & 0x41 == 1)
+        self.party.iter().chain(self.npcs.iter()).find(|r| {
+            r.word(0x3e) == u16::from(id.0)
+                && if self.heal_selected() {
+                    r.word(0x3e) < 3 && r.raw[0x10] & 1 != 0
+                } else {
+                    r.raw[0x10] & 0x41 == 1
+                }
+        })
     }
     fn combat_actors(&self) -> Vec<Runner> {
         (0..10)
@@ -927,6 +1092,7 @@ impl Game {
         self.combat.launch.map_id = self.map.id as u16;
         self.combat.player(
             rom,
+            &self.collision,
             &mut actors,
             self.selected as u16,
             self.input,
@@ -988,6 +1154,12 @@ impl Game {
     }
     /// Independent, non-mutating diagnostic with cleared collision scratch.
     pub fn selected_fire_probe(&self, rom: &[u8]) -> Result<Option<combat::LineProbe>, RomError> {
+        if self.heal_selected()
+            && combat::target(&self.party[self.selected])
+                .is_some_and(|id| u16::from(id.0) == self.party[self.selected].word(0x3e))
+        {
+            return Ok(None);
+        }
         self.selected_target()
             .map(|target| {
                 combat::line_of_fire(
@@ -1021,6 +1193,31 @@ impl Game {
                 runner.palette(),
             )?);
         }
+        let catalog = crate::casting::Catalog::load(rom)?;
+        let mut spell_frames = Vec::new();
+        for (i, a) in actors.iter().enumerate() {
+            if let Some(effect) = catalog.effect(a.raw[0xb2]) {
+                if a.raw[3] < effect.frame_count {
+                    let at = effect.frames.0 + usize::from(a.raw[3]) * 4;
+                    let pointer = u32::from_be_bytes(
+                        rom.get(at..at + 4)
+                            .ok_or(RomError("spell frame pointer missing"))?
+                            .try_into()
+                            .unwrap(),
+                    ) as usize;
+                    spell_frames.push((
+                        i,
+                        ActorFrame::load(
+                            rom,
+                            pointer,
+                            &mut self.scene,
+                            a.word(0x2a),
+                            effect.palette,
+                        )?,
+                    ));
+                }
+            }
+        }
         let mut order: Vec<usize> = (0..actors.len()).collect();
         order.sort_by_key(|i| std::cmp::Reverse(actors[*i].position().1));
         let mut placed = Vec::new();
@@ -1035,6 +1232,9 @@ impl Game {
                 runner.word(8) as i16,
                 false,
             ) {
+                for (_, frame) in spell_frames.iter().filter(|(slot, _)| *slot == i) {
+                    placed.push(PlacedActor { frame, x, y });
+                }
                 placed.push(PlacedActor {
                     frame: &frames[i],
                     x,

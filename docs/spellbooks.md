@@ -1,5 +1,8 @@
 # Spellbook state and companion selection
 
+The later [native casting milestone](spell-casting.md) enables Flame Dart/Bolt.
+Earlier casting limits below describe the preceding checkpoints.
+
 The later [equipment/drain checkpoint](spell-equipment.md) implements equipment
 conversion and actual drain APIs. Casting remains disabled. The selection-only
 boundary below records the preceding milestone.

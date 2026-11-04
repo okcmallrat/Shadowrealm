@@ -3,6 +3,7 @@ pub mod archives;
 pub mod attack_roll;
 pub mod avoidance;
 pub mod boot;
+pub mod casting;
 pub mod clinic;
 pub mod collision;
 pub mod combat;

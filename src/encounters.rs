@@ -148,9 +148,10 @@ pub fn spawn(
             return Ok((added, rng.seed));
         };
         let Some(graphic) = (0..18u16).find(|g| {
-            !allocated
-                .iter()
-                .any(|a| a.word(0x3e) >= 3 && a.raw[0x10] & 9 == 1 && a.word(0x30) == *g)
+            !allocated.iter().any(|a| {
+                (a.word(0x3e) >= 3 && a.raw[0x10] & 9 == 1 && a.word(0x30) == *g)
+                    || (a.raw[0x10] & 1 != 0 && a.raw[0xb2] != 0 && a.word(0x32) == *g)
+            })
         }) else {
             return Ok((added, rng.seed));
         };

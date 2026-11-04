@@ -165,6 +165,100 @@ pub fn resolve(
     random.seed = staged_random.seed;
     Ok(result)
 }
+fn staged_target_is_special(a: &Runner) -> bool {
+    a.raw[0x9b] == 0x17
+}
+
+/// $55b78 baseline direct spell damage, reusing the original $559bc staging.
+/// Single-target Flame Dart/Bolt and Mana Zap/Blast in normal world mode.
+pub fn resolve_magic(
+    rom: &[u8],
+    actors: &mut [Runner],
+    caster: u8,
+    defender: u8,
+    w: &mut DamageWorld,
+    rng: &mut State,
+) -> Result<DamageResult, RomError> {
+    let source = actors
+        .iter()
+        .find(|a| a.word(0x3e) == u16::from(caster))
+        .ok_or(RomError("spell caster missing"))?
+        .clone();
+    let index = actors
+        .iter()
+        .position(|a| a.word(0x3e) == u16::from(defender))
+        .ok_or(RomError("spell defender missing"))?;
+    if staged_target_is_special(&actors[index])
+        || !matches!(source.raw[0x57], 1 | 2 | 8 | 9)
+        || w.mode != 0
+        || actors
+            .iter()
+            .any(|a| a.raw[0x10] & 1 != 0 && a.raw[0xdf] & 3 != 0)
+    {
+        return Err(RomError("spell damage outside baseline"));
+    }
+    let mut staged = actors.to_vec();
+    let mut world = w.clone();
+    let mut random = State { seed: rng.seed };
+    let target = &staged[index];
+    let mut pool = 0u16;
+    let at = 0xd4ea0 + usize::from(source.raw[0x57] - 1) * 48;
+    let mut resistance_index = i32::from(source.raw[0x57] - 1) * 48;
+    if target.word(0x3e) < 3 {
+        for a in staged
+            .iter()
+            .filter(|a| a.word(0x3e) < 3 && a.raw[0x10] & 1 != 0 && (a.raw[0x9b] as i8) <= 1)
+        {
+            let magic = crate::casting::magic_attribute(a);
+            pool = pool.wrapping_add(u16::from(magic) / 4 + u16::from(magic % 4 >= 3));
+            // $1047e saves D5/A0 but not D7. Its final $55f02 focus scan
+            // replaces the spell-record offset with a slot index or -1.
+            resistance_index = (0..7)
+                .rev()
+                .find(|slot| a.raw[0x66 + slot] == 0x18)
+                .map_or(-1, |slot| slot as i32);
+        }
+    }
+    // $55c08 selects body or willpower from the signed spell-record byte.
+    let attribute = if (byte(rom, (0xd4ea0 + resistance_index + 0x27) as usize)? as i8) < 0 {
+        0x7c
+    } else {
+        0x77
+    };
+    pool = (pool & 0xff00) | u16::from((pool as u8).wrapping_add(target.raw[attribute]));
+    let power = byte(rom, at + 0x25)?;
+    let base = u16::from(byte(rom, 0x166ad4 + usize::from(power))?.wrapping_neg());
+    let mut difficulty = u16::from(source.raw[0x9d]);
+    if source.raw[0x57] <= 3 && target.raw[0x9b] == 0x17 {
+        pool = 12;
+        difficulty = 2;
+    }
+    world.penetration = 1;
+    if source.word(0x3e) >= 3 {
+        let cost = byte(rom, at + 0x24)?.max(1);
+        let a = staged
+            .iter_mut()
+            .find(|a| a.word(0x3e) == u16::from(caster))
+            .unwrap();
+        a.raw[0x9c] = a.raw[0x9c].saturating_sub(cost).max(1);
+    }
+    let result = staged_damage(
+        rom,
+        &source.raw,
+        &mut staged,
+        index,
+        &mut world,
+        &mut random,
+        pool,
+        difficulty,
+        base,
+    )?;
+    actors.clone_from_slice(&staged);
+    *w = world;
+    rng.seed = random.seed;
+    Ok(result)
+}
+
 fn inner(
     rom: &[u8],
     p: &[u8; 256],
@@ -177,8 +271,8 @@ fn inner(
     w.penetration = 0;
     let item_at = (0xd4540i32 + (i32::from(p[0x57]) - 1) * 48) as usize;
     let power = byte(rom, item_at + 0x25)?;
-    let mut difficulty = u16::from(byte(rom, item_at + 0x26)?);
-    let mut staged = u16::from(byte(rom, 0x166ad4 + usize::from(power))?.wrapping_neg());
+    let difficulty = u16::from(byte(rom, item_at + 0x26)?);
+    let staged = u16::from(byte(rom, 0x166ad4 + usize::from(power))?.wrapping_neg());
     let target = &actors[index];
     let physical = u16::from(physical(target));
     let injury = (u32::from(physical) * u32::from(target.raw[0x4d]) * 25 / 100) as u16;
@@ -187,6 +281,20 @@ fn inner(
     if let Some(bit) = (9..=11).find(|bit| target.word(0x90) & (1 << bit) != 0) {
         pool = pool.wrapping_add(bit - 8);
     }
+    staged_damage(rom, p, actors, index, w, rng, pool, difficulty, staged)
+}
+fn staged_damage(
+    rom: &[u8],
+    p: &[u8; 256],
+    actors: &mut [Runner],
+    index: usize,
+    w: &mut DamageWorld,
+    rng: &mut State,
+    pool: u16,
+    mut difficulty: u16,
+    mut staged: u16,
+) -> Result<DamageResult, RomError> {
+    let target = &actors[index];
     if (difficulty.wrapping_sub(2) as i16) < 0 {
         difficulty = 2;
     }
@@ -217,7 +325,7 @@ fn inner(
         }
     }
     let armor = target.raw[0x76];
-    if armor != 0 {
+    if w.penetration <= 0 && armor != 0 {
         let armor_value = byte(rom, 0xd4d50 + (usize::from(armor) - 1) * 48 + 0x25)?;
         staged = (staged & 0xff00) | u16::from((staged as u8).wrapping_sub(armor_value));
     }

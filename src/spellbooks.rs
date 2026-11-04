@@ -73,6 +73,13 @@ impl Spellbooks {
             })
             .collect())
     }
+    pub fn known(&self, index: u16) -> Result<Vec<Spell>, RomError> {
+        Self::entries(
+            self.records
+                .get(usize::from(index))
+                .ok_or(RomError("actor spellbook index outside session"))?,
+        )
+    }
     /// $13c74 retains attack order/duplicates and the last healing force.
     pub fn candidates(&self, index: u16) -> Result<(Vec<Spell>, Option<Spell>), RomError> {
         let entries = Self::entries(
@@ -144,7 +151,14 @@ fn drain_with_force(rom: &[u8], a: &Runner, s: Spell, force: u16) -> Result<u16,
     if product % 100 >= 50 {
         reduced = reduced.wrapping_add(1);
     }
-    Ok(u16::from(base).wrapping_sub(reduced / 2))
+    // $106d0 sign-extends the 16-bit quotient before DIVU #2. A negative
+    // quotient overflows that unsigned division and leaves D6 unchanged.
+    let divided = if (reduced as i16) < 0 {
+        reduced
+    } else {
+        reduced / 2
+    };
+    Ok(u16::from(base).wrapping_sub(divided))
 }
 pub fn unsafe_drain(rom: &[u8], a: &Runner, s: Spell) -> Result<bool, RomError> {
     if a.raw[0x9c] == 1 {

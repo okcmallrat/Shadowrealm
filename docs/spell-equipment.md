@@ -1,5 +1,8 @@
 # Companion equipment conversion and post-cast drain
 
+The later [native casting milestone](spell-casting.md) enables Flame Dart/Bolt.
+Earlier casting limits below describe the preceding checkpoints.
+
 This checkpoint completes recovered equipment-conversion and post-cast drain
 APIs. The native companion loop now connects the original unsafe-current-spell
 fallback to a supported inventory firearm. Actual spell casting, effect scheduling,

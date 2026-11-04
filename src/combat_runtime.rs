@@ -14,6 +14,7 @@ use crate::{
 
 pub struct Runtime {
     pub pool: [[u8; 256]; 6],
+    pub casting: crate::casting::Runtime,
     pub launch: LaunchWorld,
     pub damage: DamageWorld,
     pub flight: FlightContext,
@@ -35,6 +36,7 @@ impl Default for Runtime {
     fn default() -> Self {
         Self {
             pool: [[0; 256]; 6],
+            casting: Default::default(),
             launch: Default::default(),
             damage: Default::default(),
             flight: Default::default(),
@@ -57,7 +59,10 @@ pub fn handler(actor: &Runner) -> u32 {
     u32::from_be_bytes(actor.raw[0x3a..0x3e].try_into().unwrap())
 }
 pub fn action(actor: &Runner) -> bool {
-    matches!(handler(actor), 0xb3ee | 0xb07e | 0xb38a)
+    matches!(
+        handler(actor),
+        0xb3ee | 0xb07e | 0xb38a | 0xafe0 | 0xafe2 | 0xb0d4 | 0xb10c
+    )
 }
 pub fn holds_movement(actor: &Runner) -> bool {
     action(actor) || actor.raw[0x10] & 0x50 != 0 || actor.raw[0x4c] == 0
@@ -110,13 +115,13 @@ pub fn prepare_actor(r: &mut Runner) {
         return;
     }
     match handler(r) {
-        0xb38a => {
+        0xb38a | 0xb0d4 | 0xb10c => {
             r.set_word(0x38, 0);
             if (r.word(0x16) as i16) < 0 {
                 r.raw[0x10] |= 0x40;
             }
         }
-        0xb3ee | 0xb07e => {
+        0xb3ee | 0xb07e | 0xafe0 | 0xafe2 => {
             r.set_word(0x38, 0);
             if handler(r) == 0xb07e {
                 r.raw[0xce] = r.raw[0xce].wrapping_sub(1);
@@ -135,10 +140,12 @@ pub fn prepare_actor(r: &mut Runner) {
 
 impl Runtime {
     pub fn has_live(&self) -> bool {
-        self.pool.iter().any(|p| p[0x10] & 1 != 0)
+        self.pool.iter().any(|p| p[0x10] & 1 != 0) || self.casting.live != 0
     }
     pub fn clear_map(&mut self) {
         self.pool = [[0; 256]; 6];
+        self.casting.graphics = [false; 18];
+        self.casting.live = 0;
         self.flight = Default::default();
         self.launch.signals = Default::default();
         self.npc_targets = Default::default();
@@ -295,15 +302,21 @@ impl Runtime {
         {
             if let Some(books) = &self.spellbooks {
                 let mut staged = State { seed: random.seed };
-                let (selection, _) =
+                let (selection, healing_target) =
                     crate::spellbooks::select(rom, books, &source, actors, &mut staged)?;
+                if source.raw[0x57] == 12 {
+                    if let Some(target) = healing_target {
+                        source.raw[0xa2..0xa6]
+                            .copy_from_slice(&(0xff0100 + u32::from(target) * 256).to_be_bytes());
+                    }
+                }
                 match selection {
                     crate::spellbooks::Selection::KeepEquipped => {
                         random.seed = staged.seed;
                     }
                     crate::spellbooks::Selection::Spell(_) => {
                         self.companion_deferred[usize::from(slot)] =
-                            Some("Companion spell casting is not available yet");
+                            Some("Automatic companion spell equipment is not available yet");
                         return Ok(());
                     }
                     crate::spellbooks::Selection::InventoryWeapon => {
@@ -324,6 +337,38 @@ impl Runtime {
                     Some("Companion spellbook state is not available yet");
                 return Ok(());
             }
+        }
+        if (source.raw[0x56] as i8) < 0 && matches!(source.raw[0x57], 1 | 2 | 8 | 9 | 12) {
+            self.companion_deferred[usize::from(slot)] = None;
+            if source.raw[0xdf] & 3 != 0 || source.raw[0x4d] > 8 || self.launch.mode != 0 {
+                self.companion_deferred[usize::from(slot)] =
+                    Some("Companion spell context is not available yet");
+                return Ok(());
+            }
+            if source.raw[0x57] == 12 {
+                if crate::combat::target(&source).is_none_or(|id| id.0 >= 3) {
+                    let target = crate::spellbooks::healing_target(actors).unwrap_or(0);
+                    source.raw[0xa2..0xa6]
+                        .copy_from_slice(&(0xff0100 + u32::from(target) * 256).to_be_bytes());
+                }
+            } else if self.npc_targets.acquire(&mut source, random) {
+                actors[index] = source;
+                self.launch.end_combat(actors);
+                source = actors[index].clone();
+                self.npc_fire.samples =
+                    crate::followers::decide_with_samples(rom, collision, &mut source, &leader)?.1;
+                actors[index] = source;
+                return Ok(());
+            }
+            actors[index] = source;
+            if actors[index].raw[0x57] != 12 {
+                self.companion_magic(rom, collision, actors, index, random)?;
+                return Ok(());
+            }
+            if actors[index].word(0xc) != 0 && (actors[index].word(0xdc) as i16) < 0 {
+                self.cast_actor(rom, collision, actors, slot, random)?;
+            }
+            return Ok(());
         }
         if source.raw[0x56] >= 8
             || !(1..=12).contains(&source.raw[0x57])
@@ -369,7 +414,7 @@ impl Runtime {
         target: &mut Runner,
         random: &mut State,
     ) -> Result<bool, RomError> {
-        use crate::npc_combat::{self, FireDecision, PositionDecision};
+        use crate::npc_combat::{self, FireDecision};
         self.npc_fire.mode = self.launch.mode;
         let check = npc_combat::check_fire(rom, collision, source, target, &mut self.npc_fire)?;
         let mut fallback = matches!(
@@ -431,21 +476,7 @@ impl Runtime {
             }
         }
         if ordinary {
-            if fallback {
-                self.npc_fire.samples =
-                    crate::followers::decide_with_samples(rom, collision, source, target)?.1;
-            } else if npc_combat::position_goal(rom, source, target, self.npc_fire.firing)?
-                == PositionDecision::Goal
-            {
-                let reached = crate::followers::distance(
-                    source.position(),
-                    (source.word(0x96), source.word(0x98)),
-                ) < 0x1e0;
-                crate::followers::steer_goal(rom, collision, source)?;
-                if reached {
-                    source.raw[0xb5] = 0;
-                }
-            }
+            self.combat_position(rom, collision, source, target, fallback)?;
         } else if (source.word(0x16) as i16) <= 0x3c {
             // Host boundary: do not enter the still-unimplemented melee/magic
             // continuation after weapon exhaustion.
@@ -454,11 +485,194 @@ impl Runtime {
         Ok(ordinary)
     }
 
+    /// $140a0/$14146 followed by the shared $13d56 positioning path.
+    /// Healing retains its separate target-redirection boundary for now.
+    fn companion_magic(
+        &mut self,
+        rom: &[u8],
+        collision: &Collision,
+        actors: &mut [Runner],
+        index: usize,
+        random: &mut State,
+    ) -> Result<(), RomError> {
+        let target_index = crate::combat::target(&actors[index])
+            .and_then(|id| actors.iter().position(|a| a.word(0x3e) == u16::from(id.0)))
+            .ok_or(RomError("companion spell target missing"))?;
+        let target = actors[target_index].clone();
+        let mut source = actors[index].clone();
+        self.npc_fire.mode = self.launch.mode;
+        let check =
+            crate::npc_combat::check_fire(rom, collision, &source, &target, &mut self.npc_fire)?;
+        let fallback = match check.decision {
+            crate::npc_combat::FireDecision::NotVisible => true,
+            crate::npc_combat::FireDecision::CooldownContinuation => {
+                // The original uses $4e even for a spell: this is stored weapon
+                // ammunition percentage, not condition or spell drain.
+                npc_cooldown_path(rom, collision, &mut source, &target, &mut self.npc_fire)?
+            }
+            crate::npc_combat::FireDecision::MagicContinuation => {
+                let probe = crate::combat::line_of_fire(
+                    rom,
+                    collision,
+                    &source,
+                    &target,
+                    self.npc_fire.samples,
+                )?;
+                self.npc_fire.samples = probe.samples;
+                match probe.outcome {
+                    crate::combat::LineOutcome::OutsideModel => {
+                        self.companion_deferred[usize::from(source.word(0x3e))] =
+                            Some("Companion spell path is outside the supported area");
+                        return Ok(());
+                    }
+                    crate::combat::LineOutcome::Blocked => true,
+                    _ => {
+                        // $140b4 probes once, then $ae6e probes again before
+                        // the roll. Continue through positioning after the pose.
+                        self.cast_actor(rom, collision, actors, source.word(0x3e), random)?;
+                        source = actors[index].clone();
+                        false
+                    }
+                }
+            }
+            _ => return Err(RomError("companion spell action outside baseline")),
+        };
+        if source.raw[0x57] == 0 {
+            self.companion_deferred[usize::from(source.word(0x3e))] =
+                Some("Companion melee action is not available yet");
+            if (source.word(0x16) as i16) <= 0x3c {
+                source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
+            }
+        } else {
+            self.combat_position(rom, collision, &mut source, &target, fallback)?;
+        }
+        actors[index] = source;
+        Ok(())
+    }
+
+    fn combat_position(
+        &mut self,
+        rom: &[u8],
+        collision: &Collision,
+        source: &mut Runner,
+        target: &Runner,
+        fallback: bool,
+    ) -> Result<(), RomError> {
+        if fallback {
+            self.npc_fire.samples =
+                crate::followers::decide_with_samples(rom, collision, source, target)?.1;
+        } else if crate::npc_combat::position_goal(rom, source, target, self.npc_fire.firing)?
+            == crate::npc_combat::PositionDecision::Goal
+        {
+            let reached = crate::followers::distance(
+                source.position(),
+                (source.word(0x96), source.word(0x98)),
+            ) < 0x1e0;
+            crate::followers::steer_goal(rom, collision, source)?;
+            if reached {
+                source.raw[0xb5] = 0;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn cast_actor(
+        &mut self,
+        rom: &[u8],
+        collision: &Collision,
+        actors: &mut [Runner],
+        slot: u16,
+        random: &mut State,
+    ) -> Result<bool, RomError> {
+        let index = actors
+            .iter()
+            .position(|a| a.word(0x3e) == slot)
+            .ok_or(RomError("cast actor missing"))?;
+        let Some(target) = crate::combat::target(&actors[index])
+            .and_then(|id| actors.iter().position(|a| a.word(0x3e) == u16::from(id.0)))
+        else {
+            self.status = "Select a target with T";
+            return Ok(false);
+        };
+        let healing = actors[index].raw[0x57] == 12;
+        if healing && actors[target].word(0x3e) >= 3 {
+            self.status = "Choose a party member with P";
+            return Ok(false);
+        }
+        if self.launch.mode != 0
+            || (!healing && actors[target].raw[0x9b] == 0x17)
+            || actors
+                .iter()
+                .any(|a| a.raw[0x10] & 1 != 0 && a.raw[0xdf] & 3 != 0)
+        {
+            self.status = "This spell context is not available yet";
+            return Ok(false);
+        }
+        if (if healing {
+            actors[target].raw[0x10] & 1 != 1
+        } else {
+            actors[target].raw[0x10] & 0x41 != 1
+        }) || actors[target].raw[0xb2] != 0
+        {
+            self.status = "Target is unavailable for this spell";
+            return Ok(false);
+        }
+        if index != target {
+            let probe = crate::combat::line_of_fire(
+                rom,
+                collision,
+                &actors[index],
+                &actors[target],
+                self.npc_fire.samples,
+            )?;
+            self.npc_fire.samples = probe.samples;
+            if probe.outcome == crate::combat::LineOutcome::Blocked {
+                self.status = "Spell path blocked";
+                return Ok(false);
+            }
+            if probe.outcome == crate::combat::LineOutcome::OutsideModel {
+                self.status = "Spell path is outside the supported area";
+                return Ok(false);
+            }
+        }
+        let angle =
+            crate::followers::heading(rom, actors[index].position(), actors[target].position())?.0;
+        let old_angle = actors[index].word(0x2e);
+        actors[index].set_word(0x2e, angle);
+        let result = self.casting.cast_with_geometry(
+            rom,
+            Some(collision),
+            actors,
+            slot as u8,
+            actors[target].word(0x3e) as u8,
+            &mut self.launch,
+            random,
+        );
+        if let Err(error) = result {
+            actors[index].set_word(0x2e, old_angle);
+            if error.0 == "heal callback travel is not modeled"
+                || error.0 == "heal callback target outside walking baseline"
+            {
+                self.status = "Heal cannot use this target location yet";
+                return Ok(false);
+            }
+            return Err(error);
+        }
+        crate::casting::prepare_result_pose(
+            rom,
+            &mut actors[index],
+            result.unwrap() != crate::casting::CastResult::Failed,
+        )?;
+        self.status = "";
+        Ok(true)
+    }
+
     /// Service input at the selected actor's dispatch position, after pose
     /// preparation. Companion/NPC decisions use their separate original entries.
     pub fn player(
         &mut self,
         rom: &[u8],
+        collision: &Collision,
         actors: &mut [Runner],
         selected: u16,
         input: Controller,
@@ -485,8 +699,16 @@ impl Runtime {
             return Ok(());
         }
         self.player_attempt = true;
+        if (source.raw[0x56] as i8) < 0 && matches!(source.raw[0x57], 1 | 2 | 8 | 9 | 12) {
+            self.cast_actor(rom, collision, actors, selected, random)?;
+            return Ok(());
+        }
         if source.raw[0x56] >= 8 || !(1..=12).contains(&source.raw[0x57]) {
-            self.status = "This weapon is not available yet";
+            self.status = if (source.raw[0x56] as i8) < 0 {
+                "This spell is not available yet"
+            } else {
+                "This weapon is not available yet"
+            };
             return Ok(());
         }
         if actors

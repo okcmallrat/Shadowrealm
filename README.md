@@ -30,15 +30,23 @@ transfers control. Spell-capable companion selection remains deferred with a
 title message; Ricky/Freya do not gain a fabricated gun preference.
 See [companion combat scope and checks](docs/companion-combat.md).
 
-Session spellbooks and companion spell-selection decisions now use a small
-validated Serde/JSON reference catalog with Rust execution. Original-routine
-comparisons cover initialization, drain estimates and selection. Spell casting
-is still deferred; see [spellbook scope and production approach](docs/spellbooks.md).
+Typed Serde/JSON catalogs describe verified spellbooks and effect references;
+Rust executes the rules. Flame Dart/Bolt, Mana Zap/Blast and Heal now run through
+original rolls, drain and timed effects. Attack spells apply original resistance,
+damage and reactions; Heal restores party health/condition and fallen-state flags.
 
-The latest checkpoint adds original equipment conversion and post-cast drain APIs,
-including focus consumption and health spillover. Unsafe equipped spells can fall
-back to an inventory firearm in native companion dispatch. Actual spell casting
-remains unfinished; see [equipment/drain evidence and limits](docs/spell-equipment.md).
+Try Mana Blast with the default roster: Tab to Freya, M once from her starting
+weapon, T to target and F to cast. M cycles actual known spells/forces; G restores
+an inventory weapon. For Heal, cycle M until Heal and use P to choose a party
+member. M/G/P remain host shortcuts while the original menus are pending.
+Automatic companion spell equipment conversion, other spell actions and full
+magic AI remain unfinished. Already equipped attack casters now pursue enemies,
+recover blocked paths and reposition during cooldown; after equipping Freya's
+Mana Blast, Tab back to Joshua to let her act without F input. See
+[companion casting movement](docs/companion-casting-movement.md),
+[mana evidence and limits](docs/mana-spells.md),
+[healing](docs/healing.md), [casting](docs/spell-casting.md), and
+[equipment/drain](docs/spell-equipment.md).
 
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
 The corrected uploaded [Ghidra analysis reference](docs/ghidra-reference.md) is now

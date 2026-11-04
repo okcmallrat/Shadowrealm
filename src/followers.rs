@@ -504,6 +504,7 @@ fn probe(
     rom: &[u8],
     table: usize,
     direction: usize,
+    reject_travel: bool,
 ) -> Result<((u16, u16), Contact), RomError> {
     let p = r.position();
     let candidate = (
@@ -512,6 +513,9 @@ fn probe(
     );
     r.raw[0xd0..0xd4].copy_from_slice(&c.footprint_samples(candidate));
     let contact = match c.contact(candidate)? {
+        Contact::Trigger(_) if reject_travel => {
+            return Err(RomError("heal callback travel is not modeled"))
+        }
         Contact::Trigger(_) => Contact::Blocked,
         x => x,
     };
@@ -519,7 +523,7 @@ fn probe(
 }
 /// $b574/$b6e4/$bade: noncombat party step, including diagonal/cardinal sliding.
 pub fn move_one(rom: &[u8], c: &Collision, r: &mut Runner) -> Result<(), RomError> {
-    move_with_far_table(rom, c, r, 0xbfe2, true)
+    move_with_far_table(rom, c, r, 0xbfe2, true, true, true)
 }
 /// Ordinary non-party $b574/$b6e4 movement. Special banks/flags remain outside
 /// this entry; range-dependent near tables and collision sliding are shared.
@@ -538,7 +542,39 @@ pub fn move_npc(rom: &[u8], c: &Collision, r: &mut Runner) -> Result<(), RomErro
             .ok_or(RomError("NPC movement table missing"))?;
         u32::from_be_bytes(b.try_into().unwrap()) as usize
     };
-    move_with_far_table(rom, c, r, table, false)
+    move_with_far_table(rom, c, r, table, false, true, true)
+}
+/// $15830's Heal initializer calls $b574 directly on the target. This omits
+/// the outer dispatcher's flag reset and state-change notification, and a
+/// controlled target skips the range-table override at $b666.
+pub fn healing_callback(
+    rom: &[u8],
+    c: &Collision,
+    r: &mut Runner,
+    engaged: bool,
+) -> Result<(), RomError> {
+    if r.bank() == 13
+        || r.raw[0x10] & 8 == 0
+        || r.raw[0xb0] & 0x80 != 0
+        || r.raw[0x9e] & 0x20 != 0
+        || (r.raw[0x78] as i8) < 0
+    {
+        return Err(RomError("heal callback target outside walking baseline"));
+    }
+    let far = if r.raw[0x10] & 2 == 0 {
+        0xbfe2
+    } else if engaged {
+        let at = 0xbdf2 + usize::from(r.raw[0x78].min(9)) * 4;
+        u32::from_be_bytes(
+            rom.get(at..at + 4)
+                .ok_or(RomError("heal movement table outside ROM"))?
+                .try_into()
+                .unwrap(),
+        ) as usize
+    } else {
+        0xbec2
+    };
+    move_with_far_table(rom, c, r, far, true, false, r.raw[0x10] & 2 == 0)
 }
 fn move_with_far_table(
     rom: &[u8],
@@ -546,8 +582,10 @@ fn move_with_far_table(
     r: &mut Runner,
     far: usize,
     party_visibility: bool,
+    dispatcher: bool,
+    range_select: bool,
 ) -> Result<(), RomError> {
-    if behavior(r) != 0xb574 {
+    if dispatcher && behavior(r) != 0xb574 {
         let before = r.word(0x16);
         r.raw[0x11] &= !4;
         r.set_word(0x38, 0);
@@ -559,19 +597,21 @@ fn move_with_far_table(
         if samples == [0; 4] {
             r.raw[0xb0] &= !0x20;
         }
-        if before != r.word(0x16) {
+        if dispatcher && before != r.word(0x16) {
             r.raw[0x11] |= 1;
         }
         return Ok(());
     }
     let before = r.word(0x16);
-    r.raw[0x11] &= !4;
+    if dispatcher {
+        r.raw[0x11] &= !4;
+    }
     r.set_word(0x38, 1);
     r.turn_toward(r.word(0x34));
     let range = r.word(0xc8);
     let table = if party_visibility && r.word(0xc) == 0 {
         0xc022
-    } else if range >= 0x460 {
+    } else if !range_select || range >= 0x460 {
         far
     } else if range >= 0x360 {
         0xbd72
@@ -584,7 +624,7 @@ fn move_with_far_table(
     };
     r.set_word(0xca, word(rom, table + 4)?);
     let direction = usize::from(r.word(0x2e).rotate_left(3) & 7);
-    let (mut candidate, contact) = probe(c, r, rom, table, direction)?;
+    let (mut candidate, contact) = probe(c, r, rom, table, direction, !dispatcher)?;
     let mut moved = matches!(contact, Contact::Clear);
     if moved {
         r.set_word(0xb8, 0x1000);
@@ -592,12 +632,12 @@ fn move_with_far_table(
         let alternative = if r.word(0x2e) & 0x3fff != 0 {
             let first = (direction as u16) & 6;
             r.set_word(0xb8, first);
-            let (p, result) = probe(c, r, rom, table, usize::from(first))?;
+            let (p, result) = probe(c, r, rom, table, usize::from(first), !dispatcher)?;
             if matches!(result, Contact::Clear) {
                 Some((first, p))
             } else {
                 let second = (first + 2) & 7;
-                let (p, result) = probe(c, r, rom, table, usize::from(second))?;
+                let (p, result) = probe(c, r, rom, table, usize::from(second), !dispatcher)?;
                 if matches!(result, Contact::Clear) {
                     Some((second, p))
                 } else {
@@ -621,7 +661,7 @@ fn move_with_far_table(
                 None
             };
             if let Some(dir) = slide {
-                let (p, result) = probe(c, r, rom, table, dir)?;
+                let (p, result) = probe(c, r, rom, table, dir, !dispatcher)?;
                 if matches!(result, Contact::Clear) {
                     Some((dir as u16, p))
                 } else {
@@ -653,7 +693,7 @@ fn move_with_far_table(
         };
         r.set_word(0x16, ((facing.rotate_left(3) & 7) + 8) * 4);
     }
-    if before != r.word(0x16) {
+    if dispatcher && before != r.word(0x16) {
         r.raw[0x11] |= 1;
     }
     Ok(())
