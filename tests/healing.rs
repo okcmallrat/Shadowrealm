@@ -31,6 +31,8 @@ fn fixture(rom: &[u8]) -> Game {
         a.set_word(0xc, 100);
     }
     game.camera = (100, 100);
+    // Isolate Heal control/target tests from other companions' combat decisions.
+    game.party[1].set_word(0xb6, 1000);
     equip_heal(&mut game, rom);
     game
 }
@@ -53,12 +55,12 @@ fn learned_heal_casts_on_self_and_renders_all_original_effect_frames() {
                 frames |= 1 << phase;
             }
         }
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[2] > 0 {
             break;
         }
     }
-    assert!(game.combat.casting.casts > 0);
-    assert!(game.combat.casting.impacts > 0);
+    assert!(game.combat.casting.casts_by_actor[2] > 0);
+    assert!(game.combat.casting.impacts_by_actor[2] > 0);
     assert!(game.party[2].raw[0x4c] > 2);
     assert_eq!(frames, 65535);
     assert_eq!(
@@ -87,11 +89,11 @@ fn party_targeting_heals_a_fallen_runner_and_restores_control() {
             0,
             "NPC targeting must not replace Heal's party pointer"
         );
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[2] > 0 {
             break;
         }
     }
-    assert!(game.combat.casting.impacts > 0);
+    assert!(game.combat.casting.impacts_by_actor[2] > 0);
     assert!(game.party[0].raw[0x4c] > 0);
     assert_eq!(game.party[0].raw[0x9c], 1);
     assert_eq!(game.party[0].raw[0x10] & 0x50, 0);
@@ -170,13 +172,13 @@ fn real_street_injury_can_be_healed_through_known_spell_and_party_controls() {
         let before = injured.map(|index| game.party[index].raw[0x4c]);
         game.update(&rom, if injured.is_some() { input::A } else { 0 })
             .unwrap();
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[2] > 0 {
             let index = injured.unwrap();
             assert!(
                 game.party[index].raw[0x4c] > before.unwrap(),
                 "a real Heal completion must restore health"
             );
-            eprintln!("Real street recovery at tick {}, target {}, health {} -> {}, encounters {}, casts {}",game.tick,index,before.unwrap(),game.party[index].raw[0x4c],game.encounters.spawned,game.combat.casting.casts);
+            eprintln!("Real street recovery at tick {}, target {}, health {} -> {}, encounters {}, casts {}",game.tick,index,before.unwrap(),game.party[index].raw[0x4c],game.encounters.spawned,game.combat.casting.casts_by_actor[2]);
             completed = true;
             break;
         }
@@ -201,16 +203,30 @@ fn already_equipped_companion_prioritizes_a_critical_party_member_without_fire_i
     let mut game = fixture(&rom);
     game.select(&rom, 0).unwrap();
     game.party[0].raw[0x4c] = 1;
+    // The original AI requires an enemy combat target before redirecting Heal.
+    let mut enemy = shadowrealm::party::Runner::load(&rom, 0, 0).unwrap();
+    enemy.set_word(0x3e, 3);
+    enemy.set_position(300 * 16, 210 * 16);
+    enemy.raw[0x10] = 5;
+    enemy.raw[0x56] = 127;
+    enemy.raw[0x57] = 0;
+    enemy.raw[0x9b] = 2;
+    enemy.raw[0x9e] = 0;
+    enemy.raw[0xb0] = 0;
+    enemy.raw[0xb2] = 0;
+    enemy.raw[0xdf] = 0;
+    enemy.set_word(0xc, 100);
+    game.npcs.push(enemy);
     game.combat.launch.engaged = 65535;
     game.combat.launch.timeout = 120;
     for _ in 0..400 {
         game.update(&rom, 0).unwrap();
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[2] > 0 {
             break;
         }
     }
-    assert!(game.combat.casting.casts > 0);
-    assert!(game.combat.casting.impacts > 0);
+    assert!(game.combat.casting.casts_by_actor[2] > 0);
+    assert!(game.combat.casting.impacts_by_actor[2] > 0);
     assert!(game.party[0].raw[0x4c] > 1);
     assert_eq!(game.combat.shots, 0);
 }

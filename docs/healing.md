@@ -1,5 +1,9 @@
 # Native Heal and party recovery
 
+Automatic attack/Heal selection and the bounded caller context are now connected;
+see [automatic companion magic](automatic-companion-magic.md) for the current
+behavior and remaining limits. The notes below describe this earlier checkpoint.
+
 The later [mana milestone](mana-spells.md) expands the shared catalog to schema
 version 3 and adds Mana Zap/Blast; the healing rules below remain in use.
 

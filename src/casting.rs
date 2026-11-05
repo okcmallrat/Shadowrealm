@@ -138,7 +138,7 @@ pub fn roll(
     target: &Runner,
     rng: &mut State,
 ) -> Result<attack_roll::AttackRoll, RomError> {
-    if source.raw[0xdf] & 3 != 0 || !matches!(source.raw[0x57], 1 | 2 | 8 | 9 | 12) {
+    if source.raw[0xdf] & 3 != 0 || !matches!(source.raw[0x57], 1 | 2 | 4 | 8 | 9 | 11 | 12) {
         return Err(RomError("cast modifiers outside baseline"));
     }
     if source.raw[0x9c] == 1 {
@@ -216,6 +216,9 @@ pub struct Runtime {
     pub live: usize,
     pub casts: u64,
     pub impacts: u64,
+    /// Host verification counters; actor records and RNG remain the original state.
+    pub casts_by_actor: [u64; 10],
+    pub impacts_by_actor: [u64; 10],
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CastResult {
@@ -279,12 +282,17 @@ impl Runtime {
             .position(|a| a.word(0x3e) == u16::from(target))
             .ok_or(RomError("cast target missing"))?;
         let healing = actors[si].raw[0x57] == 12;
+        let instant = matches!(actors[si].raw[0x57], 4 | 11);
+        let friendly = healing || instant;
+        if instant && (target >= 3 || actors[ti].raw[0x10] & 0x41 != 1) {
+            return Err(RomError("status spell requires an available party target"));
+        }
         if healing && (target >= 3 || collision.is_none()) {
             return Err(RomError("Heal requires party target geometry"));
         }
         if caster >= 3
             || actors[si].raw[0x10] & 1 == 0
-            || (!healing && (actors[ti].raw[0x9b] == 0x17 || caster == target))
+            || (!friendly && (actors[ti].raw[0x9b] == 0x17 || caster == target))
             || world.mode != 0
             || actors
                 .iter()
@@ -294,6 +302,11 @@ impl Runtime {
             return Err(RomError("cast context outside baseline"));
         }
         Catalog::load(rom)?;
+        let statuses = if instant {
+            Some(crate::status_spells::Catalog::load(rom)?)
+        } else {
+            None
+        };
         let mut staged = actors.to_vec();
         let mut random = State { seed: rng.seed };
         let target_actor = staged[ti].clone();
@@ -342,6 +355,11 @@ impl Runtime {
                     launch.engaged != 0,
                 )?;
             }
+            if let Some(catalog) = &statuses {
+                let item = staged[si].raw[0x57];
+                let successes = staged[si].raw[0x9f];
+                catalog.initialize(&mut staged[ti], item, successes)?;
+            }
         }
         let spell = crate::spellbooks::Spell {
             id: staged[si].raw[0x57] - 1,
@@ -352,10 +370,15 @@ impl Runtime {
         rng.seed = random.seed;
         self.graphics = graphics;
         self.npc_graphics = npc_graphics;
-        if free.is_some() {
+        if free.is_some() && !instant {
             self.live += 1;
         }
+        if free.is_some() && instant {
+            self.impacts += 1;
+            self.impacts_by_actor[usize::from(caster)] += 1;
+        }
         self.casts += 1;
+        self.casts_by_actor[usize::from(caster)] += 1;
         *world = launch;
         Ok(
             free.map_or(CastResult::GraphicsFull, |graphic| CastResult::Effect {
@@ -431,6 +454,7 @@ impl Runtime {
             if e.kind == EffectKind::Healing {
                 complete_heal(actors, caster.0, slot as u8)?;
                 self.impacts += 1;
+                self.impacts_by_actor[usize::from(caster.0)] += 1;
                 self.live = self.live.saturating_sub(1);
                 continue;
             }
@@ -461,6 +485,7 @@ impl Runtime {
                 }
             }
             self.impacts += 1;
+            self.impacts_by_actor[usize::from(caster.0)] += 1;
             self.live = self.live.saturating_sub(1);
         }
         Ok(())

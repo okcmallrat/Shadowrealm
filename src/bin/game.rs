@@ -121,6 +121,9 @@ fn run() -> Result<(), Box<dyn Error>> {
         if !paused && window.is_key_pressed(Key::M, KeyRepeat::No) {
             game.cycle_spell(&rom)?;
         }
+        if !paused && window.is_key_pressed(Key::J, KeyRepeat::No) {
+            game.show_job(&rom)?;
+        }
         if !paused && window.is_key_pressed(Key::G, KeyRepeat::No) {
             game.equip_inventory_weapon(&rom)?;
         }

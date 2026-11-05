@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "duration_factor": 8,
+  "tick_mask": 63,
+  "rockskin_colors": "0x3edc",
+  "statuses": [
+    {
+      "item": 4,
+      "kind": "invisibility",
+      "initializer": "0x4dca",
+      "handler": "0x49a0",
+      "timer_routine": "0x4e38",
+      "graphics_routine": "0x3efe",
+      "flag": 128,
+      "timer": 64
+    },
+    {
+      "item": 11,
+      "kind": "rockskin",
+      "initializer": "0x4dfe",
+      "handler": "0x49a0",
+      "timer_routine": "0x4e64",
+      "graphics_routine": "0x3e86",
+      "flag": 32,
+      "timer": 65
+    }
+  ]
+}

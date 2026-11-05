@@ -21,6 +21,7 @@ F outside dialogue: fire the equipped firearm or cast a supported equipped spell
 Firing uses finite ammo, cooldowns and automatic reloads while reserves remain.
 Without a selected target, shots follow the runner's facing direction.
 Tab: select the next runner (also selects its HUD panel).
+J: review the current run, including pickup/delivery and payment.
 T outside dialogue: toggle target selection; yellow brackets/name identify the NPC.
 Red brackets/title status mean the projectile probe found a blocking path;
 gray means geometry is not modeled. Yellow only identifies the selection.
@@ -88,7 +89,8 @@ Other interior doors and story transitions still stop at their trigger. Full com
 other conversations/quest scripts, other recruitment, contract completion,
 full companion combat AI, melee/remaining spell/throwable actions, ongoing combat effects,
 general contact scripts and other contact-triggered travel,
-inventory/menu interactions, missions, audio, and save/load are not functional. No completion
+general inventory/menu interactions, other missions, audio, and save/load remain
+unfinished. No completion
 claim is made for these systems. This ZIP is a development milestone.
 
 Equipped firearms now use recovered ammo/reload/cooldown rules, original attack
@@ -127,9 +129,9 @@ Uncontrolled mundane firearm companions now use original decision scheduling,
 targeting, range goals, gunfire and finite-reserve reloads. Tab transfers control;
 Joshua can fire as a companion when Ricky is selected. In a normal map-5 default
 roster test with idle input, Joshua fired after a real encounter at tick 148.
-Spell-capable companions needing spellbook selection remain deferred with a
-title message: default Ricky/Freya do not yet gain automatic firearm attacks.
-Melee, automatic spell equipment conversion and mission-aware combat remain unfinished.
+Ricky/Freya now choose learned attack spells or Heal and fall back to inventory
+firearms when the original drain gate rejects magic. These companion choices
+need no M/G/F input. Melee and mission-aware combat remain unfinished.
 Windows GUI/input playtesting is still pending.
 
 Native spellcasting now supports Flame Dart/Bolt, Mana Zap/Blast and Heal with
@@ -139,12 +141,46 @@ F to cast. Her original spellbook supplies force 3. M cycles actual learned
 spells/forces; G restores an inventory weapon. For Heal, cycle M until Heal,
 use P to choose a party member (including fallen active members), then F.
 M/G/P are host keyboard shortcuts; original equipment/target menus, automatic
-companion spell equipment conversion, area/ongoing spells and full magic AI
-remain unfinished. Mana Zap is supported for its original learned books; the
+status-spell use, area/ongoing spells and full magic AI remain unfinished. Mana Zap is supported for its original learned books; the
 default Samurai Joshua does not learn it. Windows GUI/input testing is pending.
 
 Equipped attack-spell companions now use original combat positioning: blocked-path
 recovery, offscreen pursuit, cooldown movement and formation when combat ends.
 Tab to Freya, M once for learned force-3 Mana Blast, then Tab back to Joshua;
-she can approach and cast without F input. Automatic gun-to-spell conversion,
-Heal pursuit, other spell actions and full magic AI remain unfinished.
+she can approach and cast without F input. Automatic attack/Heal equipment
+selection is also connected. Heal first probes the enemy path, then redirects
+to the first critically injured available party member. In a default-roster
+map-5 check, idle input alone completes automatic magic at tick 157; both
+companions cast and an enemy finishes defeat by tick 328. Special register
+contexts and other spell actions remain unfinished.
+
+Invisibility and Rockskin now cast with original status clocks and tile transforms.
+Freya knows force-3 Invisibility; Ricky knows force-2 Rockskin. M selects the spell,
+P cycles living party members, F casts, and G restores an inventory weapon without
+removing the status. Original timing, allocation and combat quirks are preserved;
+this does not implement general status-spell AI or all defensive behavior.
+
+FIRST REPEATABLE JOB LOOP: GUNDERSON COURIER RUNS
+
+Launch from the extracted folder:
+Shadowrealm.exe Shadowrun.bin 2
+
+This starts the development roster in Redmond. Enter the Jump House on the north
+side, walk to the upper-left booth and ask Gunderson for work. His original
+random offers and pay are retained. Courier offers can be accepted; ghoul bounty
+and bodyguard objectives remain unavailable. Decline an unavailable offer, step
+away and approach again. Read the route and payment, accept, leave the bar, pick
+up the package and visit its recipient. J reopens the current briefing.
+
+The recipient pays nuyen and awards Karma immediately. You can then return for
+another offer. A carried package is lost on party defeat before medical recovery;
+an uncollected run is retained, as in the original. Wrong locations, delivery
+before pickup and repeat visits do not pay. Jobs and earnings persist in this
+session; R starts a fresh session.
+
+A controller-only check walks from the normal map-2 spawn through the booth,
+Stoker's pickup, Rat's Nest delivery and the next offer at tick 3356: 20 -> 60
+nuyen plus Karma. It inserts no actors or forced job outcomes. Original courier
+ambushes/robberies, other job types/Johnsons, district travel, general shops, the
+full Pocket Secretary UI, original new-game setup and disk saves remain pending.
+The panel and J shortcut are host UI; Windows GUI/input playtesting is pending.

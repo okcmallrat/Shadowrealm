@@ -8,7 +8,117 @@ said the early previews are too basic/incomplete. Prioritize connected gameplay
 and authentic behavior, not more isolated asset demonstrations. The current
 executable is an exploration milestone, not the finished game.
 
-Latest local milestone (2026-11-04): equipped attack-spell companions now use the
+Publication checkpoint (2026-11-05): the user requested pushing all completed
+local work and stopping for now. This checkpoint includes Invisibility/Rockskin,
+automatic companion magic and the first repeatable Gunderson courier loop,
+alongside the verified 548,800-byte Windows ZIP. Validation remains 69 unit + 87
+ROM-backed integration tests, relevant original-routine comparisons, and native
+Linux/Windows release builds. Windows GUI/input playtesting is pending.
+
+The prior remote main commit is `eed31ff6f36b13cad6a1d493d3cbb3bf85305e20`
+(tree `a374b3cfe6c613ebce0e613753fbf02c322ddb9b`). Publish on top of that checkpoint,
+verify main and the archive hash, then record the new commit/tree in
+`/workspace/work/published-shadowrealm-checkpoint.json` if retained. Connector
+publication may leave local HEAD at `90bfc84`; the index records the latest
+published tree. Preserve staged work and compare worktree/index on resume.
+
+Latest local milestone (2026-11-05): Gunderson's repeatable Redmond courier
+loop now connects original offer generation, acceptance, pickup, delivery,
+one-time nuyen/Karma reward, collected-package loss on defeat and another offer.
+Read `docs/courier-job-loop.md` first. Launch `Shadowrealm.exe Shadowrun.bin 2`;
+enter the Jump House (north side), approach its upper-left booth and ask for work.
+J reviews the run. Ghoul/bodyguard offers still use the original random table,
+but their objectives cannot be accepted yet. Decline and reapproach for a courier.
+
+A controller-only check uses the ordinary map-2 spawn and development roster,
+walks the booth -> Stoker's pickup -> Rat's Nest payment -> next-offer route at
+tick 3356, with 20 -> 60 nuyen plus original Karma. No positions, stats, nuyen,
+enemies or job outcomes are assigned during the run. No encounter spawned in
+that trace. Original courier ambushes/robberies, other job types/Johnsons, shops,
+district travel, new-game progression, full menus and disk saves remain pending.
+Starting in Redmond is a development entry point, not a new-game travel feature.
+
+`src/jobs.rs` and `data/jobs/gunderson-courier.json` retain typed Serde references
+and native Rust state changes. The job record preserves uncleared trailing bytes;
+pickup precedes delivery; byte Karma/long nuyen wrap; an uncollected run survives
+defeat. A collected run is lost before the existing Little Chiba/DocWagon flow.
+Pay prompts retain base/negotiated amounts. Matching courier service precedes
+normal building entry, and the prison keeps its action-100 continuation. The
+Jump House uses verified C4/map13 routing, saved camera/formation and bar return.
+Its enabling does not authorize other bars or story doors. UI and J remain host
+bridges. This continuation is included in this publication checkpoint; preserve
+the published index tree described above. Final verification: 69 unit tests and all 87
+ROM-backed integration tests pass. The job oracle matches 2,048 offers, 2,048
+visits, 2,048 defeat prefixes, 20 service selections and 64 entry/save/route/
+return-formation/spawn cases plus entry permission. Existing dialogue, exterior,
+Space Needle and clinic/archives/rehire oracles pass. Native Linux and Windows
+release builds pass; the 548,800-byte Windows ZIP is refreshed and verified for
+CRC, all 22 payload hashes, README/executable identity and PE/DLL imports. The
+ROM is excluded. Actual Windows GUI/input playtesting remains pending.
+
+Previous local milestone (2026-11-05): automatic companion attack spells and Heal
+now connect learned selection, equipment conversion, target acquisition, original
+movement and unsafe-spell inventory-firearm fallback without M/G/F input. Read
+`docs/automatic-companion-magic.md` first. A real map-5/default-roster test reaches
+its first automatic impact at tick 157; by tick 328 both Ricky and Freya have
+completed magic and an enemy finishes defeat, with the party alive. No inserted
+enemies or actor health/stat/book/equipment edits are used in that test.
+
+The missing D5 is prior-actor register residue: normal idle/action collision
+leaves pixel X, walking restores fixed-point X. Preserve that unexpected ROM
+capacity lookup and spell-to-spell reconversion; do not substitute weapon IDs.
+`data/combat/companion-magic.json` is a small typed, ROM-checked reference catalog.
+Special handlers/triggers/banks, first-slot incoming registers and outside-ROM
+lookups still defer transactionally. Heal acquires/probes an NPC enemy before
+redirecting to shared `$ffe190`; its initializer movement preserves collision
+scratch and its post-cast positioning uses the updated party/self pointer.
+
+The new oracle passes 1,024 prior-handler D5 cases, 3,031 complete automatic
+companion decisions with 205 equipment changes, 154 successful casts (27 Heal
+effects), and 41 exhausted-equipment prefixes stopped before melee. Earlier
+spellbook/equipment/drain, Heal and companion-caster oracles also pass. Functional
+tests now use per-actor cast/impact metrics so another companion cannot satisfy
+a caster-specific assertion. Automatic status spells, other spell actions,
+original menus and full magic AI remain incomplete. This milestone and the
+preceding status-spell work are included in this publication checkpoint; preserve
+the published index tree described above. Final verification: 69 unit tests and all 83
+ROM-backed integration tests pass. Automatic decisions, spellbook/equipment/drain,
+Heal, caster movement, casting/damage/effects, physical combat and status-spell
+original-routine comparisons pass. Native Linux and Windows release builds pass.
+The local 531,747-byte Windows ZIP is refreshed and verified for archive integrity,
+all 22 payload hashes, README/executable identity and PE/DLL imports. Windows
+GUI/input playtesting remains pending.
+
+Previous local milestone (2026-11-05): Invisibility and Rockskin now cast through
+original instantaneous initializers, drain, visible-actor status clocks and
+original tile transforms. Read `docs/status-spells.md` first. Freya knows force-3
+Invisibility and Ricky knows force-2 Rockskin: select with M, P cycles living
+party targets, F casts, and G restores an inventory weapon while retaining the
+status. These remain host shortcuts. A real map-5/default-roster test completes
+Invisibility during a real encounter at tick 11, without inserted enemies or
+health/stat/book edits. Automatic status-spell companion casting, other spell
+actions, original menus and full magic AI remain incomplete.
+
+A new small typed Serde catalog `data/combat/status-spells.json` records verified
+references and status metadata; the timed-effect schema-3 catalog is unchanged.
+The oracle passes 2,048 full status casts, 4,096 clock phases and 512 original
+graphics/sprite comparisons across five maps. Preserve original quirks: instant
+initializers/expiry do not release their allocated slot; clocks hold offscreen
+and use signed-byte underflow; Rockskin reads the source flag on the represented
+spell-damage path. Do not invent defender protection. See the status notes for
+details and visual/DMA cadence limits. This continuation is included in this
+publication checkpoint.
+Verification: 69 unit tests and all 77 ROM-backed integration tests pass. Status,
+casting, Heal, companion-caster and physical-combat original-routine comparisons
+pass. Native Linux desktop and Windows builds pass. The local 524,046-byte Windows
+ZIP is refreshed and verified for archive integrity, 22 payload hashes, README/
+executable identity and PE/DLL imports. No new publication was performed.
+The published base is `eed31ff6f36b13cad6a1d493d3cbb3bf85305e20`, tree
+`a374b3cfe6c613ebce0e613753fbf02c322ddb9b`. Local HEAD may still be `90bfc84` while
+the index holds that published tree: preserve it and compare worktree/index for
+new work. Windows GUI/input testing remains pending.
+
+Previous milestone (2026-11-04): equipped attack-spell companions now use the
 original post-action positioning path, blocked/offscreen approach, cooldown
 movement and immediate leader formation when targets disappear. Read
 `docs/companion-casting-movement.md` first. Tab to Freya, M once for her learned
@@ -228,13 +338,22 @@ worktree/index diff before continuing. Do not reset away the staged work.
 Environment configuration and private inputs are excluded.
 
 Windows package: `releases/Shadowrealm-windows-x64-exploration.zip`.
-SHA-256: `44158f45e2a997783ff066513269191d697b9beb0aab8a41889672e58d71c08b`.
+SHA-256: `3667470bd428340990c52cd8cc9fe915bac27bcd0bab562797268dbafa3d4d53`.
 The package includes EXE, required libunwind.dll, notices, file hashes and run
 instructions. The ROM is excluded. The user must extract the ZIP and put their
 `Shadowrun.bin` beside `Shadowrealm.exe`.
 
 ## What actually works
 
+- Gunderson's bounded Redmond courier loop: real random offers and negotiating
+  pay, acceptance, ten pickup/recipient locations, nuyen/Karma reward, repeat
+  offers and collected-package loss before medical recovery. J reviews a run;
+  map 2's Jump House entrance/booth/return is enabled. Other jobs and original
+  courier ambushes remain unfinished.
+- Automatic supported companion attack spells and Heal from original learned books,
+  including bounded prior-actor equipment context, enemy-first Heal path, movement,
+  drain and inventory-firearm fallback. Default-roster real encounter test uses
+  idle input and completes both casters' magic plus an enemy defeat by tick 328.
 - ROM parser, header/checksum/vector inspection, text and raw tile extraction.
 - 56 map descriptors and their layer copies; native decompression of the 15
   compressed shared tile-definition entries.
@@ -588,11 +707,13 @@ Serde/JSON dialogue/hiring records remain in use.
 
 ## Best next milestone
 
-Firing, street firearm encounters and normal party medical recovery are enabled.
-Recover companion spellbook/selection and mission-specific defeat callbacks next, followed by melee/magic and
-ongoing effects. Connect earning money and contract resolution through a verified job
-flow, introducing JSON only in small source-backed records. Full combat and
-additional scripted travel remain unfinished.
+The first repeatable Gunderson courier loop is connected. Extend the gameplay
+loop through verified spending/equipment services, original courier ambushes and
+another original job objective. General district travel is needed to reach
+Redmond from the current map-0 start; original new-game setup, menu/save systems
+and broader story progression remain incomplete. Keep JSON additions small and
+source-backed, with Rust owning mechanics and differential checks covering
+real routine behavior. Do not force supported job types by changing RNG.
 
 The ROM and corrected GZF are privately retained at `/workspace/inputs/Shadowrun.bin`
 and `/workspace/inputs/ShadowRunBin.gzf`. Rust activation remains below. Python
@@ -623,6 +744,8 @@ own state model and script handling before entry can be enabled.
 | src/dialogue.rs, src/npc.rs | Bounded exposition/font and fixed NPC initialization |
 | src/dialogue_data.rs, data/dialogue/space-needle.json | Validated embedded dialogue pilot and flag actions |
 | src/hiring.rs | Bounded Trent quote/payment/member initialization |
+| src/jobs.rs, data/jobs/gunderson-courier.json | Typed job/dialogue references, Gunderson offers, courier lifecycle and payment |
+| src/job_export.rs, tools/validate_jobs.py, tests/jobs.rs | Original job comparisons and controller-only courier loop |
 | src/followers.rs | Noncombat scheduler, formation, regular/fallback routes and walking |
 | src/avoidance.rs | Physical actor contact flags/headings/shared RNG and temporary separation motion |
 | src/combat.rs | Target lists/retention, close range and projectile obstruction probe |

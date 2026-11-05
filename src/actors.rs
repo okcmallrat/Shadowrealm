@@ -23,6 +23,30 @@ pub struct ActorFrame {
     pub pieces: Vec<Piece>,
 }
 impl ActorFrame {
+    pub fn load_status(
+        rom: &[u8],
+        address: usize,
+        scene: &mut MapScene,
+        actor: &crate::party::Runner,
+        camera: (u16, u16),
+    ) -> Result<Self, RomError> {
+        let frame = Self::load(
+            rom,
+            address,
+            scene,
+            actor.word(0x20),
+            if actor.raw[0x11] & 0x80 != 0 {
+                0
+            } else {
+                actor.palette()
+            },
+        )?;
+        if actor.raw[0x11] & 0xa0 != 0 && w(rom, address)? == 0x8002 && actor.word(0xc) != 0 {
+            let payload = crate::status_spells::graphics(rom, scene, address, actor, camera)?;
+            scene.transfer_bytes(usize::from(actor.word(0x20)) * 32, &payload)?;
+        }
+        Ok(frame)
+    }
     /// Maps relative tile indices to caller-selected VRAM space, as $6288 does.
     pub fn load(
         rom: &[u8],

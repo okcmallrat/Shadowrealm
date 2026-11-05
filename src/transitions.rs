@@ -6,6 +6,7 @@ pub enum TransitionKind {
     Exterior,
     Clinic,
     EnterSpaceNeedle,
+    EnterJumpHouse,
     ReturnToExterior,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,14 +92,57 @@ impl TransitionPlan {
         if map.id != 0 || trigger != 0xc6 {
             return Ok(None);
         }
+        Self::enter_location(
+            rom,
+            map,
+            trigger,
+            orientation,
+            camera_fixed,
+            player,
+            10,
+            TransitionKind::EnterSpaceNeedle,
+        )
+    }
+    /// Verified Redmond (map 2), Jump House door C4, shared bar map 13.
+    pub fn jump_house_from_contact(
+        rom: &[u8],
+        map: &crate::maps::MapDescriptor,
+        trigger: u8,
+        orientation: u8,
+        camera_fixed: (u16, u16),
+        player: (u16, u16),
+    ) -> Result<Option<Self>, RomError> {
+        if map.id != 2 || trigger != 0xc4 {
+            return Ok(None);
+        }
+        Self::enter_location(
+            rom,
+            map,
+            trigger,
+            orientation,
+            camera_fixed,
+            player,
+            13,
+            TransitionKind::EnterJumpHouse,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn enter_location(
+        rom: &[u8],
+        map: &crate::maps::MapDescriptor,
+        trigger: u8,
+        orientation: u8,
+        camera_fixed: (u16, u16),
+        player: (u16, u16),
+        expected: usize,
+        kind: TransitionKind,
+    ) -> Result<Option<Self>, RomError> {
         let table = u32::from_be_bytes(map.raw[0x4e..0x52].try_into().unwrap()) as usize;
         let target = *rom
             .get(table + usize::from(trigger & 31))
             .ok_or(RomError("location route outside ROM"))? as usize;
-        if target != 10 {
-            return Err(RomError(
-                "Space Needle location target differs from traced ROM",
-            ));
+        if target != expected {
+            return Err(RomError("verified interior target differs from traced ROM"));
         }
         let descriptor = crate::maps::MapDescriptor::read(rom, target)?;
         let mut positions = [(0, 0); 3];
@@ -126,7 +170,7 @@ impl TransitionPlan {
             positions: return_positions,
         };
         Ok(Some(Self {
-            kind: TransitionKind::EnterSpaceNeedle,
+            kind,
             exterior_return: Some(saved),
             source_map: map.id,
             target_map: target,
@@ -139,7 +183,9 @@ impl TransitionPlan {
         }))
     }
     pub fn leave_interior(map: usize, trigger: u8, saved: ExteriorReturn) -> Option<Self> {
-        if map != 10 || trigger != 0x80 {
+        if !((map == 10 && saved.map_id == 0) || (map == 13 && saved.map_id == 2))
+            || trigger != 0x80
+        {
             return None;
         }
         Some(Self {

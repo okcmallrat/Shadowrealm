@@ -209,14 +209,35 @@ impl MapScene {
         length: usize,
     ) -> Result<(), RomError> {
         let payload = slice(rom, source, length)?;
+        self.transfer_bytes(destination, payload)
+    }
+    pub(crate) fn transfer_bytes(
+        &mut self,
+        destination: usize,
+        payload: &[u8],
+    ) -> Result<(), RomError> {
         let end = destination
-            .checked_add(length)
+            .checked_add(payload.len())
             .ok_or(RomError("VRAM transfer overflow"))?;
         self.vram
             .get_mut(destination..end)
             .ok_or(RomError("transfer outside VRAM"))?
             .copy_from_slice(payload);
         Ok(())
+    }
+    /// $3f9e reads unflipped plane-B source tile bytes, not the composited screen
+    /// or animated VRAM. Its tile-source offset is a signed 16-bit word.
+    pub(crate) fn status_background_tile<'a>(
+        &self,
+        rom: &'a [u8],
+        x: u16,
+        y: u16,
+    ) -> Result<&'a [u8], RomError> {
+        let attribute = self.attribute_linear(0, x, y)?;
+        let offset = (attribute & 0x7ff).wrapping_sub(0x201).wrapping_mul(32) as i16;
+        let base = long(&self.descriptor.raw, 0x38)?;
+        let at = (i64::from(base) + i64::from(offset)) as usize;
+        slice(rom, at, 32)
     }
     pub(crate) fn tile_pixel(&self, tile: u16, x: usize, y: usize) -> Result<u8, RomError> {
         sample(&self.vram, tile, x, y)

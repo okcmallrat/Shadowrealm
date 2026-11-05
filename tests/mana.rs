@@ -40,7 +40,12 @@ fn fixture(rom: &[u8], item: u8, health: u8) -> Game {
         a.set_position((160 + i as u16 * 20) * 16, 200 * 16);
         a.set_word(0xc, 100);
     }
+    // Isolate this caster/effect fixture from the newly automatic companion AI.
+    for a in &mut game.party {
+        a.set_word(0xb6, 1000);
+    }
     equip(&mut game, rom, if item == 8 { 0 } else { 2 }, item);
+    game.party[game.selected].set_word(0xb6, 0);
     let mut target = Runner::load(rom, 0, 0).unwrap();
     target.set_word(0x3e, 3);
     target.set_position(280 * 16, 200 * 16);
@@ -80,12 +85,12 @@ fn learned_mana_spells_render_every_frame_and_finish_the_original_defeat_pose() 
                         frames |= 1 << frame;
                     }
                 }
-                if game.combat.casting.impacts > 0 {
+                if game.combat.casting.impacts_by_actor[slot] > 0 {
                     break;
                 }
             }
             assert!(
-                game.combat.casting.impacts > 0,
+                game.combat.casting.impacts_by_actor[slot] > 0,
                 "item {item}: {}",
                 game.combat.status
             );
@@ -132,12 +137,16 @@ fn real_street_encounter_accepts_freyas_learned_mana_blast() {
             targeted = true;
         }
         game.update(&rom, buttons).unwrap();
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[2] > 0 {
             break;
         }
     }
     assert!(game.encounters.spawned > 0);
-    assert!(game.combat.casting.impacts > 0, "{}", game.combat.status);
+    assert!(
+        game.combat.casting.impacts_by_actor[2] > 0,
+        "{}",
+        game.combat.status
+    );
     eprintln!(
         "Real Mana Blast completion at tick {}, casts {}, encounters {}",
         game.tick, game.combat.casting.casts, game.encounters.spawned
@@ -250,12 +259,12 @@ fn equipped_mana_companion_can_complete_an_attack_without_player_fire_input() {
     game.combat.launch.timeout = 120;
     for _ in 0..500 {
         game.update(&rom, 0).unwrap();
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[2] > 0 {
             break;
         }
     }
-    assert!(game.combat.casting.casts > 0);
-    assert!(game.combat.casting.impacts > 0);
+    assert!(game.combat.casting.casts_by_actor[2] > 0);
+    assert!(game.combat.casting.impacts_by_actor[2] > 0);
     assert!(game.npcs[0].raw[0x4c] < 10);
 }
 

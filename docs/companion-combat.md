@@ -1,5 +1,9 @@
 # Bounded companion firearm combat
 
+Automatic attack/Heal selection and the bounded caller context are now connected;
+see [automatic companion magic](automatic-companion-magic.md) for the current
+behavior and remaining limits. The notes below describe this earlier checkpoint.
+
 The later [native casting milestone](spell-casting.md) enables Flame Dart/Bolt.
 Earlier casting limits below describe the preceding checkpoints.
 

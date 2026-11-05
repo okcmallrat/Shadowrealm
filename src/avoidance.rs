@@ -100,7 +100,9 @@ impl TravelScope {
         code >= 0x80
             && (([0, 3, 5].contains(&self.map) && code & 31 == 16)
                 || (self.map == 0 && code == 0xc6)
-                || (self.map == 10 && self.has_return && code == 0x80))
+                || (self.map == 2 && matches!(code, 0xc0..=0xc7 | 0xc9 | 0xcb))
+                || (self.map == 13 && self.has_return && code == 0x9e)
+                || ([10, 13].contains(&self.map) && self.has_return && code == 0x80))
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -30,6 +30,12 @@ pub struct Game {
     pub saved_exterior: Option<ExteriorReturn>,
     pub knowledge: Knowledge,
     pub nuyen: u32,
+    pub jobs: crate::jobs::Runtime,
+    job_catalog: crate::jobs::Catalog,
+    job_dialogue: bool,
+    job_trigger_held: Option<(usize, u8)>,
+    job_failure_medical: Option<Dialogue>,
+    job_prison_next: Option<usize>,
     pub targeting: Targeting,
     pub combat: crate::combat_runtime::Runtime,
     pub encounters: crate::encounters::Runtime,
@@ -106,6 +112,12 @@ impl Game {
             saved_exterior: None,
             knowledge: Knowledge::default(),
             nuyen: hiring::initial_balance(rom)?,
+            jobs: Default::default(),
+            job_catalog: crate::jobs::Catalog::load(rom)?,
+            job_dialogue: false,
+            job_trigger_held: None,
+            job_failure_medical: None,
+            job_prison_next: None,
             targeting: Targeting::default(),
             combat: Default::default(),
             encounters: Default::default(),
@@ -133,6 +145,7 @@ impl Game {
             avoidance: avoidance::State::default(),
         };
         result.combat.spellbooks = Some(crate::spellbooks::Spellbooks::load(rom)?);
+        crate::companion_magic::Catalog::load(rom)?;
         result.refresh_hud(rom)?;
         result.sync_projections();
         Ok(result)
@@ -152,7 +165,131 @@ impl Game {
             r.set_word(0xc, if visible { origin.1 } else { 0 });
         }
     }
+    /// Host J shortcut for the current original briefing; no mission mutation.
+    pub fn show_job(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        if self.dialogue.is_some() || self.transition.is_some() || self.defeated {
+            return Ok(());
+        }
+        if !self.jobs.active() {
+            self.combat.status = "No current run";
+            return Ok(());
+        }
+        self.dialogue = Some(self.job_catalog.briefing(rom, &self.jobs, false, true)?);
+        self.dialogue.as_mut().unwrap().funds = Some(self.nuyen);
+        self.job_dialogue = true;
+        Ok(())
+    }
+    fn follow_job_dialogue(&mut self, rom: &[u8], slot: usize) -> Result<(), RomError> {
+        let Some(choice) = self
+            .dialogue
+            .as_ref()
+            .and_then(|d| d.choices.get(slot))
+            .filter(|c| c.available)
+        else {
+            return Ok(());
+        };
+        let destination = choice.destination;
+        let mut jobs = self.jobs.clone();
+        let mut random = avoidance::State {
+            seed: self.avoidance.seed,
+        };
+        let mut next = match destination {
+            13 => self
+                .job_catalog
+                .dialogue(rom, if jobs.active() { 0x105900 } else { 0x1051b4 })?,
+            7 => {
+                jobs.generate(rom, &self.job_catalog, self.party[0].raw[0x8c], &mut random)?;
+                self.job_catalog.briefing(rom, &jobs, false, false)?
+            }
+            9 => self.job_catalog.briefing(rom, &jobs, true, false)?,
+            50 if jobs.courier() => {
+                jobs.accepted = true;
+                self.job_catalog.dialogue(rom, 0x1058e8)?
+            }
+            11 => {
+                jobs.clear();
+                self.job_catalog.dialogue(rom, 0x1058e0)?
+            }
+            12 => {
+                jobs.cancel();
+                self.job_catalog.dialogue(rom, 0x105918)?
+            }
+            100 => self.job_catalog.dialogue(
+                rom,
+                self.job_prison_next
+                    .ok_or(RomError("prison courier continuation missing"))?,
+            )?,
+            address if address >= 250 => self.job_catalog.dialogue(rom, address)?,
+            _ => return Ok(()),
+        };
+        self.jobs = jobs;
+        next.funds = Some(self.nuyen);
+        self.combat.status = if self.jobs.active() && !self.jobs.courier() {
+            "This kind of run is not available yet"
+        } else {
+            ""
+        };
+        if destination == 100 {
+            self.job_prison_next = None;
+        }
+        self.avoidance.seed = random.seed;
+        self.dialogue = Some(next);
+        Ok(())
+    }
+    /// Only the verified Jump House booth and an active courier's matching
+    /// Redmond stop are admitted; other building/story services remain guarded.
+    fn job_trigger(&mut self, rom: &[u8], code: u8) -> Result<bool, RomError> {
+        let request = Some((self.map.id, code));
+        if self.job_trigger_held == request {
+            return Ok(false);
+        }
+        if self.map.id == 13 && code == 0x9e && self.saved_exterior.is_some_and(|s| s.map_id == 2) {
+            let page = self.job_catalog.dialogue(rom, 0x105114)?;
+            self.dialogue = Some(page);
+            self.job_dialogue = true;
+            self.job_trigger_held = request;
+            return Ok(true);
+        }
+        if self.map.id != 2 || !self.jobs.courier() || !self.jobs.accepted {
+            return Ok(false);
+        }
+        let location = code & 31;
+        let mut jobs = self.jobs.clone();
+        let mut balance = self.nuyen;
+        let mut party = self.party.clone();
+        let visit = jobs.visit(2, location, &mut balance, &mut party);
+        if visit == crate::jobs::Visit::None {
+            return Ok(false);
+        }
+        let stop = self
+            .job_catalog
+            .stops
+            .iter()
+            .find(|s| s.location == location)
+            .ok_or(RomError("courier stop missing"))?;
+        let next = if visit == crate::jobs::Visit::Pickup {
+            stop.pickup.0
+        } else {
+            stop.delivery.0
+        };
+        let mut page = self
+            .job_catalog
+            .dialogue(rom, if location == 0 { 0x1113d2 } else { next })?;
+        page.caption = "COURIER RUN";
+        page.funds = Some(balance);
+        self.jobs = jobs;
+        self.nuyen = balance;
+        self.party = party;
+        self.dialogue = Some(page);
+        self.job_dialogue = true;
+        self.job_prison_next = (location == 0).then_some(next);
+        self.job_trigger_held = request;
+        Ok(true)
+    }
     fn follow_dialogue(&mut self, rom: &[u8], slot: usize) -> Result<(), RomError> {
+        if self.job_dialogue {
+            return self.follow_job_dialogue(rom, slot);
+        }
         let dialogue = self
             .dialogue
             .as_ref()
@@ -289,6 +426,19 @@ impl Game {
         if let Some(saved) = self.saved_exterior {
             return Ok(TransitionPlan::leave_interior(self.map.id, code, saved));
         }
+        if let Some(plan) = TransitionPlan::jump_house_from_contact(
+            rom,
+            &self.map,
+            code,
+            orientation,
+            (
+                self.camera.0.wrapping_mul(16),
+                self.camera.1.wrapping_mul(16),
+            ),
+            self.party[self.selected].position(),
+        )? {
+            return Ok(Some(plan));
+        }
         TransitionPlan::space_needle_from_contact(
             rom,
             &self.map,
@@ -302,8 +452,18 @@ impl Game {
         )
     }
     fn start_transition(&mut self, rom: &[u8], plan: TransitionPlan) -> Result<(), RomError> {
-        if plan.kind == TransitionKind::EnterSpaceNeedle {
-            self.dialogue = Some(Dialogue::exposition(rom, self.catalog.entrance.address.0)?);
+        if matches!(
+            plan.kind,
+            TransitionKind::EnterSpaceNeedle | TransitionKind::EnterJumpHouse
+        ) {
+            self.dialogue = Some(Dialogue::exposition(
+                rom,
+                if plan.kind == TransitionKind::EnterJumpHouse {
+                    0x110d1e
+                } else {
+                    self.catalog.entrance.address.0
+                },
+            )?);
             self.dialogue_target = Some(plan);
         } else {
             self.transition = Some(ActiveTransition {
@@ -364,7 +524,9 @@ impl Game {
             vec![]
         };
         self.saved_exterior = match plan.kind {
-            TransitionKind::EnterSpaceNeedle => plan.exterior_return,
+            TransitionKind::EnterSpaceNeedle | TransitionKind::EnterJumpHouse => {
+                plan.exterior_return
+            }
             TransitionKind::ReturnToExterior | TransitionKind::Clinic => None,
             TransitionKind::Exterior => self.saved_exterior,
         };
@@ -420,6 +582,7 @@ impl Game {
                     &mut self.combat.damage,
                     &mut self.avoidance,
                 )?;
+                crate::status_spells::tick(&mut spell_actors, self.tick as u16);
                 if self.accept_combat_actors(&spell_actors) {
                     self.refresh_hud(rom)?;
                 }
@@ -507,7 +670,7 @@ impl Game {
         next.raw[0x56] = 255;
         next.set_word(0xdc, timer);
         self.party[self.selected] = next;
-        if self.heal_selected() {
+        if self.party_spell_selected() {
             let slot = self.party[self.selected].word(0x3e);
             self.party[self.selected].raw[0xa2..0xa6]
                 .copy_from_slice(&(0xff0100 + u32::from(slot) * 256).to_be_bytes());
@@ -520,19 +683,23 @@ impl Game {
     pub fn heal_selected(&self) -> bool {
         (self.party[self.selected].raw[0x56] as i8) < 0 && self.party[self.selected].raw[0x57] == 12
     }
-    /// Host party-target chooser for the original Heal target pointer.
+    pub fn party_spell_selected(&self) -> bool {
+        (self.party[self.selected].raw[0x56] as i8) < 0
+            && matches!(self.party[self.selected].raw[0x57], 4 | 11 | 12)
+    }
+    /// Host party-target chooser for the original beneficial-spell target pointer.
     pub fn cycle_party_target(&mut self) {
         if self.dialogue.is_some() || self.transition.is_some() || self.defeated {
             return;
         }
-        if !self.heal_selected() {
-            self.combat.status = "Select Heal with M before choosing a party target";
+        if !self.party_spell_selected() {
+            self.combat.status = "Select a party spell with M before choosing a party target";
             return;
         }
         let ids = self
             .party
             .iter()
-            .filter(|a| a.raw[0x10] & 1 != 0)
+            .filter(|a| a.raw[0x10] & 1 != 0 && (self.heal_selected() || a.raw[0x10] & 0x40 == 0))
             .map(|a| a.word(0x3e) as u8)
             .collect::<Vec<_>>();
         if ids.is_empty() {
@@ -607,6 +774,10 @@ impl Game {
             if self.clinic_plan.is_some()
                 && self.input.pressed & (crate::input::A | crate::input::START) != 0
             {
+                if let Some(notice) = self.job_failure_medical.take() {
+                    self.dialogue = Some(notice);
+                    return Ok(());
+                }
                 if let Some(next) = self.dialogue.as_ref().and_then(|d| d.choices.first()) {
                     let mut notice = Dialogue::exposition(rom, next.destination)?;
                     notice.caption = "DOCWAGON";
@@ -645,6 +816,7 @@ impl Game {
                     != 0
                 {
                     self.dialogue = None;
+                    self.job_dialogue = false;
                     if let Some(plan) = self.dialogue_target.take() {
                         self.transition = Some(ActiveTransition {
                             plan,
@@ -685,14 +857,14 @@ impl Game {
             self.targeting.invalidate(&mut self.party);
         }
         if self.targeting.enabled
-            && self.heal_selected()
+            && self.party_spell_selected()
             && combat::target(&self.party[self.selected]).is_none()
         {
             let slot = self.party[self.selected].word(0x3e);
             self.party[self.selected].raw[0xa2..0xa6]
                 .copy_from_slice(&(0xff0100 + u32::from(slot) * 256).to_be_bytes());
         }
-        if self.targeting.enabled && !self.heal_selected() {
+        if self.targeting.enabled && !self.party_spell_selected() {
             let actors: Vec<_> = self.party.iter().chain(self.npcs.iter()).collect();
             self.targeting
                 .lists
@@ -736,7 +908,13 @@ impl Game {
         self.combat
             .begin_tick(&self.combat_actors(), self.tick as u16);
         let mut serviced = false;
+        let mut preceding_d5 = None;
         for slot in 0..self.party.len() {
+            if slot > 0 && self.party[slot - 1].raw[0x10] & 1 != 0 {
+                preceding_d5 =
+                    crate::companion_magic::after_actor(&self.collision, &self.party[slot - 1]);
+            }
+            self.combat.companion_capacity_index = preceding_d5;
             let completed_cast = matches!(
                 crate::combat_runtime::handler(&self.party[slot]),
                 0xafe0 | 0xafe2
@@ -826,6 +1004,9 @@ impl Game {
             if response.handled {
                 if let Some(trigger) = response.trigger {
                     self.pending_transition = Some(trigger.code);
+                    if self.job_trigger(rom, trigger.code)? {
+                        return Ok(());
+                    }
                     if let Some(plan) =
                         self.resolve_trigger(rom, trigger.code, trigger.orientation)?
                     {
@@ -841,6 +1022,7 @@ impl Game {
             let runner = &mut self.party[self.selected];
             let mut plan = None;
             let mut moved = false;
+            let mut job_request = None;
             if let Some(target) = heading {
                 runner.turn_toward(target);
                 let direction = (runner.word(0x2e).rotate_left(3) & 7) as usize;
@@ -876,11 +1058,22 @@ impl Game {
                         if runner.raw[0x10] & 2 != 0
                             && self.collision.trigger_corners(candidate) >= 2
                         {
+                            job_request = Some(code);
                             plan = TransitionPlan::exterior(rom, source_map, code, camera_fixed_x)?;
                             if plan.is_none() {
                                 if let Some(saved) = self.saved_exterior {
                                     plan = TransitionPlan::leave_interior(source_map, code, saved);
                                 } else {
+                                    plan = TransitionPlan::jump_house_from_contact(
+                                        rom,
+                                        &self.map,
+                                        code,
+                                        code.rotate_left(3) & 3,
+                                        (camera_fixed_x, self.camera.1.wrapping_mul(16)),
+                                        runner.position(),
+                                    )?;
+                                }
+                                if plan.is_none() && self.saved_exterior.is_none() {
                                     plan = TransitionPlan::space_needle(
                                         rom,
                                         &self.map,
@@ -904,6 +1097,16 @@ impl Game {
             if heading.is_some() {
                 runner.set_word(0xb8, if moved { 0x1000 } else { 0xffff });
                 runner.set_word(0xca, 30);
+            }
+            if let Some(code) = job_request {
+                if self.job_trigger_held == Some((self.map.id, code)) {
+                    plan = None;
+                }
+                if self.job_trigger(rom, code)? {
+                    return Ok(());
+                }
+            } else if moved {
+                self.job_trigger_held = None;
             }
             if let Some(plan) = plan {
                 self.start_transition(rom, plan)?;
@@ -958,6 +1161,7 @@ impl Game {
             &mut self.combat.damage,
             &mut self.avoidance,
         )?;
+        crate::status_spells::tick(&mut spell_actors, self.tick as u16);
         if self.accept_combat_actors(&spell_actors) {
             self.refresh_hud(rom)?;
         }
@@ -996,6 +1200,14 @@ impl Game {
         ) {
             let record = crate::clinic::Record::load(rom)?;
             let notice = Dialogue::medical(rom, &record, recovery.insured)?;
+            let mut jobs = self.jobs.clone();
+            let failure = if jobs.fail_on_defeat() {
+                let mut notice = self.job_catalog.dialogue(rom, 0xf2510)?;
+                notice.caption = "COURIER RUN";
+                Some(notice)
+            } else {
+                None
+            };
             let archives = self.archives.after_defeat(&self.party)?;
             let plan = TransitionPlan::clinic(rom, self.map.id, &record, recovery.insured)?;
             // Validate destination assets before charging; apply_transition loads the same ROM again.
@@ -1025,7 +1237,14 @@ impl Game {
             self.party[0].raw[0x10] |= 2;
             self.targeting.invalidate(&mut self.party);
             self.nuyen = recovery.balance;
-            self.dialogue = Some(notice);
+            self.jobs = jobs;
+            if let Some(failure) = failure {
+                self.dialogue = Some(failure);
+                self.job_failure_medical = Some(notice);
+            } else {
+                self.dialogue = Some(notice);
+            }
+            self.job_dialogue = false;
             self.clinic_plan = Some(plan);
             self.defeat_notice = None;
             self.defeated = true;
@@ -1047,8 +1266,10 @@ impl Game {
         let id = combat::target(&self.party[self.selected])?;
         self.party.iter().chain(self.npcs.iter()).find(|r| {
             r.word(0x3e) == u16::from(id.0)
-                && if self.heal_selected() {
-                    r.word(0x3e) < 3 && r.raw[0x10] & 1 != 0
+                && if self.party_spell_selected() {
+                    r.word(0x3e) < 3
+                        && r.raw[0x10] & 1 != 0
+                        && (self.heal_selected() || r.raw[0x10] & 0x40 == 0)
                 } else {
                     r.raw[0x10] & 0x41 == 1
                 }
@@ -1154,7 +1375,7 @@ impl Game {
     }
     /// Independent, non-mutating diagnostic with cleared collision scratch.
     pub fn selected_fire_probe(&self, rom: &[u8]) -> Result<Option<combat::LineProbe>, RomError> {
-        if self.heal_selected()
+        if self.party_spell_selected()
             && combat::target(&self.party[self.selected])
                 .is_some_and(|id| u16::from(id.0) == self.party[self.selected].word(0x3e))
         {
@@ -1185,12 +1406,12 @@ impl Game {
         for runner in &actors {
             let seq = runner.sequence(rom)?;
             let index = (runner.clock.frame as usize).min(seq.frames.len() - 1);
-            frames.push(ActorFrame::load(
+            frames.push(ActorFrame::load_status(
                 rom,
                 seq.frames[index],
                 &mut self.scene,
-                runner.word(0x20),
-                runner.palette(),
+                runner,
+                self.camera,
             )?);
         }
         let catalog = crate::casting::Catalog::load(rom)?;

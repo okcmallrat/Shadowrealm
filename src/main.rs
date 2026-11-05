@@ -1,4 +1,5 @@
 use shadowrealm::Rom;
+mod automatic_magic_export;
 mod avoidance_export;
 mod caster_movement_export;
 mod casting_export;
@@ -10,7 +11,9 @@ mod follower_export;
 mod healing_export;
 mod hiring_export;
 mod interior_export;
+mod job_export;
 mod spellbook_export;
+mod status_export;
 use std::{
     env,
     error::Error,
@@ -34,6 +37,24 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = fs::read(&args[2])?;
     let rom = Rom::parse(&data)?;
     match args[1].as_str() {
+        "job-data" => {
+            if args.len() != 4 {
+                return Err("job-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            job_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "automatic-magic-data" => {
+            if args.len() != 4 {
+                return Err("automatic-magic-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            automatic_magic_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "status-data" => {
+            if args.len() != 4 {
+                return Err("status-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            status_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
         "caster-movement-data" => {
             if args.len() != 4 {
                 return Err("caster-movement-data ROM NEW_OUTPUT_DIRECTORY".into());

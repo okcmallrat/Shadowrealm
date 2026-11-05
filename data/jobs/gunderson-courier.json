@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "generator": "0x1e69c",
+  "offer_table": "0xf3ebc",
+  "location_table": "0xf3e80",
+  "location_names": "0xf1f1a",
+  "district_names": "0xf1e58",
+  "visit": "0x1ef2c",
+  "reward": "0x1f00a",
+  "clear": "0x1e68c",
+  "nodes": [
+    {
+      "address": "0x105114",
+      "text": "0x106266",
+      "choices": [
+        {
+          "text": "0x104051",
+          "destination": "0x105168"
+        },
+        {
+          "text": "0x103a3a",
+          "destination": "0xd"
+        },
+        {
+          "text": "0x104feb",
+          "destination": "0x1051c8"
+        }
+      ]
+    },
+    {
+      "address": "0x1051b4",
+      "text": "0x106c74",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0x7"
+        }
+      ]
+    },
+    {
+      "address": "0x1051c8",
+      "text": "0x106cc5",
+      "choices": []
+    },
+    {
+      "address": "0x1058e8",
+      "text": "0x105f81",
+      "choices": []
+    },
+    {
+      "address": "0x1058e0",
+      "text": "0x105f32",
+      "choices": []
+    },
+    {
+      "address": "0x1058f8",
+      "text": "0x105cf2",
+      "choices": []
+    },
+    {
+      "address": "0x105900",
+      "text": "0x105d6d",
+      "choices": [
+        {
+          "text": "0x103a0e",
+          "destination": "0xc"
+        },
+        {
+          "text": "0x103a13",
+          "destination": "0x10592c"
+        }
+      ]
+    },
+    {
+      "address": "0x10592c",
+      "text": "0x105e29",
+      "choices": []
+    },
+    {
+      "address": "0x105918",
+      "text": "0x105dcc",
+      "choices": [
+        {
+          "text": "0x104003",
+          "destination": "0x7"
+        }
+      ]
+    },
+    {
+      "address": "0x110d1e",
+      "text": "0x116c12",
+      "choices": []
+    },
+    {
+      "address": "0x1113b2",
+      "text": "0x11625f",
+      "choices": []
+    },
+    {
+      "address": "0x1113ba",
+      "text": "0x1162d9",
+      "choices": []
+    },
+    {
+      "address": "0x11147a",
+      "text": "0x1176bb",
+      "choices": []
+    },
+    {
+      "address": "0x111482",
+      "text": "0x117718",
+      "choices": []
+    },
+    {
+      "address": "0xf4aec",
+      "text": "0x1168a3",
+      "choices": []
+    },
+    {
+      "address": "0xf4af4",
+      "text": "0x112765",
+      "choices": []
+    },
+    {
+      "address": "0x11149a",
+      "text": "0x112edd",
+      "choices": []
+    },
+    {
+      "address": "0x1114a2",
+      "text": "0x116ba8",
+      "choices": []
+    },
+    {
+      "address": "0x1114b2",
+      "text": "0x116cee",
+      "choices": []
+    },
+    {
+      "address": "0x1114ba",
+      "text": "0x116d68",
+      "choices": []
+    },
+    {
+      "address": "0x1114ca",
+      "text": "0x116e85",
+      "choices": []
+    },
+    {
+      "address": "0x1114d2",
+      "text": "0x116eea",
+      "choices": []
+    },
+    {
+      "address": "0xf4c98",
+      "text": "0xf8739",
+      "choices": []
+    },
+    {
+      "address": "0xf4ca0",
+      "text": "0xf8794",
+      "choices": []
+    },
+    {
+      "address": "0x1114da",
+      "text": "0x11700f",
+      "choices": []
+    },
+    {
+      "address": "0x1114e2",
+      "text": "0x117067",
+      "choices": []
+    },
+    {
+      "address": "0x11155e",
+      "text": "0x116e85",
+      "choices": []
+    },
+    {
+      "address": "0x110d72",
+      "text": "0x1177d0",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0x111566"
+        }
+      ]
+    },
+    {
+      "address": "0x11166e",
+      "text": "0x1189f2",
+      "choices": []
+    },
+    {
+      "address": "0x111676",
+      "text": "0x118a6c",
+      "choices": []
+    },
+    {
+      "address": "0xf2510",
+      "text": "0xf2421",
+      "choices": []
+    },
+    {
+      "address": "0x1113d2",
+      "text": "0x1161e6",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0x64"
+        }
+      ]
+    }
+  ],
+  "stops": [
+    {
+      "location": 0,
+      "pickup": "0x1113b2",
+      "delivery": "0x1113ba"
+    },
+    {
+      "location": 1,
+      "pickup": "0x11147a",
+      "delivery": "0x111482"
+    },
+    {
+      "location": 2,
+      "pickup": "0xf4aec",
+      "delivery": "0xf4af4"
+    },
+    {
+      "location": 3,
+      "pickup": "0x11149a",
+      "delivery": "0x1114a2"
+    },
+    {
+      "location": 4,
+      "pickup": "0x1114b2",
+      "delivery": "0x1114ba"
+    },
+    {
+      "location": 5,
+      "pickup": "0x1114ca",
+      "delivery": "0x1114d2"
+    },
+    {
+      "location": 6,
+      "pickup": "0xf4c98",
+      "delivery": "0xf4ca0"
+    },
+    {
+      "location": 7,
+      "pickup": "0x1114da",
+      "delivery": "0x1114e2"
+    },
+    {
+      "location": 9,
+      "pickup": "0x11155e",
+      "delivery": "0x110d72"
+    },
+    {
+      "location": 11,
+      "pickup": "0x11166e",
+      "delivery": "0x111676"
+    }
+  ]
+}

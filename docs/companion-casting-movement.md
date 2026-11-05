@@ -1,5 +1,9 @@
 # Companion attack-spell movement
 
+Automatic attack/Heal selection and the bounded caller context are now connected;
+see [automatic companion magic](automatic-companion-magic.md) for the current
+behavior and remaining limits. The notes below describe this earlier checkpoint.
+
 Already equipped Flame Dart/Bolt and Mana Zap/Blast companions now continue
 through original combat positioning. They pursue a retained enemy while
 offscreen, recover a blocked approach, reposition while cooling down, and rejoin

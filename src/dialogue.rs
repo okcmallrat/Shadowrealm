@@ -21,6 +21,7 @@ pub struct Dialogue {
     pub page: usize,
     pub caption: &'static str,
     pub funds: Option<u32>,
+    pub quote: Option<u32>,
     hint: Option<&'static str>,
 }
 
@@ -105,7 +106,7 @@ impl Dialogue {
         result.hint = Some("R: RESTART  ESC: EXIT");
         Ok(result)
     }
-    fn with_text(
+    pub(crate) fn with_text(
         rom: &[u8],
         node: usize,
         text_address: usize,
@@ -125,6 +126,7 @@ impl Dialogue {
             page: 0,
             caption: "LOCATION",
             funds: None,
+            quote: None,
             hint: None,
         })
     }
@@ -294,7 +296,9 @@ impl Dialogue {
             }
         }
         self.draw(rom, pixels, self.caption, 12, 38)?;
-        if let Some(balance) = self.funds {
+        if let Some(pay) = self.quote {
+            self.draw(rom, pixels, &format!("PAY {pay}"), 160, 38)?;
+        } else if let Some(balance) = self.funds {
             self.draw(rom, pixels, &format!("NUYEN {balance}"), 160, 38)?;
         }
         let lines = Self::wrap(&self.text, 37)?;

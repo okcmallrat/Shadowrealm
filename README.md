@@ -26,8 +26,9 @@ See [companion behavior](docs/companion-following.md) and
 
 Uncontrolled mundane firearm companions now target, pursue, shoot and reload
 through the original companion scheduler. Joshua uses this path after Tab
-transfers control. Spell-capable companion selection remains deferred with a
-title message; Ricky/Freya do not gain a fabricated gun preference.
+transfers control. Ricky/Freya now automatically choose supported learned attack
+spells or Heal and restore inventory firearms when the original drain gate
+rejects magic. No M/G/F input is needed for these companion decisions.
 See [companion combat scope and checks](docs/companion-combat.md).
 
 Typed Serde/JSON catalogs describe verified spellbooks and effect references;
@@ -39,14 +40,27 @@ Try Mana Blast with the default roster: Tab to Freya, M once from her starting
 weapon, T to target and F to cast. M cycles actual known spells/forces; G restores
 an inventory weapon. For Heal, cycle M until Heal and use P to choose a party
 member. M/G/P remain host shortcuts while the original menus are pending.
-Automatic companion spell equipment conversion, other spell actions and full
-magic AI remain unfinished. Already equipped attack casters now pursue enemies,
-recover blocked paths and reposition during cooldown; after equipping Freya's
-Mana Blast, Tab back to Joshua to let her act without F input. See
+Automatic attack/Heal choices now connect equipment conversion, enemy targeting,
+blocked-path recovery, cooldown movement and critical-party healing. The default
+party completes magic in a real map-5 encounter using idle input alone. Special
+register contexts, automatic status spells, other spell actions and full magic AI
+remain unfinished. See [automatic companion magic](docs/automatic-companion-magic.md),
 [companion casting movement](docs/companion-casting-movement.md),
 [mana evidence and limits](docs/mana-spells.md),
 [healing](docs/healing.md), [casting](docs/spell-casting.md), and
 [equipment/drain](docs/spell-equipment.md).
+
+Invisibility and Rockskin now use original instant status initializers, clocks
+and tile transforms. Freya knows Invisibility and Ricky knows Rockskin; M selects,
+P cycles living party targets and F casts. G restores a weapon while retaining
+the status. See [status spell behavior and original quirks](docs/status-spells.md).
+
+The first repeatable job loop is now connected: Gunderson's Redmond courier
+runs support generated offers, pickup, delivery, nuyen/Karma payment and another
+offer. Launch `Shadowrealm.exe Shadowrun.bin 2`, enter the Jump House on the
+north side and approach the upper-left booth. J reviews the current run.
+Courier offers can be accepted; other offered job types remain unavailable.
+See [courier gameplay and original checks](docs/courier-job-loop.md).
 
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
 The corrected uploaded [Ghidra analysis reference](docs/ghidra-reference.md) is now
@@ -70,7 +84,9 @@ not new-game recruitment. Unfinished interior entrances still stop movement.
 
 To test hiring with a free slot and explicitly seeded development funds, launch
 `Shadowrealm.exe --solo --nuyen 3000`. The normal fresh-session balance is 20,
-read from the original bootstrap. Earning money through missions is not implemented.
+read from the original bootstrap. The Redmond courier loop now earns nuyen and
+Karma; other job objectives, district travel and general spending menus remain
+unimplemented.
 See [hiring evidence and limits](docs/trent-hiring.md).
 
 The executable was cross-built and inspected here. Windows GUI/input testing

@@ -64,10 +64,10 @@ fn blocked_caster_navigates_around_a_wall_then_casts_without_player_fire() {
     let mut moved_before_cast = false;
     for _ in 0..1800 {
         game.update(&rom, 0).unwrap();
-        if game.combat.casting.casts == 0 && game.party[2].position() != before {
+        if game.combat.casting.casts_by_actor[2] == 0 && game.party[2].position() != before {
             moved_before_cast = true;
         }
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[2] > 0 {
             break;
         }
     }
@@ -76,7 +76,7 @@ fn blocked_caster_navigates_around_a_wall_then_casts_without_player_fire() {
         "blocked casters must pursue before casting"
     );
     assert!(
-        game.combat.casting.impacts > 0,
+        game.combat.casting.impacts_by_actor[2] > 0,
         "did not cast after wall recovery: {} / {:?}",
         game.combat.status,
         game.combat.companion_deferred
@@ -107,18 +107,18 @@ fn offscreen_caster_pursues_a_retained_target_until_visible_then_casts() {
         game.update(&rom, 0).unwrap();
         if game.party[2].word(0xc) == 0 {
             assert_eq!(
-                game.combat.casting.casts, 0,
+                game.combat.casting.casts_by_actor[2], 0,
                 "offscreen caster must not cast"
             );
             offscreen_move |= game.party[2].position() != before;
         }
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[2] > 0 {
             break;
         }
     }
     assert!(offscreen_move);
     assert!(
-        game.combat.casting.impacts > 0,
+        game.combat.casting.impacts_by_actor[2] > 0,
         "caster never returned to action"
     );
     assert!(game.npcs[0].raw[0x4c] < 10);
@@ -154,7 +154,7 @@ fn cooling_caster_repositions_without_spending_spell_or_weapon_resources() {
         &game.party[2].raw[0x3a..0x3e],
         game.combat.launch.engaged
     );
-    assert_eq!(game.combat.casting.casts, 0);
+    assert_eq!(game.combat.casting.casts_by_actor[2], 0);
     assert_eq!(game.combat.shots, 0);
     assert_eq!(
         (
@@ -177,7 +177,7 @@ fn caster_with_no_enemies_shuts_down_combat_and_rejoins_formation_immediately() 
     game.update(&rom, 0).unwrap();
     assert_eq!(game.combat.launch.engaged, 0);
     assert!(shadowrealm::combat::target(&game.party[2]).is_none());
-    assert_eq!(game.combat.casting.casts, 0);
+    assert_eq!(game.combat.casting.casts_by_actor[2], 0);
     assert_eq!(combat_runtime::handler(&game.party[2]), 0xb574);
     assert_ne!(
         (game.party[2].word(0x96), game.party[2].word(0x98)),
@@ -194,13 +194,13 @@ fn real_street_companion_completes_a_learned_spell_without_fire_input() {
     let before = game.party[2].position();
     for _ in 0..6000 {
         game.update(&rom, 0).unwrap();
-        if game.combat.casting.impacts > 0 || game.defeated {
+        if game.combat.casting.impacts_by_actor[2] > 0 || game.defeated {
             break;
         }
     }
     assert!(game.encounters.spawned > 0);
     assert!(
-        game.combat.casting.impacts > 0,
+        game.combat.casting.impacts_by_actor[2] > 0,
         "no companion impact: {} / {:?}",
         game.combat.status,
         game.combat.companion_deferred
@@ -208,7 +208,7 @@ fn real_street_companion_completes_a_learned_spell_without_fire_input() {
     assert_ne!(game.party[2].position(), before);
     eprintln!(
         "Real companion spell completed at tick {}, casts {}, encounters {}",
-        game.tick, game.combat.casting.casts, game.encounters.spawned
+        game.tick, game.combat.casting.casts_by_actor[2], game.encounters.spawned
     );
     game.render(&rom).unwrap();
 }

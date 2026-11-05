@@ -28,7 +28,12 @@ pub struct Runtime {
     pub npc_fire: crate::npc_combat::FireContext,
     pub npc_shots: u64,
     pub companion_shots: u64,
+    pub companion_spell_changes: u64,
     pub spellbooks: Option<crate::spellbooks::Spellbooks>,
+    /// Original D5.w from the preceding actor's represented dispatch, not a weapon ID.
+    pub companion_capacity_index: Option<u16>,
+    /// Original $ffe190, written only by an actual successful critical-health scan.
+    pub healing_hint: u8,
     /// Explicit boundary for spell/inventory selection and non-firearm actions.
     pub companion_deferred: [Option<&'static str>; 3],
 }
@@ -50,7 +55,10 @@ impl Default for Runtime {
             npc_fire: Default::default(),
             npc_shots: 0,
             companion_shots: 0,
+            companion_spell_changes: 0,
             spellbooks: None,
+            companion_capacity_index: None,
+            healing_hint: 0,
             companion_deferred: [None; 3],
         }
     }
@@ -143,6 +151,7 @@ impl Runtime {
         self.pool.iter().any(|p| p[0x10] & 1 != 0) || self.casting.live != 0
     }
     pub fn clear_map(&mut self) {
+        self.companion_capacity_index = None;
         self.pool = [[0; 256]; 6];
         self.casting.graphics = [false; 18];
         self.casting.live = 0;
@@ -304,20 +313,45 @@ impl Runtime {
                 let mut staged = State { seed: random.seed };
                 let (selection, healing_target) =
                     crate::spellbooks::select(rom, books, &source, actors, &mut staged)?;
-                if source.raw[0x57] == 12 {
-                    if let Some(target) = healing_target {
-                        source.raw[0xa2..0xa6]
-                            .copy_from_slice(&(0xff0100 + u32::from(target) * 256).to_be_bytes());
-                    }
-                }
+                let scans_current = (source.raw[0x56] as i8) < 0
+                    && (source.raw[0x57] == 12
+                        || (matches!(source.raw[0x57], 1 | 2 | 8 | 9)
+                            && books.candidates(source.word(0xa0))?.1.is_some()));
+                let writes_hint = scans_current
+                    || matches!(selection,crate::spellbooks::Selection::Spell(s) if s.id==11);
                 match selection {
                     crate::spellbooks::Selection::KeepEquipped => {
                         random.seed = staged.seed;
                     }
-                    crate::spellbooks::Selection::Spell(_) => {
-                        self.companion_deferred[usize::from(slot)] =
-                            Some("Automatic companion spell equipment is not available yet");
-                        return Ok(());
+                    crate::spellbooks::Selection::Spell(spell) => {
+                        let requires_context =
+                            source.raw[0x57] != 0 && (source.raw[0x57] as i8) < 13;
+                        let Some(capacity_index) = self
+                            .companion_capacity_index
+                            .or_else(|| (!requires_context).then_some(0))
+                        else {
+                            self.companion_deferred[usize::from(slot)] =
+                                Some("Automatic companion spell equipment context is unavailable");
+                            return Ok(());
+                        };
+                        let mut equipped = source.clone();
+                        if let Err(error) = crate::spell_equipment::equip_spell(
+                            rom,
+                            &mut equipped,
+                            spell,
+                            capacity_index,
+                        ) {
+                            if error.0 == "equipment table outside ROM" {
+                                self.companion_deferred[usize::from(slot)] = Some(
+                                    "Companion conversion lookup is outside the supported ROM",
+                                );
+                                return Ok(());
+                            }
+                            return Err(error);
+                        }
+                        source = equipped;
+                        random.seed = staged.seed;
+                        self.companion_spell_changes += 1;
                     }
                     crate::spellbooks::Selection::InventoryWeapon => {
                         let mut equipped = source.clone();
@@ -330,6 +364,18 @@ impl Runtime {
                                 Some("Companion melee action is not available yet");
                             return Ok(());
                         }
+                    }
+                }
+                if writes_hint {
+                    // $13bba can scan before the condition gate returns early;
+                    // select's returned target is then intentionally None.
+                    let hint = if scans_current {
+                        crate::spellbooks::healing_target(actors)
+                    } else {
+                        healing_target
+                    };
+                    if let Some(target) = hint {
+                        self.healing_hint = target;
                     }
                 }
             } else {
@@ -345,13 +391,7 @@ impl Runtime {
                     Some("Companion spell context is not available yet");
                 return Ok(());
             }
-            if source.raw[0x57] == 12 {
-                if crate::combat::target(&source).is_none_or(|id| id.0 >= 3) {
-                    let target = crate::spellbooks::healing_target(actors).unwrap_or(0);
-                    source.raw[0xa2..0xa6]
-                        .copy_from_slice(&(0xff0100 + u32::from(target) * 256).to_be_bytes());
-                }
-            } else if self.npc_targets.acquire(&mut source, random) {
+            if self.npc_targets.acquire(&mut source, random) {
                 actors[index] = source;
                 self.launch.end_combat(actors);
                 source = actors[index].clone();
@@ -361,13 +401,7 @@ impl Runtime {
                 return Ok(());
             }
             actors[index] = source;
-            if actors[index].raw[0x57] != 12 {
-                self.companion_magic(rom, collision, actors, index, random)?;
-                return Ok(());
-            }
-            if actors[index].word(0xc) != 0 && (actors[index].word(0xdc) as i16) < 0 {
-                self.cast_actor(rom, collision, actors, slot, random)?;
-            }
+            self.companion_magic(rom, collision, actors, index, random)?;
             return Ok(());
         }
         if source.raw[0x56] >= 8
@@ -486,7 +520,7 @@ impl Runtime {
     }
 
     /// $140a0/$14146 followed by the shared $13d56 positioning path.
-    /// Healing retains its separate target-redirection boundary for now.
+    /// Heal redirects from the acquired enemy only after its original first probe.
     fn companion_magic(
         &mut self,
         rom: &[u8],
@@ -527,6 +561,16 @@ impl Runtime {
                     }
                     crate::combat::LineOutcome::Blocked => true,
                     _ => {
+                        if source.raw[0x57] == 12 {
+                            if self.healing_hint >= 3 {
+                                self.companion_deferred[usize::from(source.word(0x3e))] =
+                                    Some("Companion healing target context is unavailable");
+                                return Ok(());
+                            }
+                            actors[index].raw[0xa2..0xa6].copy_from_slice(
+                                &(0xff0100 + u32::from(self.healing_hint) * 256).to_be_bytes(),
+                            );
+                        }
                         // $140b4 probes once, then $ae6e probes again before
                         // the roll. Continue through positioning after the pose.
                         self.cast_actor(rom, collision, actors, source.word(0x3e), random)?;
@@ -544,7 +588,11 @@ impl Runtime {
                 source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
             }
         } else {
-            self.combat_position(rom, collision, &mut source, &target, fallback)?;
+            let positioned_target = crate::combat::target(&source)
+                .and_then(|id| actors.iter().find(|a| a.word(0x3e) == u16::from(id.0)))
+                .cloned()
+                .unwrap_or(target);
+            self.combat_position(rom, collision, &mut source, &positioned_target, fallback)?;
         }
         actors[index] = source;
         Ok(())
@@ -595,12 +643,13 @@ impl Runtime {
             return Ok(false);
         };
         let healing = actors[index].raw[0x57] == 12;
-        if healing && actors[target].word(0x3e) >= 3 {
+        let friendly = matches!(actors[index].raw[0x57], 4 | 11 | 12);
+        if friendly && actors[target].word(0x3e) >= 3 {
             self.status = "Choose a party member with P";
             return Ok(false);
         }
         if self.launch.mode != 0
-            || (!healing && actors[target].raw[0x9b] == 0x17)
+            || (!friendly && actors[target].raw[0x9b] == 0x17)
             || actors
                 .iter()
                 .any(|a| a.raw[0x10] & 1 != 0 && a.raw[0xdf] & 3 != 0)
@@ -658,6 +707,11 @@ impl Runtime {
             }
             return Err(error);
         }
+        if healing && matches!(result, Ok(crate::casting::CastResult::Effect { .. })) {
+            // $15830 calls $b574 on the recipient; $b48c copies the final
+            // collision scratch into its $d0 record as well as global $ef10.
+            self.npc_fire.samples = actors[target].raw[0xd0..0xd4].try_into().unwrap();
+        }
         crate::casting::prepare_result_pose(
             rom,
             &mut actors[index],
@@ -699,7 +753,7 @@ impl Runtime {
             return Ok(());
         }
         self.player_attempt = true;
-        if (source.raw[0x56] as i8) < 0 && matches!(source.raw[0x57], 1 | 2 | 8 | 9 | 12) {
+        if (source.raw[0x56] as i8) < 0 && matches!(source.raw[0x57], 1 | 2 | 4 | 8 | 9 | 11 | 12) {
             self.cast_actor(rom, collision, actors, selected, random)?;
             return Ok(());
         }

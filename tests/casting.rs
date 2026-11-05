@@ -61,13 +61,13 @@ fn native_flame_bolt_rolls_drains_animates_and_damages_without_ammunition_loss()
                     rendered_frames |= 1 << phase;
                 }
             }
-            if game.combat.casting.impacts > 0 {
+            if game.combat.casting.impacts_by_actor[1] > 0 {
                 break;
             }
         }
         assert!(saw_effect);
-        assert!(game.combat.casting.casts > 0);
-        assert!(game.combat.casting.impacts > 0);
+        assert!(game.combat.casting.casts_by_actor[1] > 0);
+        assert!(game.combat.casting.impacts_by_actor[1] > 0);
         assert!(game.npcs[0].raw[0x4c] < target_health);
         assert_eq!(game.party[1].raw[0x4e], stored_ammo);
         assert!(game.party[1].raw[0x9c] <= initial_condition);
@@ -136,20 +136,26 @@ fn original_roster_casts_flame_bolt_against_a_real_street_encounter() {
             buttons |= input::A;
         }
         game.update(&rom, buttons).unwrap();
-        if game.combat.casting.impacts > 0 {
+        if game.combat.casting.impacts_by_actor[1] > 0 {
             break;
         }
     }
     assert!(game.encounters.spawned > 0);
     assert!(
-        game.combat.casting.casts > 0,
+        game.combat.casting.casts_by_actor[1] > 0,
         "no casts: {}",
         game.combat.status
     );
-    assert!(game.combat.casting.impacts > 0, "effect never completed");
+    assert!(
+        game.combat.casting.impacts_by_actor[1] > 0,
+        "effect never completed"
+    );
     eprintln!(
         "Real street spell at tick {}, casts {}, impacts {}, spawned {}",
-        game.tick, game.combat.casting.casts, game.combat.casting.impacts, game.encounters.spawned
+        game.tick,
+        game.combat.casting.casts_by_actor[1],
+        game.combat.casting.impacts_by_actor[1],
+        game.encounters.spawned
     );
     game.render(&rom).unwrap();
 }
@@ -188,7 +194,7 @@ fn blocked_spell_admission_does_not_spend_rng_drain_or_reserve_a_graphic() {
     assert_eq!(rng.seed, 321);
     assert_eq!(a.iter().map(|a| a.raw).collect::<Vec<_>>(), before);
     assert_eq!(game.combat.casting.live, 0);
-    assert_eq!(game.combat.casting.casts, 0);
+    assert_eq!(game.combat.casting.casts_by_actor[1], 0);
 }
 #[test]
 #[ignore = "requires the user-supplied ROM"]

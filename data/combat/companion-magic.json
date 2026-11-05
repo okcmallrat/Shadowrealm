@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "dispatcher": "0xaaa0",
+  "companion_call": "0xac8e",
+  "companion_scheduler": "0x138b8",
+  "selection": "0x13a92",
+  "conversion": "0x125fa",
+  "collision": "0xe7c8",
+  "pixel_shift": 4,
+  "fixed_handlers": ["0xb574"],
+  "pixel_handlers": ["0xb45c", "0xb3ee", "0xb07e", "0xb38a", "0xafe0", "0xafe2", "0xb0d4", "0xb10c"],
+  "capacity_table": "0xd4540",
+  "capacity_stride": 48,
+  "capacity_offset": 36
+}
