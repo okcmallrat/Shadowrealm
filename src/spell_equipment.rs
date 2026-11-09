@@ -92,7 +92,20 @@ pub fn apply_selection(
         Selection::InventoryWeapon => equip_inventory(rom, actor),
     }
 }
-fn add_condition(a: &mut Runner, amount: u8) {
+pub(crate) fn add_health(a: &mut Runner, amount: u8) {
+    let old = a.raw[0x4c];
+    let sum = old.wrapping_add(amount);
+    a.raw[0x4c] = if a.raw[0x10] & 1 != 0 && (old as i8 as i16) + (amount as i8 as i16) > 0 {
+        if (sum as i8) > 10 {
+            10
+        } else {
+            sum
+        }
+    } else {
+        0
+    };
+}
+pub(crate) fn add_condition(a: &mut Runner, amount: u8) {
     if a.raw[0x10] & 1 == 0 {
         a.raw[0x9c] = 0;
         return;
@@ -102,17 +115,7 @@ fn add_condition(a: &mut Runner, amount: u8) {
     if (old as i8 as i16) + (amount as i8 as i16) > 0 {
         a.raw[0x9c] = if (result as i8) > 10 { 10 } else { result };
     } else {
-        let health = a.raw[0x4c];
-        let health_sum = health.wrapping_add(result);
-        a.raw[0x4c] = if (health as i8 as i16) + (result as i8 as i16) > 0 {
-            if (health_sum as i8) > 10 {
-                10
-            } else {
-                health_sum
-            }
-        } else {
-            0
-        };
+        add_health(a, result);
         a.raw[0x9c] = 0;
     }
 }

@@ -2,6 +2,13 @@
 
 This a project for myself and is for my educational purposes only - *It's just a freaking project of mine*
 
+Normal desktop launch now opens **New Game / Load Game**. Choose Samurai,
+Decker or Gator Shaman to start Joshua alone in Redmond with the original stats,
+equipment, spellbook and 20 nuyen. Load Game restores an existing native slot.
+R opens this menu during play; Resume keeps the suspended game. `--explore`
+launches the prior Joshua/Ricky/Freya development roster. See
+[new-game scope and checks](docs/new-game-and-opening-menu.md).
+
 Native Rust reconstruction of the Genesis version of Shadowrun, targeting a
 complete Windows PC game. The current milestone is a **Windows exploration
 build**, with a desktop window, persistent party state, collision-aware movement,
@@ -11,7 +18,7 @@ state. The Space Needle entrance now shows its ROM passage, loads the interior,
 and returns to the saved exterior formation. Trent now has a bounded conversation
 with recovered information/knowledge branches and bounded hire/rehire flow,
 using a small Serde/JSON pilot. General story/dialogue scripts,
-combat, AI, saves and audio remain unfinished.
+combat, AI, original menus and audio remain unfinished.
 Non-selected companions now perform bounded noncombat following, formation,
 static wall sliding and recovered fallback wall hugging. Party/NPC overlap now
 uses the original physical separation response, including player deflections
@@ -36,12 +43,12 @@ Rust executes the rules. Flame Dart/Bolt, Mana Zap/Blast and Heal now run throug
 original rolls, drain and timed effects. Attack spells apply original resistance,
 damage and reactions; Heal restores party health/condition and fallen-state flags.
 
-Try Mana Blast with the default roster: Tab to Freya, M once from her starting
+Try Mana Blast with `--explore`: Tab to Freya, M once from her starting
 weapon, T to target and F to cast. M cycles actual known spells/forces; G restores
 an inventory weapon. For Heal, cycle M until Heal and use P to choose a party
 member. M/G/P remain host shortcuts while the original menus are pending.
 Automatic attack/Heal choices now connect equipment conversion, enemy targeting,
-blocked-path recovery, cooldown movement and critical-party healing. The default
+blocked-path recovery, cooldown movement and critical-party healing. The `--explore`
 party completes magic in a real map-5 encounter using idle input alone. Special
 register contexts, automatic status spells, other spell actions and full magic AI
 remain unfinished. See [automatic companion magic](docs/automatic-companion-magic.md),
@@ -62,6 +69,44 @@ north side and approach the upper-left booth. J reviews the current run.
 Courier offers can be accepted; other offered job types remain unavailable.
 See [courier gameplay and original checks](docs/courier-job-loop.md).
 
+New games start in Redmond (map 2), where this route is reachable.
+Earn 250 nuyen through courier runs, then visit Stoker's Coffin Motel and ask for
+Michael's belongings. Paying his back rent recovers the original stash, 500 nuyen,
+Karma and DocWagon wristband, and unlocks taxi travel. Press **C** on a city street
+to choose among the six city districts. Story gates, fares, free rides when short
+of funds and descriptor arrivals use the recovered rules. The connected test
+completes six courier runs, buys the belongings and arrives Downtown without
+assigning money, positions, stats or job outcomes.
+See [first objective and city travel](docs/stoker-and-taxi.md).
+
+Downtown’s **Gates Undersound Hotel** now rents a 75-nuyen room for partial
+rest and Karma advancement. Choose a runner, an attribute/skill, and confirm
+the quoted cost; check out before saving. Courier-earned Karma can improve
+Joshua and companions, and those upgrades survive native save/load.
+See [hotel rules and validation](docs/hotel-and-karma.md).
+
+Stoker's now rents its original **20-nuyen room**, including rest and Karma
+spending. Post-objective visits execute the actual random Halloweener encounter:
+one gunner and two unarmed attackers. NPC punches, condition knockouts and normal
+medical recovery for all three Joshua archetypes are connected. An earned route
+survives the fight, rests, improves Body and reloads its checkpoint. See
+[Stoker combat, rest and source checks](docs/stoker-ambush-and-rest.md).
+
+Redmond's Ares Weapon Emporium now sells firearms and ammunition with original
+stock, prices, negotiation, inventory-space and clip-limit rules. Press **I**
+between actions to select an owned firearm; F fires it and reloads from reserves.
+A connected test earns the money, buys a Warhawk and a clip, equips it and fires
+through a reload without assigning money, gear or job outcomes.
+See [Ares equipment and verification](docs/ares-equipment.md).
+
+**F5 saves / F9 loads** one of two native checkpoints from a safe city street.
+Money, purchased equipment/ammo, party archives, spellbooks, courier/package state,
+story progress and positions survive closing the game. Saves live beside the EXE
+in `saves/`, with a previous valid backup; failed loads retain the current game.
+The earned-money/Ares route now saves to disk, loads in a separate process and
+resumes firing the purchased Warhawk with the correct resources.
+See [native save/load scope and checks](docs/native-save-load.md).
+
 For resuming development, start with [the project handoff](docs/HANDOFF.md).
 The corrected uploaded [Ghidra analysis reference](docs/ghidra-reference.md) is now
 part of the reverse-engineering workflow; the desktop runtime remains native Rust.
@@ -74,18 +119,18 @@ Download and extract [`Shadowrealm-windows-x64-exploration.zip`](releases/Shadow
 and launch the EXE on Windows 10/11 x64. No Rust/Python/emulator installation is
 needed for the package. The ROM is not bundled.
 
-Arrow keys/WASD move, F fires, Tab switches runner, T toggles target selection outside
+Arrow keys/WASD move, F fires, I selects a firearm, C calls a taxi, Tab switches runner, T toggles target selection outside
 dialogue, Enter/Z acknowledges the entrance
-passage or dialogue choice, Space pauses, R resets, Escape exits. During dialogue,
+passage or dialogue choice, F5 saves, F9 loads, Space pauses, R opens the start menu, Escape exits. During dialogue,
 Up/Down selects a choice and Left/Right pages long text. Trent can be hired when
 there is a free companion slot and sufficient nuyen.
-The roster is an explicit test setup using original Joshua/Ricky/Freya templates,
-not new-game recruitment. Unfinished interior entrances still stop movement.
+Normal New Game starts Joshua alone. `--explore` selects the explicit
+Joshua/Ricky/Freya development roster. R resets directly in development mode. Unfinished interior entrances still stop movement.
 
 To test hiring with a free slot and explicitly seeded development funds, launch
 `Shadowrealm.exe --solo --nuyen 3000`. The normal fresh-session balance is 20,
 read from the original bootstrap. The Redmond courier loop now earns nuyen and
-Karma; other job objectives, district travel and general spending menus remain
+Karma; other job objectives, wilderness travel and general spending menus remain
 unimplemented.
 See [hiring evidence and limits](docs/trent-hiring.md).
 
@@ -137,8 +182,8 @@ The `region-screen` command previews the mismatch screen using ROM text and font
 even when the ROM matches the console region. It writes a 320x224 PPM image.
 Its fixed asset offsets target the supplied revision, not arbitrary Genesis ROMs.
 
-Console hardware initialization, audio, general scripts, combat, saves and the
-title/new-game UI remain unfinished. Native exploration and bounded dialogue/
+Console hardware initialization, audio, general scripts, combat, original menus and the
+original title/intro cinematics remain unfinished. Native exploration and bounded dialogue/
 hiring now use the map, character and HUD components below. The early reverse-
 engineering notes in `docs/analysis.md` predate those milestones.
 
@@ -295,11 +340,12 @@ and contracts are archived in memory before removal, and Joshua returns through
 Little Chiba. Rehiring Trent preserves those fields and uses his original
 negative-opinion dialogue and fees. Insured recovery also implements both DocWagon
 passages and the Seattle General arrival; insurance purchasing is still absent.
-Mission-specific recovery, other runner recruitment, disk saves and companion
+Mission-specific recovery, other runner recruitment, original save UI and broader companion
 combat remain unfinished. Enter/Z acknowledges each recovery passage.
 
 Normal defeat now archives and removes companions before Joshua's medical recovery.
 Trent retains his equipment/stats on rehire, with original negative-opinion dialogue
 and fees. Insured recovery has both DocWagon passages and the hospital arrival;
 coverage purchasing and mission-specific recovery remain unfinished. These archives
-are in memory; disk save/load is absent. See [recovery scope and evidence](docs/defeat-and-recovery.md).
+now persist through native checkpoints. See [recovery scope and evidence](docs/defeat-and-recovery.md)
+and [save/load](docs/native-save-load.md).

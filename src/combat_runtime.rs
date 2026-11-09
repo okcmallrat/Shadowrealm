@@ -27,6 +27,7 @@ pub struct Runtime {
     target_tick: Option<u16>,
     pub npc_fire: crate::npc_combat::FireContext,
     pub npc_shots: u64,
+    pub npc_punches: u64,
     pub companion_shots: u64,
     pub companion_spell_changes: u64,
     pub spellbooks: Option<crate::spellbooks::Spellbooks>,
@@ -54,6 +55,7 @@ impl Default for Runtime {
             target_tick: None,
             npc_fire: Default::default(),
             npc_shots: 0,
+            npc_punches: 0,
             companion_shots: 0,
             companion_spell_changes: 0,
             spellbooks: None,
@@ -69,7 +71,7 @@ pub fn handler(actor: &Runner) -> u32 {
 pub fn action(actor: &Runner) -> bool {
     matches!(
         handler(actor),
-        0xb3ee | 0xb07e | 0xb38a | 0xafe0 | 0xafe2 | 0xb0d4 | 0xb10c
+        0xb316 | 0xb3ee | 0xb07e | 0xb38a | 0xafe0 | 0xafe2 | 0xb0d4 | 0xb10c
     )
 }
 pub fn holds_movement(actor: &Runner) -> bool {
@@ -87,12 +89,29 @@ pub fn tick_animation(rom: &[u8], actor: &mut Runner) -> Result<(), RomError> {
     };
     let advanced =
         (actor.word(0x1a).wrapping_add(actor.word(0x18)) as i16) >= (actor.word(0x1c) as i16);
-    clock.tick(
-        actor.word(0x1c),
-        actor.word(0x18),
-        seq.frames.len() as u16,
-        seq.terminal,
-    )?;
+    if actor.word(0x1c) == 0 {
+        // $5fdc subtracts zero on a fresh hit-FX slot. This is valid source
+        // arithmetic, followed by $600e's ordinary terminal clamp.
+        clock.phase = clock.phase.wrapping_add(actor.word(0x18));
+        if (clock.phase as i16) >= 0 {
+            clock.frame = clock.frame.wrapping_add(1);
+        }
+        if clock.frame as i16 >= seq.frames.len() as i16 {
+            if seq.terminal {
+                clock.frame = seq.frames.len() as u16 - 1;
+                clock.ended = true;
+            } else {
+                clock.frame = 0;
+            }
+        }
+    } else {
+        clock.tick(
+            actor.word(0x1c),
+            actor.word(0x18),
+            seq.frames.len() as u16,
+            seq.terminal,
+        )?;
+    }
     if advanced {
         actor.raw[0x11] |= 1;
     }
@@ -129,7 +148,7 @@ pub fn prepare_actor(r: &mut Runner) {
                 r.raw[0x10] |= 0x40;
             }
         }
-        0xb3ee | 0xb07e | 0xafe0 | 0xafe2 => {
+        0xb316 | 0xb3ee | 0xb07e | 0xafe0 | 0xafe2 => {
             r.set_word(0x38, 0);
             if handler(r) == 0xb07e {
                 r.raw[0xce] = r.raw[0xce].wrapping_sub(1);
@@ -220,8 +239,8 @@ impl Runtime {
         let supported = (matches!(branch, DispatchBranch::Combat | DispatchBranch::Alert)
             || offscreen)
             && source.bank() != 13
-            && source.raw[0x56] < 8
-            && (1..=12).contains(&source.raw[0x57])
+            && ((source.raw[0x56] < 8 && (1..=12).contains(&source.raw[0x57]))
+                || (source.raw[0x57] == 0 && source.bank() < 12 && source.raw[0x11] & 0x40 == 0))
             && source.raw[0xdf] & 3 == 0;
         if !supported {
             return Ok(false);
@@ -254,6 +273,37 @@ impl Runtime {
             return Ok(true);
         };
         let mut target = actors[target_index].clone();
+        if source.raw[0x57] == 0 {
+            if let Some(angle) = crate::unarmed::in_range(rom, &source, &target)? {
+                source.set_word(0x34, angle);
+                let position = source.position();
+                source.set_word(0x96, position.0);
+                source.set_word(0x98, position.1);
+                if (source.word(0xdc) as i16) < 0 {
+                    actors[index] = source;
+                    crate::unarmed::strike(
+                        rom,
+                        actors,
+                        slot as u8,
+                        target.word(0x3e) as u8,
+                        &mut self.pool,
+                        &mut self.launch,
+                        &mut self.damage,
+                        random,
+                    )?;
+                    self.npc_punches += 1;
+                } else {
+                    source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
+                    actors[index] = source;
+                }
+            } else {
+                source.set_word(0x96, target.position().0);
+                source.set_word(0x98, target.position().1);
+                crate::followers::steer_goal(rom, collision, &mut source)?;
+                actors[index] = source;
+            }
+            return Ok(true);
+        }
         let ordinary = self.firearm(rom, collision, &mut source, &mut target, random)?;
         actors[target_index] = target;
         actors[index] = source;

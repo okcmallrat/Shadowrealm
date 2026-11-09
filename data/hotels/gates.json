@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "scope": "Gates Undersound Hotel paid rest and per-runner Karma; host menus, original byte rules",
+  "district": 0,
+  "location": 3,
+  "fee": 75,
+  "entry": "0x1f65a",
+  "payment": "0x21458",
+  "rest": "0xef08",
+  "quote": "0xd82a",
+  "upgrade": "0xd33a",
+  "race_caps": "0xc22a6",
+  "attribute_labels": "0xc1a2a",
+  "skill_labels": "0xc1a4a",
+  "nodes": [
+    {
+      "address": "0xf4910",
+      "text": "0x11385c",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0xf4924"
+        }
+      ]
+    },
+    {
+      "address": "0xf4924",
+      "text": "0x113918",
+      "choices": [
+        {
+          "text": "0x103a17",
+          "destination": "0xf493c"
+        },
+        {
+          "text": "0x104feb",
+          "destination": "0xf4b2c"
+        }
+      ]
+    },
+    {
+      "address": "0xf493c",
+      "text": "0x113a8d",
+      "choices": [
+        {
+          "text": "0x103a7a",
+          "destination": "0x6"
+        },
+        {
+          "text": "0x104feb",
+          "destination": "0xf4b2c"
+        }
+      ]
+    },
+    {
+      "address": "0xf4b2c",
+      "text": "0xf4134",
+      "choices": []
+    },
+    {
+      "address": "0xf5ab8",
+      "text": "0xf4241",
+      "choices": []
+    },
+    {
+      "address": "0xf5af8",
+      "text": "0xf42c1",
+      "choices": []
+    }
+  ]
+}

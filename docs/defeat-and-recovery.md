@@ -1,5 +1,9 @@
 # Defeat, runner archives and medical recovery
 
+The later [Stoker encounter and rest milestone](stoker-ambush-and-rest.md)
+connects the motel room, unarmed NPC attacks and expanded normal recovery.
+The notes below retain the earlier milestone’s scope and validation record.
+
 Baseline physical defeat sets `$e166` to 60 through `$aff2/$abb6`. Game services
 `$1ddc6..$1ddda` after actor/projectile dispatch; the lethal-hit frame leaves 59.
 Expiry requests recovery once. The original 1,024 countdown comparisons remain

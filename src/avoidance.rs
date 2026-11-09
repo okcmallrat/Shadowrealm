@@ -99,7 +99,7 @@ impl TravelScope {
     pub fn allows(self, code: u8) -> bool {
         code >= 0x80
             && (([0, 3, 5].contains(&self.map) && code & 31 == 16)
-                || (self.map == 0 && code == 0xc6)
+                || (self.map == 0 && matches!(code, 0xc3 | 0xc6))
                 || (self.map == 2 && matches!(code, 0xc0..=0xc7 | 0xc9 | 0xcb))
                 || (self.map == 13 && self.has_return && code == 0x9e)
                 || ([10, 13].contains(&self.map) && self.has_return && code == 0x80))
@@ -305,6 +305,7 @@ mod tests {
             has_return: false,
         };
         assert!(exterior.allows(0xc6));
+        assert!(exterior.allows(0xc3));
         assert!(exterior.allows(0xb0));
         assert!(!exterior.allows(0xc0));
         assert!(!exterior.allows(0x10));

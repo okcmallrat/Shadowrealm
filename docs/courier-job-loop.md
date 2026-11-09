@@ -111,11 +111,16 @@ generation rollback, and package loss followed by native medical recovery.
 
 ## Remaining scope
 
-This is the first bounded repeatable job loop. Scripted courier ambushes and
-robberies, other objectives/Johnsons, general shops, district travel, original
-new-game/recruitment, full menus and disk saving remain unfinished. Starting in
-Redmond is a development entry point; travel there from the current map-0 start
-has not been implemented. Jobs, nuyen and Karma persist only within the session.
+This is the first bounded repeatable job loop. The subsequent
+[Stoker objective and taxi milestone](stoker-and-taxi.md) connects courier
+earnings to the first story purchase and six city districts; the desktop now
+starts in Redmond. The direct map-2 argument above remains valid.
+Scripted courier ambushes/robberies, other objectives/Johnsons, general shops,
+further story, wilderness travel, original new-game/recruitment, full menus and
+original save UI remain unfinished. Redmond is a development entry point; city travel
+is story-gated until Michael's belongings are recovered. Jobs, nuyen and Karma
+now persist through [native city checkpoints](native-save-load.md), including
+collected packages and one-time payment after loading.
 Linux/Windows builds do not establish Windows GUI/input playtesting.
 
 Final verification: 69 unit tests and all 87 ROM-backed integration tests pass.
@@ -125,3 +130,16 @@ The 548,800-byte local Windows ZIP is refreshed and verified for CRC, all 22
 payload hashes, README/executable identity and x64 PE/DLL imports; it excludes
 the ROM and Ghidra database. This continuation is included in the courier-loop publication checkpoint.
 Windows GUI/input playtesting is pending.
+
+
+## Solo new-game continuation
+
+The [opening-menu milestone](new-game-and-opening-menu.md) now starts an original
+solo archetype. Its six-job route exposed the Halloweener delivery MORE link
+`$110d72 -> $111566` (text `$117868`), whose terminal was missing from this
+catalog. That verified terminal is now included, and enabled courier stop
+continuations must resolve. Payment and flags are unchanged. The fresh solo
+Samurai route completes this delivery and then Michael's belongings, saves and
+loads from a new opening menu with 525 nuyen and seven Karma. Original title/
+intro cinematics and general recruitment remain unfinished; `--explore` retains
+the earlier explicit development roster.

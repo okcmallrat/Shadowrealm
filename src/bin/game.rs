@@ -1,6 +1,11 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 use minifb::{Key, KeyRepeat, Scale, ScaleMode, Window, WindowOptions};
-use shadowrealm::{game::Game, input, Rom};
+use shadowrealm::{
+    game::{FileMode, FileRequest, Game},
+    input,
+    session::Session,
+    Rom,
+};
 use std::{
     error::Error,
     fs,
@@ -34,14 +39,56 @@ fn main() {
         std::process::exit(1);
     }
 }
+fn process_file_request(
+    game: &mut Game,
+    rom: &[u8],
+    directory: &std::path::Path,
+    request: FileRequest,
+) -> Result<(), Box<dyn Error>> {
+    let result = match request.mode {
+        FileMode::Save => game
+            .write_save_slot(rom, directory, request.slot)
+            .map(|()| Some(format!("Saved slot {}.", request.slot))),
+        FileMode::Load => {
+            Game::load_slot(rom, directory, request.slot).and_then(|(mut next, backup)| {
+                let text = format!(
+                    "Loaded slot {}{}.",
+                    request.slot,
+                    if backup { " backup" } else { "" }
+                );
+                next.file_notice(rom, text)?;
+                *game = next;
+                Ok(None)
+            })
+        }
+    };
+    let text = match result {
+        Ok(Some(text)) => text,
+        Ok(None) => return Ok(()),
+        Err(error) => {
+            eprintln!("Save/load failed: {error}");
+            match request.mode {FileMode::Save=>"Save failed. The previous save is retained. Check that the save folder is writable.",FileMode::Load=>"Unable to load this slot or its backup. Your current game is retained."}.into()
+        }
+    };
+    game.file_notice(rom, text)?;
+    Ok(())
+}
 fn run() -> Result<(), Box<dyn Error>> {
     let mut args = std::env::args_os().skip(1);
     let mut positional = vec![];
     let mut solo = false;
+    let mut explore = false;
     let mut funds = None;
+    let mut save_directory = None;
     while let Some(arg) = args.next() {
         match arg.to_str() {
             Some("--solo") => solo = true,
+            Some("--explore") => explore = true,
+            Some("--save-dir") => {
+                save_directory = Some(PathBuf::from(
+                    args.next().ok_or("--save-dir needs a directory")?,
+                ))
+            }
             Some("--nuyen") => {
                 let amount: u32 = args
                     .next()
@@ -60,7 +107,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
     }
     if positional.len() > 2 {
-        return Err("Usage: Shadowrealm.exe [ROM] [MAP] [--solo] [--nuyen AMOUNT]".into());
+        return Err(
+            "Usage: Shadowrealm.exe [ROM] [MAP] [--explore] [--solo] [--nuyen AMOUNT] [--save-dir DIRECTORY]"
+                .into(),
+        );
     }
     let rom_path = if let Some(path) = positional.first() {
         PathBuf::from(path)
@@ -74,7 +124,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .get(1)
         .map(|v| v.to_string_lossy().parse())
         .transpose()?
-        .unwrap_or(0);
+        .unwrap_or(2);
     let rom = fs::read(rom_path)?;
     let parsed = Rom::parse(&rom)?;
     if parsed.checksum() != parsed.stored_checksum() {
@@ -88,7 +138,20 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
         Ok(g)
     };
-    let mut game = load_session()?;
+    let development = explore || solo || funds.is_some() || positional.len() == 2;
+    let mut session = if development {
+        Session::development(load_session()?)
+    } else {
+        Session::new(&rom)?
+    };
+    let save_directory = if let Some(path) = save_directory {
+        path
+    } else {
+        std::env::current_exe()?
+            .parent()
+            .ok_or("executable directory unavailable")?
+            .join("saves")
+    };
     let mut window = Window::new(
         "Shadowrealm — Exploration build",
         320,
@@ -110,28 +173,48 @@ fn run() -> Result<(), Box<dyn Error>> {
         let now = Instant::now();
         accumulator += (now - last).min(Duration::from_millis(100));
         last = now;
-        if window.is_key_pressed(Key::Space, KeyRepeat::No) {
+        if session.menu.is_none() && window.is_key_pressed(Key::Space, KeyRepeat::No) {
             paused = !paused;
             accumulator = Duration::ZERO;
         }
-        if window.is_key_pressed(Key::Tab, KeyRepeat::No) {
-            let selected = (game.selected + 1) % game.party.len();
-            game.select(&rom, selected)?;
-        }
-        if !paused && window.is_key_pressed(Key::M, KeyRepeat::No) {
-            game.cycle_spell(&rom)?;
-        }
-        if !paused && window.is_key_pressed(Key::J, KeyRepeat::No) {
-            game.show_job(&rom)?;
-        }
-        if !paused && window.is_key_pressed(Key::G, KeyRepeat::No) {
-            game.equip_inventory_weapon(&rom)?;
-        }
-        if !paused && window.is_key_pressed(Key::P, KeyRepeat::No) {
-            game.cycle_party_target();
+        if session.menu.is_none() {
+            if let Some(game) = &mut session.game {
+                if window.is_key_pressed(Key::Tab, KeyRepeat::No) {
+                    let selected = (game.selected + 1) % game.party.len();
+                    game.select(&rom, selected)?;
+                }
+                if !paused && window.is_key_pressed(Key::M, KeyRepeat::No) {
+                    game.cycle_spell(&rom)?;
+                }
+                if !paused && window.is_key_pressed(Key::J, KeyRepeat::No) {
+                    game.show_job(&rom)?;
+                }
+                if !paused && window.is_key_pressed(Key::F5, KeyRepeat::No) {
+                    game.open_file_menu(&rom, FileMode::Save)?;
+                }
+                if !paused && window.is_key_pressed(Key::F9, KeyRepeat::No) {
+                    game.open_file_menu(&rom, FileMode::Load)?;
+                }
+                if !paused && window.is_key_pressed(Key::I, KeyRepeat::No) {
+                    game.show_inventory(&rom)?;
+                }
+                if !paused && window.is_key_pressed(Key::C, KeyRepeat::No) {
+                    game.call_taxi(&rom)?;
+                }
+                if !paused && window.is_key_pressed(Key::G, KeyRepeat::No) {
+                    game.equip_inventory_weapon(&rom)?;
+                }
+                if !paused && window.is_key_pressed(Key::P, KeyRepeat::No) {
+                    game.cycle_party_target();
+                }
+            }
         }
         if window.is_key_pressed(Key::R, KeyRepeat::No) {
-            game = load_session()?;
+            if development {
+                session = Session::development(load_session()?);
+            } else {
+                session.open_start(&rom)?;
+            }
             paused = false;
             accumulator = Duration::ZERO;
             last = Instant::now();
@@ -147,76 +230,89 @@ fn run() -> Result<(), Box<dyn Error>> {
                 held |= button;
             }
         }
-        if game.dialogue.is_none() && window.is_key_down(Key::T) {
+        let modal =
+            session.menu.is_some() || session.game.as_ref().is_some_and(|g| g.dialogue.is_some());
+        if !modal && window.is_key_down(Key::T) {
             held |= input::C;
         }
-        if game.dialogue.is_none() && window.is_key_down(Key::F) {
+        if !modal && window.is_key_down(Key::F) {
             held |= input::A;
         }
-        if game.dialogue.is_some() && (window.is_key_down(Key::Enter) || window.is_key_down(Key::Z))
-        {
+        if modal && (window.is_key_down(Key::Enter) || window.is_key_down(Key::Z)) {
             held |= input::A;
         }
         if paused {
             accumulator = Duration::ZERO;
         } else {
             while accumulator >= step {
-                game.update(&rom, held)?;
+                session.update(&rom, held, &save_directory)?;
                 accumulator -= step;
+                if let Some(game) = &mut session.game {
+                    if let Some(request) = game.take_file_request() {
+                        process_file_request(game, &rom, &save_directory, request)?;
+                        accumulator = Duration::ZERO;
+                        last = Instant::now();
+                        break;
+                    }
+                }
             }
         }
-        let pixels = game.render(&rom)?;
+        let pixels = session.render(&rom)?;
         for (out, rgb) in buffer.iter_mut().zip(pixels.chunks_exact(3)) {
             *out = (u32::from(rgb[0]) << 16) | (u32::from(rgb[1]) << 8) | u32::from(rgb[2]);
         }
-        let status = if paused {
-            "Paused"
-        } else if game.dialogue.is_some() {
-            "Up/Down: choice | Left/Right: page | Enter/Z: select"
-        } else if game.transition.is_some() {
-            "Travelling…"
-        } else if game.pending_transition.is_some() {
-            "This entrance is not available in this build"
-        } else {
-            "WASD/arrows: walk | F: attack/cast | T: target | P: party | M: spell | G: weapon"
-        };
-        let line_status = match game.selected_fire_probe(&rom)?.map(|probe| probe.outcome) {
-            Some(shadowrealm::combat::LineOutcome::Blocked) => " [path blocked]",
-            Some(shadowrealm::combat::LineOutcome::OutsideModel) => " [path unknown]",
-            _ => "",
-        };
-        let target_status = if game.targeting.enabled {
-            game.selected_target()
-                .map(|r| format!(" | Target: {}{line_status}", r.name()))
-                .unwrap_or_else(|| " | No visible target".to_string())
-        } else {
-            String::new()
-        };
-        window.set_title(&format!(
-            "Shadowrealm — {} — {status}{target_status}{}{}",
-            game.party[game.selected].name(),
-            game.selected_spell_label(&rom)?
-                .map_or_else(String::new, |label| format!(" | {label}")),
-            if game.combat.status.is_empty() {
-                game.combat
-                    .companion_deferred
-                    .iter()
-                    .enumerate()
-                    .filter(|(slot, _)| {
-                        game.combat.launch.engaged != 0
-                            && *slot != game.selected
-                            && game
-                                .party
-                                .get(*slot)
-                                .is_some_and(|a| a.raw[0x10] & 0x51 == 1)
-                    })
-                    .filter_map(|(_, message)| *message)
-                    .next()
-                    .map_or_else(String::new, |message| format!(" | {message}"))
+        if session.menu.is_some() {
+            window.set_title("Shadowrealm — Up/Down: choose | Left/Right: page | Enter/Z: select");
+        } else if let Some(game) = &session.game {
+            let status = if paused {
+                "Paused"
+            } else if game.dialogue.is_some() {
+                "Up/Down: choice | Left/Right: page | Enter/Z: select"
+            } else if game.transition.is_some() {
+                "Travelling…"
+            } else if game.pending_transition.is_some() {
+                "This entrance is not available in this build"
             } else {
-                format!(" | {}", game.combat.status)
-            }
-        ));
+                "WASD/arrows: walk | F: attack | I: inventory | C: taxi | J: job | F5: save | F9: load"
+            };
+            let line_status = match game.selected_fire_probe(&rom)?.map(|probe| probe.outcome) {
+                Some(shadowrealm::combat::LineOutcome::Blocked) => " [path blocked]",
+                Some(shadowrealm::combat::LineOutcome::OutsideModel) => " [path unknown]",
+                _ => "",
+            };
+            let target_status = if game.targeting.enabled {
+                game.selected_target()
+                    .map(|r| format!(" | Target: {}{line_status}", r.name()))
+                    .unwrap_or_else(|| " | No visible target".to_string())
+            } else {
+                String::new()
+            };
+            window.set_title(&format!(
+                "Shadowrealm — {} — {status}{target_status}{}{}",
+                game.party[game.selected].name(),
+                game.selected_spell_label(&rom)?
+                    .map_or_else(String::new, |label| format!(" | {label}")),
+                if game.combat.status.is_empty() {
+                    game.combat
+                        .companion_deferred
+                        .iter()
+                        .enumerate()
+                        .filter(|(slot, _)| {
+                            game.combat.launch.engaged != 0
+                                && *slot != game.selected
+                                && game
+                                    .party
+                                    .get(*slot)
+                                    .is_some_and(|a| a.raw[0x10] & 0x51 == 1)
+                        })
+                        .filter_map(|(_, message)| *message)
+                        .next()
+                        .map_or_else(String::new, |message| format!(" | {message}"))
+                } else {
+                    format!(" | {}", game.combat.status)
+                }
+            ));
+        }
         window.update_with_buffer(&buffer, 320, 224)?;
     }
     Ok(())

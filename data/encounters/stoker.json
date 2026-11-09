@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "scope": "Stoker post-objective visit and close Halloweener group; original roll and room fee",
+  "action": 233,
+  "routine": "0x249c4",
+  "group": "0x1d6e2a",
+  "prototypes": ["0x1d66a4", "0x1d665a", "0x1d665a"],
+  "normal": "0xf4ab4",
+  "ambush": "0xf4acc",
+  "room_fee_instruction": "0x1f73c",
+  "room_fee": 20
+}

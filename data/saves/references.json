@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "scope": "Native city-street saves using original compact records, global block and checksum",
+  "gate": "0xefb4",
+  "writer": "0x596c4",
+  "reader": "0x594e0",
+  "checksum": "0x59786",
+  "header": "0x59972",
+  "records": 13,
+  "record_bytes": 74,
+  "global_offset": 982,
+  "global_bytes": 584,
+  "checksum_offset": 1584,
+  "slot_bytes": 2048
+}

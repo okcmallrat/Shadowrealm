@@ -302,7 +302,7 @@ impl Dialogue {
             self.draw(rom, pixels, &format!("NUYEN {balance}"), 160, 38)?;
         }
         let lines = Self::wrap(&self.text, 37)?;
-        let page_height = if self.choices.is_empty() { 14 } else { 8 };
+        let page_height = self.page_height();
         let start = self.page.min((lines.len().max(1) - 1) / page_height) * page_height;
         for (i, line) in lines.iter().skip(start).take(page_height).enumerate() {
             self.draw(
@@ -313,7 +313,7 @@ impl Dialogue {
                 54 + i * if self.choices.is_empty() { 10 } else { 9 },
             )?;
         }
-        let mut y = 140;
+        let mut y = if self.choices.len() > 3 { 90 } else { 140 };
         for (i, choice) in self.choices.iter().enumerate() {
             let marker = if self.selected == i { ">" } else { " " };
             let available = if choice.available { "" } else { "*" };
@@ -333,7 +333,13 @@ impl Dialogue {
                     lines.len().div_ceil(page_height)
                 ),
                 12,
-                if self.choices.is_empty() { 198 } else { 128 },
+                if self.choices.is_empty() {
+                    198
+                } else if self.choices.len() > 3 {
+                    80
+                } else {
+                    128
+                },
             )?;
         }
         let hint = if let Some(hint) = self.hint {
@@ -351,9 +357,18 @@ impl Dialogue {
         let count = Self::wrap(&self.text, 37)?
             .len()
             .max(1)
-            .div_ceil(if self.choices.is_empty() { 14 } else { 8 });
+            .div_ceil(self.page_height());
         self.page = self.page.saturating_add_signed(delta).min(count - 1);
         Ok(())
+    }
+    fn page_height(&self) -> usize {
+        if self.choices.is_empty() {
+            14
+        } else if self.choices.len() > 3 {
+            2
+        } else {
+            8
+        }
     }
     fn wrap(text: &str, width: usize) -> Result<Vec<String>, RomError> {
         let mut lines = Vec::new();

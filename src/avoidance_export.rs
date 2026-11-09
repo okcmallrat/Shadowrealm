@@ -139,7 +139,14 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
     }
     let mut travel_grids = vec![];
     let mut travel = vec![];
-    for (map_id, code) in [(0, 0xb0u8), (3, 0xb0), (5, 0xb0), (0, 0xc6), (10, 0x80)] {
+    for (map_id, code) in [
+        (0, 0xb0u8),
+        (3, 0xb0),
+        (5, 0xb0),
+        (0, 0xc6),
+        (0, 0xc3),
+        (10, 0x80),
+    ] {
         let patterns = if map_id == 0 && code == 0xc6 { 9 } else { 8 };
         for pattern in 0..patterns {
             let mut cells = vec![0u8; 4096];

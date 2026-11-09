@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "scope": "Redmond Ares firearms and ammunition; other merchandise and services remain guarded",
+  "district": 2,
+  "location": 11,
+  "shop": 1,
+  "entry": "0x1fa78",
+  "opening": "0x110dd2",
+  "purchase": "0x5794e",
+  "price": "0x57a44",
+  "negotiation": "0x57b04",
+  "weapon_stock": "0x1aac86",
+  "equipment_stock": "0x1aad77",
+  "items": "0xd4540",
+  "shop_stats": "0x1aac6e",
+  "equip": "0x12168",
+  "full_inventory": "0x1aa3c2",
+  "insufficient_funds": "0x1aa587",
+  "clip_limit": "0x1aa54d",
+  "confirmation": "0x1aa715"
+}

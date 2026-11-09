@@ -77,7 +77,7 @@ impl Catalog {
             0x105114, 0x1051b4, 0x1051c8, 0x1058e8, 0x1058e0, 0x1058f8, 0x105900, 0x10592c,
             0x105918, 0x110d1e, 0x1113b2, 0x1113ba, 0x11147a, 0x111482, 0xf4aec, 0xf4af4, 0x11149a,
             0x1114a2, 0x1114b2, 0x1114ba, 0x1114ca, 0x1114d2, 0xf4c98, 0xf4ca0, 0x1114da, 0x1114e2,
-            0x11155e, 0x110d72, 0x11166e, 0x111676, 0xf2510, 0x1113d2,
+            0x11155e, 0x110d72, 0x11166e, 0x111676, 0xf2510, 0x1113d2, 0x111566,
         ];
         if c.nodes.iter().map(|n| n.address.0).collect::<Vec<_>>() != addresses {
             return Err(RomError("courier dialogue outside verified scope"));
@@ -101,6 +101,18 @@ impl Catalog {
                 }
                 if n.choices.len() < 3 && long(rom, n.address.0 + 4 + n.choices.len() * 4)? != 0 {
                     return Err(RomError("courier JSON omits ROM choices"));
+                }
+            }
+        }
+        // Every static continuation of an enabled courier stop must be present.
+        // Wider Gunderson conversation topics remain intentionally unavailable.
+        for stop in &c.stops {
+            for root in [stop.pickup.0, stop.delivery.0] {
+                let node = c.node(root)?;
+                for ch in &node.choices {
+                    if ch.destination.0 >= 250 {
+                        c.node(ch.destination.0)?;
+                    }
                 }
             }
         }

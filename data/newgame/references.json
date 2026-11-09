@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "scope": "Original three-archetype solo Redmond initialization; host opening menus and briefing",
+  "menu": "0x59092",
+  "class_selection": "0x59248",
+  "initialize_archives": "0x59318",
+  "initialize_hero": "0x42b0",
+  "initialize_globals": "0x7fc",
+  "initialize_jobs": "0x1e68c",
+  "initialize_spellbooks": "0x566a2",
+  "start_text": "0x1b6498",
+  "class_text": "0x1b64cf",
+  "slot_text": "0x1b6518",
+  "missing_save": "0x1b6527",
+  "loaded_save": "0x1b6577",
+  "templates": "0x7291a",
+  "initial_map": 2,
+  "initial_lead": 1,
+  "archetypes": [
+    { "archetype": "samurai", "template": 0, "class_byte": 2 },
+    { "archetype": "decker", "template": 1, "class_byte": 3 },
+    { "archetype": "gator_shaman", "template": 2, "class_byte": 1 }
+  ]
+}

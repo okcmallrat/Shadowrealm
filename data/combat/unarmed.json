@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "scope": "Ordinary human unarmed NPC attacks; source byte rules and existing damage reactions",
+  "damage": "0x55c76",
+  "attack": "0xb1dc",
+  "decision": "0x141a0",
+  "range": "0x15c58",
+  "pose_table": "0xc0a2",
+  "armor_table": "0xd4d50",
+  "armor_stride": 48,
+  "impact_armor_offset": 38
+}

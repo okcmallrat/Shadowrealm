@@ -79,9 +79,9 @@ pub fn prepare(party: &[Runner], balance: u32, flags: u32, mode: u8) -> Option<R
     if party.is_empty()
         || party.len() > 3
         || party.iter().skip(1).any(|r| !(3..13).contains(&r.template))
-        || party[0].template != 0
+        || party[0].template > 2
         || party[0].word(0x3e) != 0
-        || party[0].raw[0x4c] != 0
+        || (party[0].raw[0x4c] != 0 && party[0].raw[0x9c] != 0)
         || flags & !1 != 0
         || mode != 0
     {

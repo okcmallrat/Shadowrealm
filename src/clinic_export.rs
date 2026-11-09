@@ -39,6 +39,18 @@ pub fn run(rom: &[u8], out: &Path) -> Result<(), Box<dyn Error>> {
         cases.push(json!({"flags":flags,"node":if result.insured { record.insured.node.0 } else { record.node.0 },"before":before,"after":result.actor.raw.to_vec(),"balance":balance,"after_balance":result.balance,"fee":result.fee}));
     }
     let plan = TransitionPlan::clinic(rom, 5, &record, false)?;
+    for i in 0..768u32 {
+        let mut actor = Runner::load(rom, (i / 256) as usize, 0)?;
+        actor.raw[0x4c] = i as u8;
+        actor.raw[0x9c] = 0;
+        actor.raw[0x10] |= 0x50;
+        actor.raw[0x11] |= 0x40;
+        let balance = i.wrapping_mul(71);
+        let flags = i & 1;
+        let before = actor.raw.to_vec();
+        let result = clinic::prepare(&[actor], balance, flags, 0).unwrap();
+        cases.push(json!({"flags":flags,"node":if result.insured {record.insured.node.0}else{record.node.0},"before":before,"after":result.actor.raw.to_vec(),"balance":balance,"after_balance":result.balance,"fee":result.fee}));
+    }
     let insured_plan = TransitionPlan::clinic(rom, 5, &record, true)?;
     fs::write(
         out.join("clinic.json"),

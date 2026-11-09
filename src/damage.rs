@@ -39,6 +39,25 @@ pub fn react(
     defender: u8,
     world: &mut DamageWorld,
 ) -> Result<Option<u16>, RomError> {
+    reaction(rom, actors, defender, world, false)
+}
+/// $a94a/$a9cc -> $aa4c/$b330 after a zero-condition hurt pose finishes.
+/// Health stays intact; the original incapacitation flags/pose still apply.
+pub fn incapacitate(
+    rom: &[u8],
+    actors: &mut [Runner],
+    defender: u8,
+    world: &mut DamageWorld,
+) -> Result<Option<u16>, RomError> {
+    reaction(rom, actors, defender, world, true)
+}
+fn reaction(
+    rom: &[u8],
+    actors: &mut [Runner],
+    defender: u8,
+    world: &mut DamageWorld,
+    fallen: bool,
+) -> Result<Option<u16>, RomError> {
     let index = actors
         .iter()
         .position(|r| r.word(0x3e) == u16::from(defender))
@@ -46,7 +65,7 @@ pub fn react(
     if actors[index].raw[0x10] & 0x10 != 0 {
         return Ok(None);
     }
-    let dead = actors[index].raw[0x4c] == 0;
+    let dead = fallen || actors[index].raw[0x4c] == 0;
     if dead && actors[index].word(0xe) >= 16 {
         return Err(RomError("death reaction animation bank outside model"));
     }

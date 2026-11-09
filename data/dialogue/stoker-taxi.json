@@ -1,0 +1,281 @@
+{
+  "schema_version": 1,
+  "scope": "Stoker first belongings objective and city taxi travel; no motel rest or cyberspace execution",
+  "selector": "0xd445d",
+  "initial_selector": "0xd4456",
+  "district_records": "0xd4464",
+  "taxi_gate": "0x20714",
+  "taxi_arrival": "0x136de",
+  "actions": [
+    {
+      "id": 5,
+      "routine": "0x213fa"
+    },
+    {
+      "id": 48,
+      "routine": "0x213ca"
+    },
+    {
+      "id": 49,
+      "routine": "0x213e2"
+    },
+    {
+      "id": 33,
+      "routine": "0x219b6"
+    },
+    {
+      "id": 34,
+      "routine": "0x219c8"
+    },
+    {
+      "id": 14,
+      "routine": "0x2076a"
+    },
+    {
+      "id": 15,
+      "routine": "0x208a8"
+    },
+    {
+      "id": 233,
+      "routine": "0x249c4"
+    },
+    {
+      "id": 6,
+      "routine": "0x21458"
+    }
+  ],
+  "nodes": [
+    {
+      "address": "0xf4afc",
+      "text": "0x1167eb",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0xf4b10"
+        }
+      ]
+    },
+    {
+      "address": "0xf4b10",
+      "text": "0x116962",
+      "choices": [
+        {
+          "text": "0x103a17",
+          "destination": "0xf4ad4"
+        },
+        {
+          "text": "0x104feb",
+          "destination": "0xf4b2c"
+        },
+        {
+          "text": "0x103a55",
+          "destination": "0x30"
+        }
+      ]
+    },
+    {
+      "address": "0xf4aa0",
+      "text": "0x1167eb",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0xe9"
+        }
+      ]
+    },
+    {
+      "address": "0xf4ad4",
+      "text": "0x1169b8",
+      "choices": [
+        {
+          "text": "0x103a7a",
+          "destination": "0x6"
+        },
+        {
+          "text": "0x104feb",
+          "destination": "0xf4b2c"
+        }
+      ]
+    },
+    {
+      "address": "0xf4b2c",
+      "text": "0xf4134",
+      "choices": []
+    },
+    {
+      "address": "0xf4e8c",
+      "text": "0x1169e9",
+      "choices": [
+        {
+          "text": "0x103b93",
+          "destination": "0x5"
+        },
+        {
+          "text": "0x103bbf",
+          "destination": "0x31"
+        }
+      ]
+    },
+    {
+      "address": "0xf5ab0",
+      "text": "0xf41a1",
+      "choices": []
+    },
+    {
+      "address": "0xf487c",
+      "text": "0xf431a",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0xf4890"
+        }
+      ]
+    },
+    {
+      "address": "0xf4890",
+      "text": "0xf43c1",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0xf48a4"
+        }
+      ]
+    },
+    {
+      "address": "0xf48a4",
+      "text": "0xf44e0",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0xf48b8"
+        }
+      ]
+    },
+    {
+      "address": "0xf48b8",
+      "text": "0xf456a",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0xf48cc"
+        }
+      ]
+    },
+    {
+      "address": "0xf48cc",
+      "text": "0xf4648",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0x22"
+        }
+      ]
+    },
+    {
+      "address": "0xf48e0",
+      "text": "0xf46d1",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0x21"
+        }
+      ]
+    },
+    {
+      "address": "0xf48f4",
+      "text": "0xf4746",
+      "choices": [
+        {
+          "text": "0xfe5bf",
+          "destination": "0xf4908"
+        }
+      ]
+    },
+    {
+      "address": "0xf4908",
+      "text": "0xf47aa",
+      "choices": []
+    },
+    {
+      "address": "0xfe5d4",
+      "text": "0xfe29b",
+      "choices": [
+        {
+          "text": "0x103a0e",
+          "destination": "0xe"
+        },
+        {
+          "text": "0x103a13",
+          "destination": "0xfe600"
+        }
+      ]
+    },
+    {
+      "address": "0xfe600",
+      "text": "0xf4181",
+      "choices": []
+    },
+    {
+      "address": "0xfe608",
+      "text": "0xfe3a4",
+      "choices": []
+    },
+    {
+      "address": "0xfe610",
+      "text": "0xfe3b2",
+      "choices": []
+    },
+    {
+      "address": "0xfe618",
+      "text": "0xfe42b",
+      "choices": []
+    },
+    {
+      "address": "0xfe620",
+      "text": "0xfe4a4",
+      "choices": []
+    },
+    {
+      "address": "0xfe628",
+      "text": "0xf4164",
+      "choices": []
+    },
+    {
+      "address": "0xfe630",
+      "text": "0xfe343",
+      "choices": []
+    },
+    {
+      "address": "0xf4ab4",
+      "text": "0x116962",
+      "choices": [
+        {
+          "text": "0x103a17",
+          "destination": "0xf4ad4"
+        },
+        {
+          "text": "0x104feb",
+          "destination": "0xf4b2c"
+        }
+      ]
+    },
+    {
+      "address": "0xf4acc",
+      "text": "0x1168fc",
+      "choices": []
+    }
+  ],
+  "taxi_offer": {
+    "address": "0xfe5ec",
+    "choices": [
+      {
+        "text": "0xfe545",
+        "destination": "0xf"
+      },
+      {
+        "text": "0xfe559",
+        "destination": "0xfe600"
+      }
+    ]
+  }
+}

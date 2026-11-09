@@ -5,6 +5,7 @@ use crate::RomError;
 pub enum TransitionKind {
     Exterior,
     Clinic,
+    Taxi,
     EnterSpaceNeedle,
     EnterJumpHouse,
     ReturnToExterior,
@@ -33,6 +34,30 @@ fn word(rom: &[u8], p: usize) -> Result<u16, RomError> {
     Ok(u16::from_be_bytes([b[0], b[1]]))
 }
 impl TransitionPlan {
+    /// $136de followed by descriptor arrival ($2b34). City destinations only;
+    /// Salish additionally mutates special wilderness state and remains guarded.
+    pub fn taxi(rom: &[u8], source: usize, target: usize) -> Result<Self, RomError> {
+        if source > 5 || target > 5 || source == target {
+            return Err(RomError("taxi route outside supported city districts"));
+        }
+        let map = crate::maps::MapDescriptor::read(rom, target)?;
+        let mut positions = [(0, 0); 3];
+        for (slot, p) in positions.iter_mut().enumerate() {
+            *p = (
+                word(&map.raw, 0x42 + slot * 4)?,
+                word(&map.raw, 0x44 + slot * 4)?,
+            );
+        }
+        Ok(Self {
+            kind: TransitionKind::Taxi,
+            exterior_return: None,
+            source_map: source,
+            target_map: target,
+            spawn_address: map.address,
+            camera_fixed: (word(&map.raw, 0)? & 0xff80, word(&map.raw, 2)? & 0xff80),
+            positions,
+        })
+    }
     /// $2a32/$2a44/$2b78 medical arrival, driven by the bounded JSON reference.
     pub fn clinic(
         rom: &[u8],

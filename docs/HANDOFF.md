@@ -1,5 +1,353 @@
 # Resume here
 
+## Latest checkpoint (2026-11-09): Stoker encounter, rest and unarmed NPCs
+
+Read `docs/stoker-ambush-and-rest.md` first. The user explicitly requested a push
+after this milestone. This checkpoint includes all preceding local Stoker/taxi,
+Ares, saves, hotel/Karma and new-game work on top of `3a3056f`. The source and
+verified Windows ZIP are prepared together for that publication. Preserve the
+supplied ROM/GZF and private analysis; none is packaged or staged.
+
+Stoker rents the original 20-nuyen room before/after Michael's belongings and
+reuses partial rest, per-runner Karma and checkout. Courier service retains
+priority. The post-objective MORE now executes action 233 (`$249c4`): shared RNG
+sample(100), <80 normal manager, otherwise the real close-placement group at
+`$1d6e2a` (gunner `$1d66a4` plus two unarmed `$1d665a`). No placement/available
+slot returns the original manager node; real spawns show `$f4acc` and fight.
+Only this script's verified human group permits unarmed spawn admission; ordinary
+street group scope otherwise retains the previous firearm restriction.
+
+`src/unarmed.rs`, `src/stoker.rs`, `data/combat/unarmed.json`,
+`data/encounters/stoker.json`, export modules and validation tools provide the
+typed references and native rules. The dialogue pilot adds actions 6/233 and
+manager/ambush nodes. Human unarmed NPCs now use original close-range pursuit,
+attack scheduling, pose, dice/armor/focus/defense/resistance and health/condition
+rules. Strikes stage actor/FX/world/RNG changes; visits also stage passage and
+sprite assets before committing. Preserve D7's defender-cyberware high byte in
+Melee, attacker focus ownership, byte quirks and NPC reward timing. Fresh hit FX
+can have zero animation period; execute original arithmetic and terminal clamp.
+Player/companion punches, melee weapons and special unarmed banks remain guarded.
+
+Condition zero now enters source incapacitation without zeroing health. Normal
+medical preparation supports condition-only defeat and all three Joshua classes,
+using the original fee/restoration/archive/DocWagon core. Unsupported story/mode
+contexts retain their existing guarded defeat notice. Full original selection/
+service reload cadence and original motel room graphics/fades remain incomplete.
+
+The user's Ghidra working copy supplied visit/spawn/attack/damage references;
+private exports/logs/captures are `/workspace/work/stoker-encounter`. Original
+comparisons pass 512 complete action-233 visits with no stubs, 2,048 unarmed
+damage cases, 256 full close attacks, 256 incapacitations and 256 zero-period FX
+clocks. Only audio/HUD transfer is omitted where applicable. Medical cores now
+cover 1,792 cases, including 768 condition-only cases across all classes. Existing
+combat, encounters, progression, rest/Karma, clinic/archive/rehire and saves
+original-routine oracles also pass.
+
+The earned development-roster route completes six jobs and Michael's belongings.
+Five normal post-objective visits rent rooms; visit 5 (zero based) rolls the
+actual three-NPC fight. At tick 15935 it ends with six NPC punches, eleven NPC
+shots and fourteen player shots; Joshua has health 10 / condition 1. The party
+survives. A subsequent 20-nuyen stay restores condition; Joshua Body 4 -> 5 costs
+five Karma, leaving three. Disk save/reload at tick 16155 retains 410 nuyen,
+Body/Karma, six completed jobs and story/DocWagon. No actor/stat/inventory, money,
+RNG, enemies, positions, maps or job outcomes are assigned after construction.
+This is an explicit development roster, not earned recruitment. A separate fresh
+solo start rents before the first objective, receives the original Karma refusal
+and saves with zero nuyen. Live punch, failed attack asset rollback, all-class
+condition-only recovery and earlier connected routes pass.
+
+All 76 unit/pure + 118 ROM-backed tests pass (194 total, desktop enabled).
+Native Linux desktop and Windows release builds pass. Linux GUI launch failed
+to create a window here; Windows GUI/input/filesystem playtesting remains pending.
+Gang notice, aftermath, room/upgrade and resumed HUD frames were inspected.
+The Windows ZIP is 686,473 bytes, with CRCs, all 22 hashes, exact membership,
+source README/EXE identity and x64 EXE/DLL headers/imports verified. SHA-256:
+`89d2c04119b446479c401fc11b2b2dd35d80b266ea86388216c210f6621418c9`.
+Further story/cyberspace, recruitment, other services/shops/job types, courier
+ambushes, wilderness, original full menus/cinematics and audio remain unfinished.
+
+## Latest local continuation (2026-11-09): solo new game and opening menu
+
+Read `docs/new-game-and-opening-menu.md` first. Preserve all prior local work
+(Stoker/taxi, Ares, saves, hotel/Karma) together with this milestone. HEAD is
+still `3a3056f`; no new publication was requested or performed.
+
+Normal desktop launch now opens New Game / Load Game with no placeholder Game.
+Choose Samurai, Decker or Gator Shaman, review original attributes, and Begin.
+`Game::new_game` constructs the original solo map-2 hero, class inventory/stats/
+spellbook, 20 nuyen, zero contracts/knowledge/story flags except initial Michael
+lead 1. Native archive initialization retains Samurai archive 0 from `$59318`
+before class selection; saving later snapshots the chosen live hero over it.
+`Game::load` remains the explicit development constructor and retains its earlier
+semantics. `--explore` restores the prior Joshua/Ricky/Freya development roster;
+an explicit MAP, --solo or --nuyen also preserves direct development launch.
+--save-dir alone retains the normal opening menu.
+
+`src/newgame.rs`, `src/start_menu.rs`, `src/session.rs`, `Game::new_game`,
+`data/newgame/references.json`, `src/newgame_export.rs` and
+`tools/validate_newgame.py` provide the typed references, native lifecycle and
+oracle. The supplied Ghidra working copy supplied `$59092/$59248/$59318/$42b0`
+references; private exports/logs/captures are `/workspace/work/newgame`.
+All three original class-selection/represented bootstrap paths match: every
+persistent hero byte, eleven archives, five spellbooks, absent companion IDs,
+wallet/story/jobs/knowledge, selected actor, map/camera/spawn. Only HUD tile
+transfer is omitted; resource normalization executes. Original cinematics,
+boot seeding and warm-up timing are outside the comparison.
+
+R opens the menu during normal play and retains the suspended game. Resume
+returns; Back cancels class selection. Begin explicitly replaces unsaved Game
+state. No start/reset operation writes/deletes saved files. Load Game reuses the
+validated primary/backup loader and works directly at launch or after defeat;
+failed loads/new-game asset preparation leave the old Game intact. Held confirm
+cannot dismiss the resulting notice or spill into gameplay. In development mode
+R still resets the chosen development setup. Opening UI, class preview and brief
+Redmond orientation are host panels, not the original title/intro rendering.
+
+The controller-only fresh-menu Samurai route starts alone with 20 nuyen, earns
+six courier rewards (275), retrieves Michael's belongings (525), saves at tick
+15424, drops Game/Session and loads Slot 1 from another opening menu with no
+running Game. Solo/class identity, 525 nuyen, seven Karma, six jobs, story/deck
+flags persist. No actor/stat, inventory, money, map/position, RNG, enemies or job
+results are assigned after normal menu construction. No encounter spawned.
+All three archetypes also move and survive disk round trips. Other checks cover
+freeze, cancellation/resume, failed assets, missing/corrupt saves, backup recovery,
+load after defeat, file preservation and input handoff.
+
+The solo route exposed a previous courier dead end: Halloweener delivery node
+`$110d72` has MORE -> `$111566` (terminal text `$117868`), missing from the catalog.
+That verified node is now included. Enabled courier stop continuations must
+resolve; payment/flags are unchanged. The test helper bounds delivery dismissal
+and drops stale A* queue entries, avoiding a silent spin on future bad links.
+The existing courier/Stoker/taxi/save original-routine comparisons all pass.
+All 75 unit/pure + 113 ROM-backed tests pass (188 total, desktop feature enabled).
+Rendered opening/class/briefing/load and solo-earned panels were inspected.
+
+Native Linux desktop and Windows release builds pass. Linux GUI launch failed
+to create a window here; Windows GUI/input/filesystem playtesting remains pending.
+The verified local Windows ZIP is 669,648 bytes; CRCs, all 22 payload hashes,
+exact membership, source README/EXE identity and x64 EXE/DLL headers/imports pass.
+SHA-256: `cc347699c425580f11c57861954fa5cd6e1f4b0e19739c7fe36bacf8bd1fd265`.
+No ROM/GZF/saves/generated frames are packaged. Further story/cyberspace,
+recruitment, other services/shops/job types, courier ambushes, wilderness,
+original full menus/cinematics and audio remain unfinished. Continue a connected
+story/gameplay milestone without bypassing unrecovered branches.
+
+## Latest local continuation (2026-11-09): paid hotel rest and Karma
+
+Read `docs/hotel-and-karma.md` first. Preserve all prior local Stoker/taxi,
+Ares and save/load changes together with this milestone. HEAD remains
+`3a3056f`; no new publication has been requested or performed.
+
+Downtown Gates Undersound Hotel (map 0, C3 / location 3) now opens its original
+`$f4910` greeting and 75-nuyen room offer. Payment action 6 uses `$21458`.
+Acknowledging success performs `$ef08` rest once, then a host room menu allows
+per-runner Karma spending and checkout. World movement, effects, NPCs and
+selection are frozen; street saves/loads remain guarded until checkout.
+`TravelScope` now permits C3 in controlled physical separation as well as normal
+walking. Matching courier service retains its existing priority.
+
+`src/advancement.rs`, `src/hotel_game.rs`, `data/hotels/gates.json`,
+`src/advancement_export.rs` and `tools/validate_advancement.py` provide typed
+references, native rules, transactional UI/HUD changes and original-routine
+comparisons. Shared `$3674/$37ec` helpers preserve post-cast drain behavior.
+Rest adds ten condition; health >=5 adds two, 3..4 adds one, <=2 needs medical
+attention. It is not full healing. Karma uses race caps, Sorcery class gate,
+ordinary skill cost 2*next, specialized gun cost ceil(1.5*next), base-Firearms
+initialization of zero specializations, signed/byte quirks and original limits.
+Essence and Magic cannot be trained (Magic is raw `$7f`, after two Essence bytes).
+Only the chosen actor's stat and Karma change. Upgrade confirmation starts Yes.
+Other hotels and Stoker's post-objective action 233 remain guarded; do not bypass
+that real random encounter to expose Stoker rest.
+
+The supplied Ghidra working copy provided hotel/quote/upgrade/payment references;
+private output is `/workspace/work/karma`. The oracle passes the real hotel
+entrance/fee, 13 payment boundaries, 5,120 original Karma quotes and complete
+actor decisions/writes, and 1,024 full three-runner rests. Only display, wait,
+confirmation input and subsequent stat-screen redraw/loop are omitted. The
+existing contact/travel, casting, healing and save/load oracles also pass.
+
+The connected controller route starts with ordinary map-2/default-roster setup,
+earns six courier rewards, recovers Michael's belongings, takes the Downtown
+taxi and buys the room. It cancels an upgrade, then raises Joshua Body 4 -> 5
+for five Karma and Ricky Firearms 2 -> 3 for six of his own Karma. Checkout
+cancellation works; a real disk save/drop/new Game reload retains both upgrades,
+remaining Karma, six completed jobs and 435 nuyen at tick 15380. No actor/stat,
+inventory, money, map/position, RNG, enemy or job-result assignments occur after
+normal construction. No encounter spawned. Additional fixtures cover failed
+font/HUD rollback, insufficient funds, held keys, physical C3 entry with switched
+control, partial rest and eligibility/caps. All 74 unit/pure + 108 ROM-backed
+tests pass. Rendered room/rest/upgrade/resumed HUD panels were inspected.
+
+Native Linux desktop and Windows release builds pass. Windows GUI/input and
+filesystem playtesting remains pending. The local release ZIP is 646,852 bytes;
+CRCs, all 22 payload hashes, exact membership, source README/EXE identity, x64
+EXE/DLL headers and imports are verified. SHA-256:
+`37726aa3501eceaf22008214d0053ecebad298fa25350af7af5ec98fe30c9853`.
+No ROM/GZF/save data is packaged. Room graphics, original full menus/new-game,
+further story/cyberspace, other services/shops/job types, courier ambushes,
+wilderness and audio remain incomplete. Next advance another connected gameplay
+objective/service without enabling unsupported story/encounter branches.
+
+## Latest local continuation (2026-11-09): native save/load checkpoints
+
+Read `docs/native-save-load.md` first. All prior Stoker/taxi/Ares changes remain
+local, together with this milestone; HEAD is still `3a3056f`. Preserve all
+modified/new source, tests, catalogs, notes and the verified Windows package.
+No new publication has been requested or performed.
+
+F5/F9 open two native save/load slots from a safe city street. Files live in
+`saves/` beside the executable; `--save-dir DIRECTORY` overrides that location.
+The previous loadable primary becomes a backup, and fallback loads identify it.
+Bad loads retain the running Game; failed writes retain a usable prior save.
+R/closing do not autosave; R keeps files and F9 can restore a checkpoint.
+For loading after defeat, start/reset the default Redmond session first.
+
+`src/saves.rs`, `src/save_game.rs`, `data/saves/references.json`,
+`src/save_export.rs` and `tools/validate_saves.py` provide the original image
+layout/checksum, typed Serde/JSON native envelope and CRC, bounded/atomic file I/O,
+staged Game reconstruction and oracle. The original street menu `$efb4` blocks
+interior/combat saves. The native path adds conservative guards for active NPCs,
+effects and unresolved party recovery. It is not a full emulator save state or
+an importer for arbitrary SRAM/emulator saves. Motel rest remains unfinished.
+
+Persistent money, equipment/ammo, stats/Karma, active/inactive companion archives/
+contracts/opinions, spellbooks, knowledge/story/DocWagon, courier/package state,
+map/camera/positions survive closing the process. Host metadata also preserves
+tick/RNG, job review/acceptance and completed-job count. Loading reconstructs
+actors/map clocks and clears transient effects/targets/metrics, selects Joshua,
+and uses the original class-dependent portrait selection. Validate inactive
+archives/assets before replacing live state. Descriptor 8/10 are not full world
+dimensions; use collision and host-camera bounds. Reject incompatible precision.
+
+The user's Ghidra working copy supplied the save/load references. Private exports,
+logs/captures are `/workspace/work/saves`. The original writer/admission oracle
+passes 512 complete 2,048-byte images, both odd-byte SRAM copies, overwrite/global/
+coordinate/checksum behavior and corruption rejection without stubs. Another 512
+persistent loads match companion initialization/compact records, positions,
+camera, flags, Joshua control and portrait. Only `$3074` map/graphics/recovery
+loading is omitted in that comparison; the native asset path is separately tested.
+
+The earned-money/Ares controller route now writes a checkpoint at tick 15373 and
+drops the old Game. A separate CLI process reads the slot with six completed jobs,
+the purchased Warhawk, five loaded rounds, story flag and 5 nuyen. A new Game
+loads it and fires, consuming one round. There are no actor/inventory/stat, money,
+RNG, enemy, position, map or job-result assignments during that route. No encounter
+spawned. An explicit collected-package fixture delivers/pays once after loading.
+Backup/overwrite, independent slots, corrupt/unsupported input, failed writes,
+cleanup, menu freezing and held-key notices also pass. All 73 unit/pure and 103
+ROM-backed integration tests pass. Rendered save and resumed HUD panels were
+inspected. Actual Windows GUI/input/filesystem playtesting remains pending.
+
+Native builds/package verification are recorded in `docs/native-save-load.md`
+and `releases/SHA256SUMS`. Native Linux desktop and Windows release builds pass.
+The Windows ZIP is 628,574 bytes; CRCs, all 22 payload hashes, README/executable
+identity and x64 PE/DLL imports are verified. SHA-256:
+`357281f64060ba2fcddb37e03f8c8f7923d2522e5b2f38d193676d42de084331`.
+The existing medical/archive/rehire oracle also passes. Original menus/new-game, wilderness/script-specific
+saves, the wider story, other services/shops/job types, courier ambushes and audio
+remain unfinished. The ROM/GZF remain private inputs and are not packaged.
+
+## Latest local continuation (2026-11-08): Ares equipment and ammunition
+
+Read `docs/ares-equipment.md` first. The preceding Stoker/taxi changes are still
+present, together with this new local milestone; local HEAD remains `3a3056f`.
+No publication has been requested. Preserve all existing modified/new files.
+
+Redmond C-B (location 11) now opens Ares' original `$110dd2` passage and a bounded
+shop. Matching courier service retains priority. Ares' actual five firearms and
+ammo clips can be bought with original stock, price multipliers, selected-runner
+negotiation, first-empty inventory allocation, funds checks and clip limits.
+Buying a gun does not auto-equip it. I opens the selected runner's firearm
+inventory; selection includes original ammo conversion and same-slot unequip.
+Other merchandise, armor, selling, accessories and full inventory actions remain
+guarded. The stock/confirmation/I panels are host UI, with world/selection freeze
+and transactional actor/wallet/HUD preparation.
+
+`src/shops.rs`, `data/shops/ares.json`, `src/shop_export.rs` and
+`tools/validate_shops.py` contain the typed reference pilot, Rust rules and oracle.
+The user's Ghidra working copy supplied the original shop/equipment views;
+private exports/captures/logs remain in `/workspace/work/shops`, outside Git.
+All 4,096 purchases and 4,096 explicit firearm selections match original actor
+bytes, money and prices. Only display/wait/confirmation UI or HUD/menu redraw is
+omitted. Preserve `$121fe`: an empty old weapon equips directly, even if its
+stale slot byte equals the selected slot. The same-slot toggle applies to an
+actual equipped weapon. Do not invent incoming D1 for old non-firearm contexts.
+
+The connected test uses only ordinary controls/host menus after the normal
+map-2/default-roster construction. Six jobs and Michael's belongings leave 530
+nuyen; Joshua buys a 500-nuyen Warhawk and 25-nuyen clip, equips it and fires
+seven shots through a real reload. At tick 15339 the balance is 5, reserve clips
+are 10 (10 -> 11 purchased -> 10 reloaded) and five rounds remain. No actor,
+equipment, money, RNG, enemy, position, map or job outcomes are assigned. No
+encounter spawned in that trace. The prior earnings -> belongings -> Downtown
+route still passes. Additional fixtures cover refusal/cap/full-inventory order,
+unsupported items, cancellation, freezing and failed purchase/equipment HUD
+rollback. All 71 unit/pure and 98 ROM-backed integration tests pass. Existing
+courier and Stoker/taxi original-routine checks pass. Rendered shop, inventory and
+firing HUD panels were inspected; Windows GUI/input playtesting is pending.
+
+Rebuild/package details are recorded in `docs/ares-equipment.md` and
+`releases/SHA256SUMS`. Native Linux desktop and Windows release builds pass.
+The Windows ZIP is 580,651 bytes; CRCs, all 22 payload hashes, README/executable
+identity and x64 PE/DLL imports are verified. SHA-256:
+`4092db2ce63f42c48aaead732629b980ebc8d2ee83a21f5d6c3d9f44d30ba27f`.
+Source and package updates remain local. Next extend a
+connected gameplay service or objective; saving, broader story/new-game, full
+menus, other shops, courier ambushes and other job types still need work.
+
+## Latest local continuation (2026-11-08): first objective and city travel
+
+Read `docs/stoker-and-taxi.md` first. Work continues on top of clean local HEAD
+`3a3056f` (courier/automatic magic checkpoint); these new changes are local.
+The desktop now defaults to map 2, a Redmond development entry point with the
+same roster and original 20 nuyen, rather than map 0. This is not new-game
+creation or recruitment. C calls the recovered taxi service from a city street.
+
+Six courier jobs can fund Michael's 250-nuyen back rent at Stoker's. The original
+purchase grants the hidden 500 nuyen, byte Karma, cyberdeck ownership and story/
+DocWagon bit 0, updates the lead flags and shows the original stash passages.
+The wristband enables the existing DocWagon recovery path. The same bit unlocks
+taxi travel among maps 0..5, with original selectors, fares, same-district/story
+refusals, insufficient-funds free rides, armband rules and descriptor arrivals.
+Do not replace the original free ride with an insufficient-funds block.
+Courier stop service still takes priority over the ordinary motel interaction.
+
+`src/progression.rs` and `data/dialogue/stoker-taxi.json` provide typed verified
+references, native decisions and transactional purchase/payment preparation.
+`Story` stores `$fffc30` leads and the represented `$fffc27` inquiry byte;
+`Game::recovery_flags` remains the shared `$fffc1e` story/DocWagon word. The
+catalog includes a distinct options-only taxi record: `$fe5ec` has no leading
+exposition pointer. Do not parse it with the ordinary dialogue node layout.
+
+The controller-only route uses ordinary map-2 spawn/default roster and starts
+with 20 nuyen: six jobs -> 280 balance -> belongings -> 530 -> Downtown taxi ->
+510 at tick 14746. It assigns no actor/stat/book/equipment, position, map, RNG,
+money, enemy or job outcome during the run. No encounter spawned in this trace.
+The new oracle passes 2,048 complete purchases/refusals, 2,048 taxi gates, 2,048
+payments/free rides/visa checks, 1,755 armband decisions and 30 city route/arrival
+cases. Relevant existing courier, interior, exterior and recovery oracles pass.
+Seventy unit/pure tests and all 93 ROM-backed integration tests pass (the full
+pre-existing suite plus the final jobs/progression checks). Native rendered menu,
+quote, stash and arrival panels were inspected. Native Linux release builds pass;
+GUI launch failed to create a window because this instance has no X11 display or
+callable desktop-control tool. Actual Windows GUI/input playtesting is pending.
+
+The Windows package is rebuilt and verified as recorded in `releases/SHA256SUMS`.
+It is 566,213 bytes; CRCs, all 22 payload hashes, README/executable identity and
+x64 PE/DLL imports are verified. SHA-256:
+`2360a9882546acd4738b28195fc49cb9e3e18c595726656f43df71046c9a1a3e`.
+No new publication has been requested or performed in this continuation.
+Generated Ghidra references/logs/captures stay in `/workspace/work/travel`, outside
+Git. The user's ROM/GZF are still `/workspace/inputs/Shadowrun.bin` and
+`/workspace/inputs/ShadowRunBin.gzf`.
+
+Motel rest, the post-objective motel random encounter action, cyberspace/deck
+equipment, further story/shops, original menus/new-game, courier ambushes, other
+job objectives, wilderness travel, saves and audio remain incomplete. The C menu
+combines the original greeting/price request into a host fare confirmation;
+original map highlight/portrait/input/fade/audio cadence is not reconstructed.
+Prefer the next concrete gameplay milestone to more isolated renderers.
+
 ## User goal and expectations
 
 Build a **complete, working native Rust game executable for the user's Windows
@@ -707,10 +1055,9 @@ Serde/JSON dialogue/hiring records remain in use.
 
 ## Best next milestone
 
-The first repeatable Gunderson courier loop is connected. Extend the gameplay
-loop through verified spending/equipment services, original courier ambushes and
-another original job objective. General district travel is needed to reach
-Redmond from the current map-0 start; original new-game setup, menu/save systems
+Courier earnings now connect to the first Stoker objective and six city districts.
+Extend this through verified equipment/services, original courier ambushes and
+another original job objective. Original new-game setup, menu/save systems
 and broader story progression remain incomplete. Keep JSON additions small and
 source-backed, with Rust owning mechanics and differential checks covering
 real routine behavior. Do not force supported job types by changing RNG.

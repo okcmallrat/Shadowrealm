@@ -122,6 +122,17 @@ pub fn spawn(
     map: u16,
     seed: u16,
 ) -> Result<(Vec<Runner>, u16), RomError> {
+    spawn_inner(rom, group, points, actors, map, seed, false)
+}
+fn spawn_inner(
+    rom: &[u8],
+    group: usize,
+    points: &[(u16, u16)],
+    actors: &[Runner],
+    map: u16,
+    seed: u16,
+    unarmed: bool,
+) -> Result<(Vec<Runner>, u16), RomError> {
     if points.is_empty() || points[0].0 == 0 {
         return Ok((vec![], seed));
     }
@@ -169,8 +180,11 @@ pub fn spawn(
         )?;
         if actor.bank() == 13
             || actor.bank() == 15
-            || actor.raw[0x56] >= 8
-            || !(1..=12).contains(&actor.raw[0x57])
+            || !((actor.raw[0x56] < 8 && (1..=12).contains(&actor.raw[0x57]))
+                || (unarmed
+                    && actor.raw[0x57] == 0
+                    && actor.bank() < 12
+                    && actor.raw[0x11] & 0x40 == 0))
             || actor.raw[0xdf] & 3 != 0
             || actor.raw[0x9e] & 0x28 != 0
             || actor.raw[0xb0] & 0xc0 != 0
@@ -193,7 +207,7 @@ pub fn spawn(
     Err(RomError("unterminated encounter group"))
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Runtime {
     /// Original $e177, restricted to actors created by this bounded encounter path.
     pub count: u8,
@@ -203,6 +217,38 @@ pub struct Runtime {
     counted: [bool; 7],
 }
 impl Runtime {
+    /// $1e1fc/$1e216 close placement for the verified Stoker group only.
+    pub fn stoker(
+        &mut self,
+        rom: &[u8],
+        map: &MapDescriptor,
+        camera: (u16, u16),
+        c: &Collision,
+        actors: &mut [Runner],
+        world: &mut crate::weapons::LaunchWorld,
+        rng: &mut avoidance::State,
+    ) -> Result<usize, RomError> {
+        if map.id != 2 {
+            return Err(RomError("Stoker encounter outside Redmond"));
+        }
+        let points = positions(map, camera, c, true)?;
+        let (added, seed) = spawn_inner(rom, 0x1d6e2a, &points, actors, 2, rng.seed, true)?;
+        let count = added.len();
+        for actor in added {
+            let index = usize::from(actor.word(0x3e) - 3);
+            let destination = actors
+                .iter_mut()
+                .find(|a| a.word(0x3e) == actor.word(0x3e))
+                .ok_or(RomError("scripted encounter pool missing slot"))?;
+            *destination = actor;
+            self.counted[index] = true;
+            self.count = self.count.wrapping_add(1);
+            self.spawned += 1;
+            world.alert();
+        }
+        rng.seed = seed;
+        Ok(count)
+    }
     pub fn clear_map(&mut self) {
         self.count = 0;
         self.counted = [false; 7];

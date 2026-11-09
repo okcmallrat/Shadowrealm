@@ -142,7 +142,9 @@ fn uninsured_solo_defeat_pays_once_and_returns_to_play_in_little_chiba() {
 #[ignore = "requires the user-supplied ROM"]
 fn unsupported_recovery_contexts_keep_the_notice_without_charging() {
     let rom = rom();
-    for (templates, flags, mode) in [(vec![1], 0, 0), (vec![0], 2, 0), (vec![0], 0, 3)] {
+    // All three Joshua archetypes now recover. A non-Joshua primary remains
+    // outside the normal new-game/recovery model.
+    for (templates, flags, mode) in [(vec![3], 0, 0), (vec![0], 2, 0), (vec![0], 0, 3)] {
         let mut game = Game::load(&rom, 0, &templates).unwrap();
         for actor in &mut game.party {
             actor.raw[0x4c] = 0;

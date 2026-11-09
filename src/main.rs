@@ -1,4 +1,5 @@
 use shadowrealm::Rom;
+mod advancement_export;
 mod automatic_magic_export;
 mod avoidance_export;
 mod caster_movement_export;
@@ -12,8 +13,14 @@ mod healing_export;
 mod hiring_export;
 mod interior_export;
 mod job_export;
+mod newgame_export;
+mod progression_export;
+mod save_export;
+mod shop_export;
 mod spellbook_export;
 mod status_export;
+mod stoker_export;
+mod unarmed_export;
 use std::{
     env,
     error::Error,
@@ -37,6 +44,61 @@ fn run() -> Result<(), Box<dyn Error>> {
     let data = fs::read(&args[2])?;
     let rom = Rom::parse(&data)?;
     match args[1].as_str() {
+        "stoker-data" => {
+            if args.len() != 4 {
+                return Err("stoker-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            stoker_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "unarmed-data" => {
+            if args.len() != 4 {
+                return Err("unarmed-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            unarmed_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "newgame-data" => {
+            if args.len() != 4 {
+                return Err("newgame-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            newgame_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "advancement-data" => {
+            if args.len() != 4 {
+                return Err("advancement-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            advancement_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "save-data" => {
+            if args.len() != 4 {
+                return Err("save-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            save_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "save-summary" => {
+            if args.len() != 4 {
+                return Err("save-summary ROM SAVE_FILE".into());
+            }
+            let game = shadowrealm::game::Game::from_save_bytes(
+                &data,
+                &shadowrealm::saves::read_bounded(std::path::Path::new(&args[3]))?,
+            )?;
+            println!(
+                "{}",
+                serde_json::json!({"map":game.map_id(),"nuyen":game.nuyen,"selected":game.selected,"party":game.party.iter().map(|r|serde_json::json!({"template":r.template,"weapon":r.raw[0x57],"ammo":r.raw[0x4e],"clips":r.raw[0x4f],"karma":r.raw[0x8d],"health":r.raw[0x4c],"inventory":r.raw[0x66..0x76].to_vec()})).collect::<Vec<_>>(),"jobs_completed":game.jobs.completed,"job_raw":game.jobs.raw.to_vec(),"job_flags":game.jobs.flags,"recovery_flags":game.recovery_flags,"story_leads":game.story.leads})
+            );
+        }
+        "shop-data" => {
+            if args.len() != 4 {
+                return Err("shop-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            shop_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
+        "progression-data" => {
+            if args.len() != 4 {
+                return Err("progression-data ROM NEW_OUTPUT_DIRECTORY".into());
+            }
+            progression_export::run(&data, std::path::Path::new(&args[3]))?;
+        }
         "job-data" => {
             if args.len() != 4 {
                 return Err("job-data ROM NEW_OUTPUT_DIRECTORY".into());

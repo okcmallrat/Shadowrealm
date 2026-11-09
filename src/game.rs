@@ -22,6 +22,38 @@ use crate::{
     },
     video, RomError,
 };
+#[path = "hotel_game.rs"]
+mod hotel_game;
+#[path = "save_game.rs"]
+mod save_game;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileMode {
+    Save,
+    Load,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FileRequest {
+    pub mode: FileMode,
+    pub slot: u8,
+}
+#[derive(Clone, Copy)]
+enum ProgressionDialogue {
+    Stoker,
+    TaxiMenu,
+    TaxiQuote { cursor: usize, fare: u8 },
+}
+#[derive(Clone, Copy)]
+enum ShopDialogue {
+    Opening,
+    Root,
+    Stock(crate::shops::Category),
+    Confirm {
+        category: crate::shops::Category,
+        row: usize,
+    },
+    Notice(crate::shops::Category),
+    Inventory,
+}
 pub struct Game {
     pub scene: MapScene,
     pub party: Vec<Runner>,
@@ -31,6 +63,15 @@ pub struct Game {
     pub knowledge: Knowledge,
     pub nuyen: u32,
     pub jobs: crate::jobs::Runtime,
+    pub story: crate::progression::Story,
+    progression_catalog: crate::progression::Catalog,
+    progression_dialogue: Option<ProgressionDialogue>,
+    shop_catalog: crate::shops::Catalog,
+    shop_dialogue: Option<ShopDialogue>,
+    hotel_catalog: crate::advancement::Catalog,
+    hotel_dialogue: Option<hotel_game::Modal>,
+    file_dialogue: Option<FileMode>,
+    file_request: Option<FileRequest>,
     job_catalog: crate::jobs::Catalog,
     job_dialogue: bool,
     job_trigger_held: Option<(usize, u8)>,
@@ -64,6 +105,22 @@ pub struct Game {
     avoidance: avoidance::State,
 }
 impl Game {
+    /// Original solo Redmond bootstrap and three archetypes. Opening screens
+    /// are host UI; the original cinematic is not reconstructed here.
+    pub fn new_game(rom: &[u8], archetype: crate::newgame::Archetype) -> Result<Self, RomError> {
+        let catalog = crate::newgame::Catalog::load(rom)?;
+        let mut next = Self::load(rom, catalog.map(), &[archetype.template()])?;
+        next.story.leads = catalog.lead();
+        // $59318 prepares Samurai's archive before the archetype is chosen.
+        // The live hero replaces this archive when saving, as in $596c4.
+        next.archives = crate::archives::Archives::load(rom, &[])?;
+        let mut d = Dialogue::with_text(rom, 0, 0,
+            "You arrive in Redmond alone with 20 nuyen.\n\nInvestigate Michael's death. His belongings are at Stoker's Coffin Motel.\n\nFind Gunderson at the Jump House for work.".into())?;
+        d.caption = "REDMOND";
+        next.dialogue = Some(d);
+        next.render(rom)?;
+        Ok(next)
+    }
     /// Template selection is explicit: it is not an earned/recruited save-game roster.
     pub fn load(rom: &[u8], map_id: usize, templates: &[usize]) -> Result<Self, RomError> {
         if templates.is_empty() || templates.len() > 3 {
@@ -113,6 +170,15 @@ impl Game {
             knowledge: Knowledge::default(),
             nuyen: hiring::initial_balance(rom)?,
             jobs: Default::default(),
+            story: Default::default(),
+            progression_catalog: crate::progression::Catalog::load(rom)?,
+            progression_dialogue: None,
+            shop_catalog: crate::shops::Catalog::load(rom)?,
+            shop_dialogue: None,
+            hotel_catalog: crate::advancement::Catalog::load(rom)?,
+            hotel_dialogue: None,
+            file_dialogue: None,
+            file_request: None,
             job_catalog: crate::jobs::Catalog::load(rom)?,
             job_dialogue: false,
             job_trigger_held: None,
@@ -146,12 +212,457 @@ impl Game {
         };
         result.combat.spellbooks = Some(crate::spellbooks::Spellbooks::load(rom)?);
         crate::companion_magic::Catalog::load(rom)?;
+        crate::unarmed::Catalog::load(rom)?;
+        crate::stoker::Catalog::load(rom)?;
         result.refresh_hud(rom)?;
         result.sync_projections();
         Ok(result)
     }
     pub fn map_id(&self) -> usize {
         self.map.id
+    }
+    pub fn open_file_menu(&mut self, rom: &[u8], mode: FileMode) -> Result<(), RomError> {
+        if self.dialogue.is_some() || self.transition.is_some() {
+            return Ok(());
+        }
+        if !self.save_ready() {
+            self.combat.status = "Save/load needs a safe city street";
+            return Ok(());
+        }
+        let mut d = Dialogue::with_text(
+            rom,
+            0,
+            0,
+            match mode {
+                FileMode::Save => "Save progress. Choose a slot.",
+                FileMode::Load => "Load progress. Choose a slot.",
+            }
+            .into(),
+        )?;
+        d.caption = if mode == FileMode::Save {
+            "SAVE GAME"
+        } else {
+            "LOAD GAME"
+        };
+        for (text, destination) in [("Slot 1", 1), ("Slot 2", 2), ("Cancel", 0)] {
+            d.choices.push(crate::dialogue::Choice {
+                text_address: 0,
+                text: text.into(),
+                destination,
+                available: true,
+            });
+        }
+        self.dialogue = Some(d);
+        self.file_dialogue = Some(mode);
+        Ok(())
+    }
+    pub fn take_file_request(&mut self) -> Option<FileRequest> {
+        self.file_request.take()
+    }
+    pub fn file_notice(&mut self, rom: &[u8], text: String) -> Result<(), RomError> {
+        let mut d = Dialogue::with_text(rom, 0, 0, text)?;
+        d.caption = "SAVE / LOAD";
+        self.dialogue = Some(d);
+        self.input.update(crate::input::A);
+        Ok(())
+    }
+    /// Host inventory bridge to recovered explicit firearm selection.
+    pub fn show_inventory(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        if self.dialogue.is_some()
+            || self.transition.is_some()
+            || self.defeated
+            || self.combat.has_live()
+        {
+            return Ok(());
+        }
+        let page = crate::shops::inventory(rom, &self.party[self.selected])?;
+        self.dialogue = Some(page);
+        self.shop_dialogue = Some(ShopDialogue::Inventory);
+        Ok(())
+    }
+    fn prepare_shop_hud(&self, rom: &[u8], actor: &Runner) -> Result<(MapScene, Hud), RomError> {
+        let mut party = self.party.clone();
+        party[self.selected] = actor.clone();
+        self.prepare_party_hud(rom, &party)
+    }
+    fn prepare_party_hud(&self, rom: &[u8], party: &[Runner]) -> Result<(MapScene, Hud), RomError> {
+        let mut scene = self.scene.clone();
+        let mut hud = Hud::load(rom, &mut scene)?;
+        hud.select(rom, self.selected)?;
+        for (slot, r) in party.iter().enumerate() {
+            r.update_hud(rom, &mut scene, &mut hud, slot)?;
+            hud.condition(
+                rom,
+                slot,
+                if (r.raw[0x9c] as i8) > 0 {
+                    r.raw[0x9c].min(10)
+                } else {
+                    0
+                },
+                slot == self.selected,
+            )?;
+        }
+        Ok((scene, hud))
+    }
+    fn follow_shop(&mut self, rom: &[u8], slot: usize) -> Result<(), RomError> {
+        let Some(choice) = self
+            .dialogue
+            .as_ref()
+            .and_then(|d| d.choices.get(slot))
+            .filter(|c| c.available)
+        else {
+            return Ok(());
+        };
+        let destination = choice.destination;
+        let actor = &self.party[self.selected];
+        let (page, modal) = match self.shop_dialogue.unwrap() {
+            ShopDialogue::Opening => (
+                self.shop_catalog.root(rom, actor, self.nuyen)?,
+                ShopDialogue::Root,
+            ),
+            ShopDialogue::Root => {
+                if destination == 2 {
+                    self.dialogue = None;
+                    self.shop_dialogue = None;
+                    return Ok(());
+                }
+                let category = if destination == 0 {
+                    crate::shops::Category::Weapons
+                } else {
+                    crate::shops::Category::Equipment
+                };
+                (
+                    self.shop_catalog
+                        .stock_menu(rom, category, actor, self.nuyen)?,
+                    ShopDialogue::Stock(category),
+                )
+            }
+            ShopDialogue::Stock(category) => {
+                if destination == 8 {
+                    (
+                        self.shop_catalog.root(rom, actor, self.nuyen)?,
+                        ShopDialogue::Root,
+                    )
+                } else {
+                    let result = self.shop_catalog.purchase(
+                        rom,
+                        category,
+                        destination,
+                        actor,
+                        self.nuyen,
+                        false,
+                    )?;
+                    if result.outcome == crate::shops::Outcome::Cancelled {
+                        let stock = self.shop_catalog.stock(rom, category, destination)?;
+                        (
+                            self.shop_catalog
+                                .confirmation(rom, stock, result.price, self.nuyen)?,
+                            ShopDialogue::Confirm {
+                                category,
+                                row: destination,
+                            },
+                        )
+                    } else {
+                        (
+                            self.shop_catalog.refusal(rom, result.outcome, self.nuyen)?,
+                            ShopDialogue::Notice(category),
+                        )
+                    }
+                }
+            }
+            ShopDialogue::Confirm { category, row } => {
+                if destination == 1 {
+                    (
+                        self.shop_catalog
+                            .stock_menu(rom, category, actor, self.nuyen)?,
+                        ShopDialogue::Stock(category),
+                    )
+                } else {
+                    let result = self
+                        .shop_catalog
+                        .purchase(rom, category, row, actor, self.nuyen, true)?;
+                    let (page, modal) = if result.outcome == crate::shops::Outcome::Bought {
+                        (
+                            self.shop_catalog.stock_menu(
+                                rom,
+                                category,
+                                &result.actor,
+                                result.balance,
+                            )?,
+                            ShopDialogue::Stock(category),
+                        )
+                    } else {
+                        (
+                            self.shop_catalog
+                                .refusal(rom, result.outcome, result.balance)?,
+                            ShopDialogue::Notice(category),
+                        )
+                    };
+                    let (scene, hud) = self.prepare_shop_hud(rom, &result.actor)?;
+                    self.party[self.selected] = result.actor;
+                    self.nuyen = result.balance;
+                    self.scene = scene;
+                    self.hud = hud;
+                    (page, modal)
+                }
+            }
+            ShopDialogue::Notice(category) => (
+                self.shop_catalog
+                    .stock_menu(rom, category, actor, self.nuyen)?,
+                ShopDialogue::Stock(category),
+            ),
+            ShopDialogue::Inventory => {
+                if destination == 8 {
+                    self.dialogue = None;
+                    self.shop_dialogue = None;
+                    return Ok(());
+                }
+                let mut next = actor.clone();
+                crate::shops::equip_firearm(rom, &mut next, destination)?;
+                let mut page = crate::shops::inventory(rom, &next)?;
+                page.selected = destination;
+                let (scene, hud) = self.prepare_shop_hud(rom, &next)?;
+                self.party[self.selected] = next;
+                self.scene = scene;
+                self.hud = hud;
+                (page, ShopDialogue::Inventory)
+            }
+        };
+        self.dialogue = Some(page);
+        self.shop_dialogue = Some(modal);
+        Ok(())
+    }
+    /// Host keyboard bridge to the recovered Call Taxi service. Story gates,
+    /// destination choices, fares and actual arrivals remain source-derived.
+    pub fn call_taxi(&mut self, rom: &[u8]) -> Result<(), RomError> {
+        if self.dialogue.is_some() || self.transition.is_some() || self.defeated {
+            return Ok(());
+        }
+        if self.map.id > 5 || self.saved_exterior.is_some() {
+            self.combat.status = "Call a taxi from a city street";
+            return Ok(());
+        }
+        let page = self
+            .progression_catalog
+            .taxi_menu(rom, self.map.id, self.nuyen)?;
+        self.dialogue = Some(page);
+        self.progression_dialogue = Some(ProgressionDialogue::TaxiMenu);
+        Ok(())
+    }
+    fn prepare_taxi(&self, rom: &[u8], target: usize) -> Result<TransitionPlan, RomError> {
+        let plan = TransitionPlan::taxi(rom, self.map.id, target)?;
+        // Validate the arrival and current equipment before payment. No state/RNG
+        // from this preparation is copied into the live session.
+        let templates = self.party.iter().map(|r| r.template).collect::<Vec<_>>();
+        let mut arrival = Self::load(rom, target, &templates)?;
+        for (slot, r) in self.party.iter().enumerate() {
+            r.update_hud(rom, &mut arrival.scene, &mut arrival.hud, slot)?;
+        }
+        Ok(plan)
+    }
+    fn ordinary_service_trigger(&mut self, rom: &[u8], code: u8) -> Result<bool, RomError> {
+        if self.map.id == 0 && code == 0xc3 {
+            let page = self.hotel_catalog.dialogue(rom, 0xf4910)?;
+            self.dialogue = Some(page);
+            self.hotel_dialogue = Some(hotel_game::Modal::Front);
+            self.job_trigger_held = Some((0, code));
+            return Ok(true);
+        }
+        if self.map.id == 2 && code == 0xcb {
+            let page = self.shop_catalog.opening(rom)?;
+            self.dialogue = Some(page);
+            self.shop_dialogue = Some(ShopDialogue::Opening);
+            self.job_trigger_held = Some((2, code));
+            return Ok(true);
+        }
+        if self.map.id != 2 || code != 0xc2 {
+            return Ok(false);
+        }
+        let page = self.progression_catalog.dialogue(
+            rom,
+            if self.recovery_flags & 1 == 0 {
+                0xf4afc
+            } else {
+                0xf4aa0
+            },
+        )?;
+        self.dialogue = Some(page);
+        self.progression_dialogue = Some(ProgressionDialogue::Stoker);
+        self.job_trigger_held = Some((2, code));
+        Ok(true)
+    }
+    fn follow_progression(&mut self, rom: &[u8], slot: usize) -> Result<(), RomError> {
+        let Some(choice) = self
+            .dialogue
+            .as_ref()
+            .and_then(|d| d.choices.get(slot))
+            .filter(|c| c.available)
+        else {
+            return Ok(());
+        };
+        let destination = choice.destination;
+        match self.progression_dialogue.unwrap() {
+            ProgressionDialogue::Stoker => {
+                if destination == 6 {
+                    let fee = crate::stoker::Catalog::load(rom)?.fee();
+                    self.pay_room(rom, fee)?;
+                    self.progression_dialogue = None;
+                    return Ok(());
+                }
+                if destination == 233 {
+                    let catalog = crate::stoker::Catalog::load(rom)?;
+                    let mut rng = avoidance::State {
+                        seed: self.avoidance.seed,
+                    };
+                    let mut encounter = self.encounters.clone();
+                    let mut world = self.combat.launch.clone();
+                    world.map_id = 2;
+                    let mut actors = self.combat_actors();
+                    let count = if catalog.roll(&mut rng) {
+                        encounter.stoker(
+                            rom,
+                            &self.map,
+                            (self.camera.0 * 16, self.camera.1 * 16),
+                            &self.collision,
+                            &mut actors,
+                            &mut world,
+                            &mut rng,
+                        )?
+                    } else {
+                        0
+                    };
+                    let page = self
+                        .progression_catalog
+                        .dialogue(rom, catalog.node(count))?;
+                    let npcs = actors
+                        .iter()
+                        .filter(|a| a.word(0x3e) >= 3 && a.raw[0x10] & 1 != 0)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let mut scene = self.scene.clone();
+                    for a in &npcs {
+                        let seq = a.sequence(rom)?;
+                        let index = (a.clock.frame as usize).min(seq.frames.len() - 1);
+                        ActorFrame::load_status(
+                            rom,
+                            seq.frames[index],
+                            &mut scene,
+                            a,
+                            self.camera,
+                        )?;
+                    }
+                    self.npcs = npcs;
+                    self.scene = scene;
+                    self.encounters = encounter;
+                    self.combat.launch = world;
+                    self.avoidance.seed = rng.seed;
+                    self.dialogue = Some(page);
+                    if count != 0 {
+                        self.combat.actors_changed();
+                        self.targeting.force_refresh = true;
+                    }
+                    return Ok(());
+                }
+                let mut story = self.story.clone();
+                let mut flags = self.recovery_flags;
+                let mut balance = self.nuyen;
+                let mut party = self.party.clone();
+                let node = match destination {
+                    48 => {
+                        story.leads |= 2;
+                        0xf4e8c
+                    }
+                    49 => {
+                        story.inquiries |= 1;
+                        0xf5ab0
+                    }
+                    5 if flags & 1 == 0 => {
+                        story.buy_belongings(&mut balance, &mut flags, &mut party)
+                    }
+                    33 => 0xf48f4,
+                    34 => 0xf48e0,
+                    address if address >= 250 => address,
+                    _ => return Ok(()),
+                };
+                let mut page = self.progression_catalog.dialogue(rom, node)?;
+                page.funds = Some(balance);
+                self.story = story;
+                self.recovery_flags = flags;
+                self.nuyen = balance;
+                self.party = party;
+                self.dialogue = Some(page);
+            }
+            ProgressionDialogue::TaxiMenu => {
+                if destination == 7 {
+                    self.dialogue = None;
+                    self.progression_dialogue = None;
+                    return Ok(());
+                }
+                let (mut page, fare) = self.progression_catalog.taxi_quote(
+                    rom,
+                    destination,
+                    self.map.id,
+                    self.recovery_flags,
+                    &self.party,
+                    self.jobs.carried,
+                )?;
+                page.funds = Some(self.nuyen);
+                let mut plan = None;
+                if let Some(0) = fare {
+                    let (target, _, _) = self.progression_catalog.district(rom, destination)?;
+                    if target < 6 {
+                        plan = Some(self.prepare_taxi(rom, target)?);
+                    } else if self.jobs.carried & 2 != 0 {
+                        self.combat.status = "Salish travel is not available yet";
+                        return Ok(());
+                    }
+                }
+                self.progression_dialogue = fare.filter(|_| !page.choices.is_empty()).map(|fare| {
+                    ProgressionDialogue::TaxiQuote {
+                        cursor: destination,
+                        fare,
+                    }
+                });
+                self.dialogue_target = plan;
+                self.dialogue = Some(page);
+            }
+            ProgressionDialogue::TaxiQuote { cursor, fare } => {
+                let (target, _, _) = self.progression_catalog.district(rom, cursor)?;
+                let result = if destination == 15 {
+                    Some(crate::progression::pay_taxi(
+                        target,
+                        fare,
+                        self.nuyen,
+                        self.jobs.carried,
+                    ))
+                } else {
+                    None
+                };
+                // Visa ownership/travel is not yet connected. Reject before any
+                // payment rather than partially running the wilderness branch.
+                if result.is_some_and(|r| r.travelled && target == 6) {
+                    self.combat.status = "Salish travel is not available yet";
+                    return Ok(());
+                }
+                let plan = if result.is_some_and(|r| r.travelled) {
+                    Some(self.prepare_taxi(rom, target)?)
+                } else {
+                    None
+                };
+                let mut page = self
+                    .progression_catalog
+                    .taxi_notice(rom, result.map_or(0xfe600, |r| r.node))?;
+                if let Some(r) = result {
+                    self.nuyen = r.balance;
+                    self.jobs.carried = r.carried;
+                }
+                page.funds = Some(self.nuyen);
+                self.dialogue_target = plan;
+                self.progression_dialogue = None;
+                self.dialogue = Some(page);
+            }
+        }
+        Ok(())
     }
     fn sync_projections(&mut self) {
         let camera = (
@@ -236,8 +747,8 @@ impl Game {
         self.dialogue = Some(next);
         Ok(())
     }
-    /// Only the verified Jump House booth and an active courier's matching
-    /// Redmond stop are admitted; other building/story services remain guarded.
+    /// Courier service precedes ordinary Stoker/Ares interactions. Other
+    /// building/story services remain guarded.
     fn job_trigger(&mut self, rom: &[u8], code: u8) -> Result<bool, RomError> {
         let request = Some((self.map.id, code));
         if self.job_trigger_held == request {
@@ -251,7 +762,7 @@ impl Game {
             return Ok(true);
         }
         if self.map.id != 2 || !self.jobs.courier() || !self.jobs.accepted {
-            return Ok(false);
+            return self.ordinary_service_trigger(rom, code);
         }
         let location = code & 31;
         let mut jobs = self.jobs.clone();
@@ -259,7 +770,7 @@ impl Game {
         let mut party = self.party.clone();
         let visit = jobs.visit(2, location, &mut balance, &mut party);
         if visit == crate::jobs::Visit::None {
-            return Ok(false);
+            return self.ordinary_service_trigger(rom, code);
         }
         let stop = self
             .job_catalog
@@ -287,6 +798,28 @@ impl Game {
         Ok(true)
     }
     fn follow_dialogue(&mut self, rom: &[u8], slot: usize) -> Result<(), RomError> {
+        if let Some(mode) = self.file_dialogue {
+            if let Some(choice) = self.dialogue.as_ref().and_then(|d| d.choices.get(slot)) {
+                if choice.destination != 0 {
+                    self.file_request = Some(FileRequest {
+                        mode,
+                        slot: choice.destination as u8,
+                    });
+                }
+                self.dialogue = None;
+                self.file_dialogue = None;
+            }
+            return Ok(());
+        }
+        if self.hotel_dialogue.is_some() {
+            return self.follow_hotel(rom, slot);
+        }
+        if self.shop_dialogue.is_some() {
+            return self.follow_shop(rom, slot);
+        }
+        if self.progression_dialogue.is_some() {
+            return self.follow_progression(rom, slot);
+        }
         if self.job_dialogue {
             return self.follow_job_dialogue(rom, slot);
         }
@@ -527,7 +1060,9 @@ impl Game {
             TransitionKind::EnterSpaceNeedle | TransitionKind::EnterJumpHouse => {
                 plan.exterior_return
             }
-            TransitionKind::ReturnToExterior | TransitionKind::Clinic => None,
+            TransitionKind::ReturnToExterior | TransitionKind::Clinic | TransitionKind::Taxi => {
+                None
+            }
             TransitionKind::Exterior => self.saved_exterior,
         };
         self.npcs = npcs;
@@ -769,6 +1304,10 @@ impl Game {
         self.refresh_hud(rom)
     }
     pub fn update(&mut self, rom: &[u8], buttons: u8) -> Result<(), RomError> {
+        if self.file_request.is_some() {
+            self.input.update(buttons);
+            return Ok(());
+        }
         if self.defeated {
             self.input.update(buttons);
             if self.clinic_plan.is_some()
@@ -817,6 +1356,9 @@ impl Game {
                 {
                     self.dialogue = None;
                     self.job_dialogue = false;
+                    self.progression_dialogue = None;
+                    self.shop_dialogue = None;
+                    self.hotel_dialogue = None;
                     if let Some(plan) = self.dialogue_target.take() {
                         self.transition = Some(ActiveTransition {
                             plan,
@@ -920,6 +1462,14 @@ impl Game {
                 0xafe0 | 0xafe2
             ) && (self.party[slot].word(0x16) as i16) < 0;
             crate::combat_runtime::prepare_actor(&mut self.party[slot]);
+            if self.party[slot].raw[0x9c] == 0
+                && self.party[slot].raw[0x10] & 0x51 == 1
+                && !crate::combat_runtime::action(&self.party[slot])
+            {
+                let mut actors = self.combat_actors();
+                crate::damage::incapacitate(rom, &mut actors, slot as u8, &mut self.combat.damage)?;
+                self.accept_combat_actors(&actors);
+            }
             if completed_cast && self.party[slot].raw[0x4c] == 0 {
                 let mut actors = self.combat_actors();
                 crate::damage::react(
@@ -1115,6 +1665,19 @@ impl Game {
         }
         for index in 0..self.npcs.len() {
             crate::combat_runtime::prepare_actor(&mut self.npcs[index]);
+            if self.npcs[index].raw[0x9c] == 0
+                && self.npcs[index].raw[0x10] & 0x51 == 1
+                && !crate::combat_runtime::action(&self.npcs[index])
+            {
+                let mut actors = self.combat_actors();
+                crate::damage::incapacitate(
+                    rom,
+                    &mut actors,
+                    self.npcs[index].word(0x3e) as u8,
+                    &mut self.combat.damage,
+                )?;
+                self.accept_combat_actors(&actors);
+            }
             if self.encounters.finish_death(&self.npcs[index]) {
                 let mut actors = self.combat_actors();
                 self.combat.launch.end_combat(&mut actors);

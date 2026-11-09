@@ -216,3 +216,17 @@ fn contact_space_needle_entry_acknowledgement_and_exit_preserve_return_context()
         assert_eq!(r.position(), p);
     }
 }
+#[test]
+#[ignore = "requires the user-supplied ROM"]
+fn contact_opens_gates_hotel_for_a_switched_leader() {
+    let rom = rom();
+    let mut game = Game::load(&rom, 0, &[0, 3]).unwrap();
+    game.select(&rom, 1).unwrap();
+    let q = place_for_contact(&mut game, &rom, 0xc3);
+    let wallet = game.nuyen;
+    game.update(&rom, 0).unwrap();
+    assert_eq!(game.party[1].position(), q);
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xf4910);
+    assert_eq!(game.nuyen, wallet);
+    assert_eq!(game.selected, 1);
+}
