@@ -3,10 +3,13 @@
 ## Latest checkpoint (2026-11-09): Stoker encounter, rest and unarmed NPCs
 
 Read `docs/stoker-ambush-and-rest.md` first. The user explicitly requested a push
-after this milestone. This checkpoint includes all preceding local Stoker/taxi,
-Ares, saves, hotel/Karma and new-game work on top of `3a3056f`. The source and
-verified Windows ZIP are prepared together for that publication. Preserve the
-supplied ROM/GZF and private analysis; none is packaged or staged.
+after this milestone. Implementation commit `098cd14849451d2c1415d99178359c01f21a8f11`
+(tree `6124589e63df6a66f44f780205b4f67e68e400e5`) contains all preceding local
+Stoker/taxi, Ares, saves, hotel/Karma and new-game work on top of `3a3056f`, together
+with the verified Windows ZIP. This documentation followup records that checkpoint;
+the authorized publication target is `origin/main`. Preserve the supplied ROM/GZF
+and private analysis; none is packaged or committed. Older local checkpoint notes
+below describe their state before this cumulative publication.
 
 Stoker rents the original 20-nuyen room before/after Michael's belongings and
 reuses partial rest, per-runner Karma and checkout. Courier service retains

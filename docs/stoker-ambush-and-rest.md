@@ -126,3 +126,8 @@ SHA-256: `89d2c04119b446479c401fc11b2b2dd35d80b266ea86388216c210f6621418c9`.
 ROM/GZF, saves and generated frames are excluded. The user requested publication
 after this milestone; this checkpoint includes the preceding completed local
 progression, Ares, saves, hotel/Karma and new-game work.
+
+The source and verified ZIP are committed together in
+`098cd14849451d2c1415d99178359c01f21a8f11` (tree
+`6124589e63df6a66f44f780205b4f67e68e400e5`). The authorized publication target
+is `origin/main`; the following documentation commit records this checkpoint.
