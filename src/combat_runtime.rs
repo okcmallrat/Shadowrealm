@@ -28,6 +28,9 @@ pub struct Runtime {
     pub npc_fire: crate::npc_combat::FireContext,
     pub npc_shots: u64,
     pub npc_punches: u64,
+    pub punches: u64,
+    pub punch_hits: u64,
+    pub companion_punches: u64,
     pub companion_shots: u64,
     pub companion_spell_changes: u64,
     pub spellbooks: Option<crate::spellbooks::Spellbooks>,
@@ -56,6 +59,9 @@ impl Default for Runtime {
             npc_fire: Default::default(),
             npc_shots: 0,
             npc_punches: 0,
+            punches: 0,
+            punch_hits: 0,
+            companion_punches: 0,
             companion_shots: 0,
             companion_spell_changes: 0,
             spellbooks: None,
@@ -64,6 +70,13 @@ impl Default for Runtime {
             companion_deferred: [None; 3],
         }
     }
+}
+fn ordinary_fists(actor: &Runner) -> bool {
+    actor.raw[0x57] == 0
+        && (actor.raw[0x56] as i8) >= 0
+        && actor.bank() < 12
+        && actor.raw[0x11] & 0x40 == 0
+        && actor.raw[0xdf] & 3 == 0
 }
 pub fn handler(actor: &Runner) -> u32 {
     u32::from_be_bytes(actor.raw[0x3a..0x3e].try_into().unwrap())
@@ -274,40 +287,68 @@ impl Runtime {
         };
         let mut target = actors[target_index].clone();
         if source.raw[0x57] == 0 {
-            if let Some(angle) = crate::unarmed::in_range(rom, &source, &target)? {
-                source.set_word(0x34, angle);
-                let position = source.position();
-                source.set_word(0x96, position.0);
-                source.set_word(0x98, position.1);
-                if (source.word(0xdc) as i16) < 0 {
-                    actors[index] = source;
-                    crate::unarmed::strike(
-                        rom,
-                        actors,
-                        slot as u8,
-                        target.word(0x3e) as u8,
-                        &mut self.pool,
-                        &mut self.launch,
-                        &mut self.damage,
-                        random,
-                    )?;
-                    self.npc_punches += 1;
-                } else {
-                    source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
-                    actors[index] = source;
-                }
-            } else {
-                source.set_word(0x96, target.position().0);
-                source.set_word(0x98, target.position().1);
-                crate::followers::steer_goal(rom, collision, &mut source)?;
-                actors[index] = source;
-            }
+            actors[index] = source;
+            self.close_attack(rom, collision, actors, index, random)?;
             return Ok(true);
         }
         let ordinary = self.firearm(rom, collision, &mut source, &mut target, random)?;
         actors[target_index] = target;
         actors[index] = source;
+        if !ordinary && ordinary_fists(&actors[index]) {
+            self.close_attack(rom, collision, actors, index, random)?;
+            return Ok(true);
+        }
         Ok(ordinary)
+    }
+
+    /// $141a0 then $13d0c: stop at close range, punch when ready, otherwise
+    /// pursue the target through the existing original navigation routine.
+    fn close_attack(
+        &mut self,
+        rom: &[u8],
+        collision: &Collision,
+        actors: &mut [Runner],
+        index: usize,
+        random: &mut State,
+    ) -> Result<(), RomError> {
+        let mut staged = actors.to_vec();
+        let target = crate::combat::target(&staged[index])
+            .and_then(|id| staged.iter().find(|a| a.word(0x3e) == u16::from(id.0)))
+            .ok_or(RomError("close attack target missing"))?
+            .clone();
+        let source = &mut staged[index];
+        if let Some(angle) = crate::unarmed::in_range(rom, source, &target)? {
+            source.set_word(0x34, angle);
+            let position = source.position();
+            source.set_word(0x96, position.0);
+            source.set_word(0x98, position.1);
+            if (source.word(0xdc) as i16) < 0 {
+                let id = source.word(0x3e) as u8;
+                crate::unarmed::strike(
+                    rom,
+                    &mut staged,
+                    id,
+                    target.word(0x3e) as u8,
+                    &mut self.pool,
+                    &mut self.launch,
+                    &mut self.damage,
+                    random,
+                )?;
+                if id < 3 {
+                    self.companion_punches += 1;
+                } else {
+                    self.npc_punches += 1;
+                }
+            } else if (source.word(0x16) as i16) <= 0x3c {
+                source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
+            }
+        } else {
+            source.set_word(0x96, target.position().0);
+            source.set_word(0x98, target.position().1);
+            crate::followers::steer_goal(rom, collision, source)?;
+        }
+        actors.clone_from_slice(&staged);
+        Ok(())
     }
 
     /// $138b8: shared companion scheduling, formation and ordinary firearms.
@@ -406,7 +447,9 @@ impl Runtime {
                     crate::spellbooks::Selection::InventoryWeapon => {
                         let mut equipped = source.clone();
                         crate::spell_equipment::equip_inventory(rom, &mut equipped)?;
-                        if equipped.raw[0x56] < 8 && (1..=12).contains(&equipped.raw[0x57]) {
+                        if (equipped.raw[0x56] < 8 && (1..=12).contains(&equipped.raw[0x57]))
+                            || ordinary_fists(&equipped)
+                        {
                             source = equipped;
                             random.seed = staged.seed;
                         } else {
@@ -454,8 +497,8 @@ impl Runtime {
             self.companion_magic(rom, collision, actors, index, random)?;
             return Ok(());
         }
-        if source.raw[0x56] >= 8
-            || !(1..=12).contains(&source.raw[0x57])
+        if (!ordinary_fists(&source)
+            && (source.raw[0x56] >= 8 || !(1..=12).contains(&source.raw[0x57])))
             || source.raw[0xdf] & 3 != 0
             || source.raw[0x4d] > 8
         {
@@ -478,14 +521,22 @@ impl Runtime {
         let target_index = crate::combat::target(&source)
             .and_then(|id| actors.iter().position(|a| a.word(0x3e) == u16::from(id.0)))
             .ok_or(RomError("companion target missing from actor pool"))?;
+        if ordinary_fists(&source) {
+            actors[index] = source;
+            self.close_attack(rom, collision, actors, index, random)?;
+            return Ok(());
+        }
         let mut target = actors[target_index].clone();
         let ordinary = self.firearm(rom, collision, &mut source, &mut target, random)?;
-        if !ordinary {
+        if !ordinary && !ordinary_fists(&source) {
             self.companion_deferred[usize::from(slot)] =
                 Some("Companion melee action is not available yet");
         }
         actors[target_index] = target;
         actors[index] = source;
+        if !ordinary && ordinary_fists(&actors[index]) {
+            self.close_attack(rom, collision, actors, index, random)?;
+        }
         Ok(())
     }
 
@@ -561,9 +612,8 @@ impl Runtime {
         }
         if ordinary {
             self.combat_position(rom, collision, source, target, fallback)?;
-        } else if (source.word(0x16) as i16) <= 0x3c {
-            // Host boundary: do not enter the still-unimplemented melee/magic
-            // continuation after weapon exhaustion.
+        } else if !ordinary_fists(source) && (source.word(0x16) as i16) <= 0x3c {
+            // Other unsupported weapon/magic continuations remain guarded.
             source.raw[0x3a..0x3e].copy_from_slice(&0xb45cu32.to_be_bytes());
         }
         Ok(ordinary)
@@ -807,6 +857,31 @@ impl Runtime {
             self.cast_actor(rom, collision, actors, selected, random)?;
             return Ok(());
         }
+        if ordinary_fists(source) {
+            if actors
+                .iter()
+                .any(|a| a.raw[0x10] & 1 != 0 && a.raw[0xdf] & 3 != 0)
+            {
+                self.status = "This unarmed effect is not available yet";
+                return Ok(());
+            }
+            let target = crate::combat::target(source).map(|id| id.0);
+            let result = crate::unarmed::swing(
+                rom,
+                actors,
+                selected as u8,
+                target,
+                &mut self.pool,
+                &mut self.launch,
+                &mut self.damage,
+                random,
+            )?;
+            actors[index].raw[0x43] = 0;
+            self.punches += 1;
+            self.punch_hits += u64::from(result.changed);
+            self.status = "";
+            return Ok(());
+        }
         if source.raw[0x56] >= 8 || !(1..=12).contains(&source.raw[0x57]) {
             self.status = if (source.raw[0x56] as i8) < 0 {
                 "This spell is not available yet"
@@ -933,7 +1008,7 @@ impl Runtime {
 }
 
 /// $14146 firearm continuation. Party actors reload finite reserves; exhausted
-/// non-party actors clear equipment before the unimplemented melee continuation.
+/// non-party actors clear equipment before the shared close-attack continuation.
 fn npc_cooldown_path(
     rom: &[u8],
     collision: &Collision,

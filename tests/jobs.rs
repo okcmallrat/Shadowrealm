@@ -984,6 +984,14 @@ fn fresh_solo_can_rent_stokers_room_before_michaels_belongings() {
 #[test]
 #[ignore = "requires the user-supplied ROM"]
 fn earned_stash_post_objective_stoker_rolls_spawn_a_real_fight_then_allow_room_and_save() {
+    earned_stoker_fight(false);
+}
+#[test]
+#[ignore = "requires the user-supplied ROM"]
+fn earned_stoker_route_puts_away_joshuas_gun_fights_with_fists_rests_trains_and_reloads() {
+    earned_stoker_fight(true);
+}
+fn earned_stoker_fight(barehanded: bool) {
     let rom = rom();
     let mut game = earn_belongings(&rom);
     let stoker = door(&game, 2);
@@ -1001,11 +1009,22 @@ fn earned_stash_post_objective_stoker_rolls_spawn_a_real_fight_then_allow_room_a
             assert_eq!(game.encounters.count, 3);
             capture(&mut game, &rom, "stoker-ambush");
             press(&mut game, &rom, input::A);
+            if barehanded {
+                game.show_inventory(&rom).unwrap();
+                choose_destination(&mut game, &rom, 0); // Put away the equipped gun.
+                assert_eq!((game.party[0].raw[0x56], game.party[0].raw[0x57]), (127, 0));
+                choose_destination(&mut game, &rom, 8);
+            }
             if !game.targeting.enabled {
                 press(&mut game, &rom, input::C);
             }
+            let mut captured_punch = false;
             for _ in 0..4000 {
                 game.update(&rom, input::A).unwrap();
+                if barehanded && !captured_punch && game.combat.punch_hits > 0 {
+                    capture(&mut game, &rom, "stoker-fists-strike");
+                    captured_punch = true;
+                }
                 assert!(!game.defeated, "party defeated during Stoker encounter");
                 if game.dialogue.is_some() {
                     panic!("unexpected recovery during Stoker fight");
@@ -1029,8 +1048,16 @@ fn earned_stash_post_objective_stoker_rolls_spawn_a_real_fight_then_allow_room_a
                     ))
                     .collect::<Vec<_>>()
             );
-            assert!(game.combat.shots > 0 || game.combat.companion_shots > 0);
-            capture(&mut game, &rom, "stoker-fight-complete");
+            if barehanded {
+                assert!(game.combat.punches > 0);
+                assert!(game.combat.punch_hits > 0);
+                assert_eq!(game.combat.shots, 0);
+                assert_eq!(game.party[0].raw[0x4e], 100); // Stored ammunition is untouched by fists.
+                capture(&mut game, &rom, "stoker-fists-fight-complete");
+            } else {
+                assert!(game.combat.shots > 0 || game.combat.companion_shots > 0);
+                capture(&mut game, &rom, "stoker-fight-complete");
+            }
             fought = true;
             eprintln!(
                 "Stoker fight visit {visit}, tick {}, NPC punches {}, NPC shots {}, party {:?}",
@@ -1086,8 +1113,10 @@ fn earned_stash_post_objective_stoker_rolls_spawn_a_real_fight_then_allow_room_a
             .map(|a| (a.raw[0x4c], a.raw[0x9c], a.raw[0x10]))
             .collect::<Vec<_>>()
     );
-    let directory =
-        std::env::temp_dir().join(format!("shadowrealm-stoker-fight-{}", std::process::id()));
+    let directory = std::env::temp_dir().join(format!(
+        "shadowrealm-stoker-fight-{}-{barehanded}",
+        std::process::id()
+    ));
     std::fs::create_dir(&directory).unwrap();
     game.write_save_slot(&rom, &directory, 1).unwrap();
     let (mut loaded, _) = Game::load_slot(&rom, &directory, 1).unwrap();
@@ -1096,7 +1125,20 @@ fn earned_stash_post_objective_stoker_rolls_spawn_a_real_fight_then_allow_room_a
     assert_eq!(loaded.jobs.completed, 6);
     assert_eq!(loaded.party[0].raw[0x77], 5);
     assert_eq!(loaded.party[0].raw[0x8d], game.party[0].raw[0x8d]);
-    capture(&mut loaded, &rom, "stoker-checkpoint-resumed");
+    if barehanded {
+        assert_eq!(
+            (
+                loaded.party[0].raw[0x56],
+                loaded.party[0].raw[0x57],
+                loaded.party[0].raw[0x4e]
+            ),
+            (127, 0, 100)
+        );
+        capture(&mut loaded, &rom, "stoker-fists-checkpoint-resumed");
+        eprintln!("Earned barehanded route: player punches {}, hits {}, companion punches {}, NPC punches {}, ticks {}",game.combat.punches,game.combat.punch_hits,game.combat.companion_punches,game.combat.npc_punches,game.tick);
+    } else {
+        capture(&mut loaded, &rom, "stoker-checkpoint-resumed");
+    }
     std::fs::remove_dir_all(directory).unwrap();
     eprintln!("Earned Stoker loop: tick {}, balance {}, punches {}, shots {}, party survived and checkpoint loaded",game.tick,game.nuyen,game.combat.npc_punches,game.combat.shots);
 }

@@ -55,3 +55,34 @@ with tempfile.TemporaryDirectory() as tmp:
   finally:c.hook_del(hook)
   actual=bytes(c.mem_read(0xff0100,256));expected=bytes(t['after']);assert actual==expected,f'zero-period FX clock {i}: {[(hex(j),actual[j],expected[j]) for j in range(256) if actual[j]!=expected[j]][:20]}'
  print(f'PASS: {len(data["clocks"])} original zero-period hit-FX animation clocks and terminal clamps',flush=True)
+
+ for i,t in enumerate(data['controlled']):
+  reset();c.mem_write(0xff0100,bytes(t['before']));c.mem_write(0xff0b00,bytes(t['pool_before']))
+  w(0xfff9f8,t['seed']);w(0xffddc4,2);l(0xfffc04,0xff0100);w(0xffdd22,t['input']);w(0xffdd04,65535);w(0xffdfe6,65535 if t['busy'] else 0)
+  c.reg_write(UC_M68K_REG_A0,0xff0100+t['source']*256);call(0xad1a)
+  actual=bytes(c.mem_read(0xff0100,len(t['after'])));expected=bytes(t['after'])
+  assert actual==expected,f'controlled {i}: {[(hex(j),actual[j],expected[j]) for j in range(len(actual)) if actual[j]!=expected[j]][:20]}'
+  actual=bytes(c.mem_read(0xff0b00,len(t['pool'])));expected=bytes(t['pool'])
+  assert actual==expected,f'controlled FX {i}'
+  assert rw(0xfff9f8)==t['after_seed'] and rw(0xffdf84)==t['engaged'] and rw(0xffdf86)==t['timeout'],f'controlled RNG/alert {i}'
+  assert bool(rw(0xffdfe6))==t['after_busy'],f'controlled queue {i}'
+  assert c.mem_read(0xfff0ce,1)[0]==t['count'] and c.mem_read(0xfff0dd,1)[0]==t['last'],f'controlled reward/dice {i}'
+ print(f'PASS: {len(data["controlled"])} whole original controlled unarmed entries, all party slots/templates, held/queued input, cooldown, targetless/out-of-range/inactive swings, damage/rewards, full FX pools and RNG; only audio/HUD omitted',flush=True)
+
+ # Complete companion scheduling/target acquisition/attack/pursuit and exhausted
+ # firearm conversion. $3404 is HUD refresh; the actual equipment rules execute.
+ c.mem_write(0x3404,b'\x4e\x75');c.ctl_remove_cache(0x3404,0x3406)
+ for i,t in enumerate(data['companions']):
+  reset();c.mem_write(0xff0100,bytes(t['before']));w(0xfff9f8,t['seed']);w(0xffddc4,2);l(0xfffc04,0xff0100)
+  for at,v in zip((0xffddd6,0xffddd8,0xffddd2,0xffddd4),(0,0,2048,2048)):w(at,v)
+  l(0xffddec,0xff3000);w(0xffddea,128);w(0xffdf84,65535);w(0xffdf86,17);w(0xffdf94,1);l(0xffdf96,0xff0400)
+  c.mem_write(0xffe175,bytes([255 if t['serviced'] else 0]));c.mem_write(0xffef10,b'\x11\x22\x33\x44')
+  c.reg_write(UC_M68K_REG_A0,0xff0100+t['source']*256);call(0x138b8)
+  actual=bytes(c.mem_read(0xff0100,len(t['after'])));expected=bytes(t['after'])
+  assert actual==expected,f'companion {i}: {[(hex(j),actual[j],expected[j]) for j in range(len(actual)) if actual[j]!=expected[j]][:20]}'
+  assert bytes(c.mem_read(0xff0b00,1536))==bytes(t['pool']),f'companion FX {i}'
+  assert rw(0xfff9f8)==t['after_seed'] and rw(0xffdf84)==t['engaged'] and rw(0xffdf86)==t['timeout'],f'companion RNG/alert {i}'
+  assert bool(c.mem_read(0xffe175,1)[0])==t['after_serviced'],f'companion schedule {i}'
+  assert bytes(c.mem_read(0xffef10,4))==bytes(t['samples']),f'companion scratch {i}'
+  assert c.mem_read(0xfff0ce,1)[0]==t['count'] and c.mem_read(0xfff0dd,1)[0]==t['last'],f'companion reward/dice {i}'
+ print(f'PASS: {len(data["companions"])} whole original companion decisions, both slots, target acquisition, pursuit, close attacks, cooldown, exhausted firearms and finite reloads, actor/FX state, scheduler and RNG; only audio/HUD omitted',flush=True)

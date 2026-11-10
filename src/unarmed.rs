@@ -1,4 +1,4 @@
-//! Ordinary unarmed damage ($55c76), close range and attack pose ($b1dc).
+//! Ordinary human unarmed damage ($55c76), close range and attack ($b1dc).
 use crate::{
     attack_roll::{self, DiceRoll},
     avoidance::State,
@@ -14,6 +14,8 @@ pub struct Catalog {
     schema_version: u8,
     scope: String,
     damage: Address,
+    controlled: Address,
+    target_query: Address,
     attack: Address,
     decision: Address,
     range: Address,
@@ -33,6 +35,8 @@ impl Catalog {
             || c.scope.is_empty()
             || [
                 c.damage.0,
+                c.controlled.0,
+                c.target_query.0,
                 c.attack.0,
                 c.decision.0,
                 c.range.0,
@@ -40,11 +44,15 @@ impl Catalog {
                 c.armor_table.0,
                 c.armor_stride,
                 c.impact_armor_offset,
-            ] != [0x55c76, 0xb1dc, 0x141a0, 0x15c58, 0xc0a2, 0xd4d50, 48, 38]
+            ] != [
+                0x55c76, 0xad1a, 0x15c84, 0xb1dc, 0x141a0, 0x15c58, 0xc0a2, 0xd4d50, 48, 38,
+            ]
         {
             return Err(RomError("unarmed references outside verified scope"));
         }
         if rom.get(c.damage.0..c.damage.0 + 4) != Some(&[0x61, 0, 2, 0x5e])
+            || rom.get(c.controlled.0..c.controlled.0 + 4) != Some(&[0x4a, 0x68, 0, 0xdc])
+            || rom.get(c.target_query.0..c.target_query.0 + 4) != Some(&[0x20, 0x28, 0, 0xa2])
             || rom.get(c.attack.0..c.attack.0 + 4) != Some(&[0x30, 0x3c, 0, 1])
             || rom.get(c.pose_table.0..c.pose_table.0 + 16).is_none()
         {
@@ -257,11 +265,14 @@ pub fn in_range(rom: &[u8], source: &Runner, target: &Runner) -> Result<Option<u
     let (angle, range) = crate::followers::heading(rom, source.position(), target.position())?;
     Ok((range < 0x200).then_some(angle))
 }
-pub fn prepare(rom: &[u8], source: &mut Runner, target: &Runner) -> Result<(), RomError> {
+pub fn prepare(rom: &[u8], source: &mut Runner, target: Option<&Runner>) -> Result<(), RomError> {
     if source.bank() >= 12 || source.raw[0x11] & 0x40 != 0 {
         return Err(RomError("special unarmed pose is unavailable"));
     }
-    let angle = crate::followers::heading(rom, source.position(), target.position())?.0;
+    let angle = match target {
+        Some(target) => crate::followers::heading(rom, source.position(), target.position())?.0,
+        None => source.word(0x34),
+    };
     let rotated = angle.rotate_left(3);
     let octant = usize::from(rotated.wrapping_add(u16::from((rotated as i16) < 0)) & 7);
     let at = 0xc0a2 + octant * 2;
@@ -291,6 +302,32 @@ pub fn strike(
     damage: &mut DamageWorld,
     rng: &mut State,
 ) -> Result<ResultData, RomError> {
+    let source_actor = actors
+        .iter()
+        .find(|a| a.word(0x3e) == u16::from(source))
+        .ok_or(RomError("unarmed source missing"))?;
+    let defender = actors
+        .iter()
+        .find(|a| a.word(0x3e) == u16::from(target))
+        .ok_or(RomError("unarmed target missing"))?;
+    if in_range(rom, source_actor, defender)?.is_none() {
+        return Err(RomError("unarmed strike outside close range"));
+    }
+    swing(rom, actors, source, Some(target), pool, launch, damage, rng)
+}
+/// Full $b1dc, including swings without a target, inactive targets and misses.
+/// The caller resolves the original $a2 pointer; no automatic hit is inferred.
+/// Every swing consumes the mode-1 cooldown and pose; alert/dice/FX require range.
+pub fn swing(
+    rom: &[u8],
+    actors: &mut [Runner],
+    source: u8,
+    target: Option<u8>,
+    pool: &mut [[u8; 256]; 6],
+    launch: &mut crate::weapons::LaunchWorld,
+    damage: &mut DamageWorld,
+    rng: &mut State,
+) -> Result<ResultData, RomError> {
     let mut staged = actors.to_vec();
     let mut fx = *pool;
     let mut world = launch.clone();
@@ -300,18 +337,34 @@ pub fn strike(
         .iter()
         .position(|a| a.word(0x3e) == u16::from(source))
         .ok_or(RomError("unarmed source missing"))?;
-    let t = staged
-        .iter()
-        .position(|a| a.word(0x3e) == u16::from(target))
-        .ok_or(RomError("unarmed target missing"))?;
-    let defender = staged[t].clone();
-    prepare(rom, &mut staged[s], &defender)?;
-    if in_range(rom, &staged[s], &defender)?.is_none() {
-        return Err(RomError("unarmed strike outside close range"));
+    let t = target
+        .map(|target| {
+            staged
+                .iter()
+                .position(|a| a.word(0x3e) == u16::from(target))
+                .ok_or(RomError("unarmed target missing"))
+        })
+        .transpose()?;
+    let defender = t.map(|t| staged[t].clone());
+    prepare(rom, &mut staged[s], defender.as_ref())?;
+    let mut result = ResultData::default();
+    if let Some(defender) = &defender {
+        if let Some(angle) = in_range(rom, &staged[s], defender)? {
+            staged[s].set_word(0x34, angle);
+            world.alert();
+            result = resolve(
+                rom,
+                &mut staged,
+                source,
+                defender.word(0x3e) as u8,
+                &mut wounds,
+                &mut random,
+            )?;
+        }
     }
-    world.alert();
-    let result = resolve(rom, &mut staged, source, target, &mut wounds, &mut random)?;
     if result.changed {
+        let defender = defender.as_ref().unwrap();
+        let target = defender.word(0x3e) as u8;
         crate::damage::react(rom, &mut staged, target, &mut wounds)?;
         if let Some(slot) = crate::weapons::free_projectile(&fx) {
             let raw = &mut fx[slot];
@@ -332,7 +385,7 @@ pub fn strike(
     // Validate the new pose/FX references without advancing a simulation clock.
     staged[s].sequence(rom)?;
     if result.changed {
-        staged[t].sequence(rom)?;
+        staged[t.unwrap()].sequence(rom)?;
         crate::actors::Sequence::read(rom, 1, 1)?;
     }
     actors.clone_from_slice(&staged);

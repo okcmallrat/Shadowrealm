@@ -1,7 +1,7 @@
 SHADOWREALM — WINDOWS EXPLORATION BUILD
 
 This is a native Rust reconstruction in progress, not the complete Shadowrun game.
-It renders the original assets and runs exploration with bounded gunfire and spells.
+It renders original assets and runs exploration with bounded gunfire, fists and spells.
 
 RUN ON WINDOWS 10/11 (64-BIT)
 
@@ -18,7 +18,7 @@ The supplied 2 MB Genesis ROM revision is the supported input.
 CONTROLS
 
 Arrow keys or WASD: move the selected runner.
-F outside dialogue: fire the equipped firearm or cast a supported equipped spell.
+F outside dialogue: attack with the equipped firearm, fists or a supported spell.
 Firing uses finite ammo, cooldowns and automatic reloads while reserves remain.
 Without a selected target, shots follow the runner's facing direction.
 Tab: select the next runner (also selects its HUD panel).
@@ -336,10 +336,10 @@ Matching courier pickups/deliveries retain priority over normal motel service.
 After retrieving the belongings, the greeting's More rolls the original visit
 encounter. Usually you reach the manager; sometimes a gunner and two unarmed
 Halloweeners attack. Acknowledge the passage to resume the fight. T selects a
-target; hold F to attack with an equipped supported gun/spell. Unarmed human
-NPCs now approach and punch, using original defense/resistance, impact armor,
-condition damage and attack timing. Player punches, companion unarmed attacks,
-melee weapons and special creature attacks remain unfinished.
+target; hold F to attack with a gun, fists or a supported spell. Unarmed human
+NPCs approach and punch, using original defense/resistance, impact armor,
+condition damage and attack timing. Melee weapons and special creature attacks
+remain unfinished.
 
 Zero condition can knock a runner out while health remains. Normal whole-party
 defeat now supports medical recovery for all three Joshua archetypes, including
@@ -352,3 +352,31 @@ with 410 nuyen and three Karma. No enemies, combat results, money or stats are
 assigned during that route. Original room art/fades/service reload cadence and
 wider story systems remain pending. Windows GUI/input/filesystem playtesting
 remains pending.
+
+
+PLAYER AND COMPANION FISTS
+
+Press I between actions, then select the currently equipped firearm again to put
+it away. Close inventory, select a target with T, walk into close range and hold F.
+Selecting the owned firearm again restores it and converts stored ammunition back
+to rounds. Fists do not spend ammunition. Normal fists damage condition; original
+cyberware (including Joshua Samurai's hand razors) can instead damage health.
+Swinging without a target or from too far away still uses the attack pose and
+cooldown, but does not alert enemies or roll damage. Projectile obstruction
+brackets do not apply to fists. Unarmed attacks still need the selected target.
+
+Uncontrolled human companions now pursue, stop close and punch on the original
+schedule. Companions with reserve clips reload; exhausting rounds and reserves
+switches to fists. The recovered automatic spell choice still has priority for
+magic users. Two Fists' ordinary unarmed combat also works in development rosters;
+earning his recruitment is not part of this milestone.
+
+A connected controller route earns six courier jobs and Michael's belongings,
+puts Joshua's firearm away, makes 12 swings (two damaging hits) in the real Stoker
+ambush, rests, trains Body to 5, then reloads a disk checkpoint with 410 nuyen,
+three Karma and fists equipped. Companions use their normal supported combat.
+No actor stats, enemies, money, RNG, positions or combat outcomes are assigned
+after ordinary development-roster construction. Actual Windows GUI/input and
+filesystem playtesting remains pending. Weapon melee, special creature attacks,
+further story, cyberspace, recruitment, original full menus and audio remain
+unfinished.

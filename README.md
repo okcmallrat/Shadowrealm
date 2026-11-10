@@ -23,7 +23,8 @@ Non-selected companions now perform bounded noncombat following, formation,
 static wall sliding and recovered fallback wall hugging. Party/NPC overlap now
 uses the original physical separation response, including player deflections
 and contact-triggered travel through the verified seams and Space Needle path.
-**Hold F to fire** the selected runner's equipped firearm. Tap T to toggle
+**Hold F to attack** with the selected runner's equipped firearm, supported spell
+or fists. Tap T to toggle
 target selection, or fire in the facing direction without a target. The native
 game loop now runs cooldowns, finite ammunition/reloads, flashes/impacts, burst
 continuations, damage and hurt/death setup. See [combat scope and verification](docs/combat-targets.md).
@@ -91,6 +92,13 @@ one gunner and two unarmed attackers. NPC punches, condition knockouts and norma
 medical recovery for all three Joshua archetypes are connected. An earned route
 survives the fight, rests, improves Body and reloads its checkpoint. See
 [Stoker combat, rest and source checks](docs/stoker-ambush-and-rest.md).
+
+Player and companion **barehanded combat** is now connected. In **I**, select the
+currently equipped firearm again to put it away; **T** selects a target and **F**
+swings. Walk into close range. Normal fists damage condition; original cyberware
+can make the attack lethal. Companions pursue and punch automatically, including
+after exhausting ammunition and reserves. Stored ammunition survives fists and
+native save/load. See [party unarmed combat and checks](docs/party-unarmed-combat.md).
 
 Redmond's Ares Weapon Emporium now sells firearms and ammunition with original
 stock, prices, negotiation, inventory-space and clip-limit rules. Press **I**

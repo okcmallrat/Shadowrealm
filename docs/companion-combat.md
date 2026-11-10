@@ -1,5 +1,10 @@
 # Bounded companion firearm combat
 
+The later [party unarmed milestone](party-unarmed-combat.md) connects ordinary
+player/companion fists and exhausted-firearm pursuit. Unarmed boundaries below
+record this earlier checkpoint. Weapon melee and special banks remain guarded.
+
+
 Automatic attack/Heal selection and the bounded caller context are now connected;
 see [automatic companion magic](automatic-companion-magic.md) for the current
 behavior and remaining limits. The notes below describe this earlier checkpoint.

@@ -130,5 +130,13 @@ Stoker's now rents a **20-nuyen room** and executes the actual post-objective
 Halloweener encounter. Its two unarmed attackers pursue and punch; condition-only
 knockouts and normal medical recovery work for all three Joshua classes. An
 earned route survives the fight, rests, raises Body and reloads with 410 nuyen
-and three Karma. Player/companion punches and melee weapons remain unfinished.
-See [Stoker combat and checks](../docs/stoker-ambush-and-rest.md).
+and three Karma. See [Stoker combat and checks](../docs/stoker-ambush-and-rest.md).
+
+Player and companion **fists** now work. In I, select the equipped firearm again
+to put it away. Select a target with T, walk close and hold F. Companions pursue
+and punch automatically; exhausted guns fall back to fists after reserve clips
+run out. Normal attacks damage condition, while recovered cyberware can damage
+health. Stored ammo and unarmed equipment survive save/load. The connected
+Stoker route includes 12 player swings and two damaging hits before rest,
+training and disk reload. Melee weapons and special creature attacks remain
+unfinished. See [party unarmed scope and checks](../docs/party-unarmed-combat.md).

@@ -1,5 +1,59 @@
 # Resume here
 
+## Latest checkpoint (2026-11-10): player and companion fists
+
+Read `docs/party-unarmed-combat.md` first. The user requested publication to
+`origin/main` and a pause after this milestone. This checkpoint includes source,
+current documentation and the verified Windows ZIP together on top of published
+`a74d150`. Resume from this handoff when the user returns.
+Keep ROM/GZF, analysis exports, dependency caches and generated frames outside Git.
+
+Selected players now use full `$b1dc` swings through the existing `$ad1a` input
+queue, with real mode-1 timing, optional target heading, range, damage/reaction/FX
+and atomic asset validation. Whiffs still animate/cool down; no target, inactive,
+fallen or distant targets do not alert or consume dice. The I inventory panel
+already toggles an equipped gun to fists; its hint now explains that action.
+F attacks, T selects; walk into range. Original cyberware can deal health damage
+instead of condition. Projectile obstruction diagnostics no longer apply to fists.
+
+Human companions now pursue/stop/wait/punch through `$141a0/$13d0c`, retaining
+scheduler, targeting and automatic spell priorities. Exhausted guns after finite
+reserves convert to fists and continue the same action; NPC gun exhaustion also
+uses it. Two Fists works in explicit development rosters. Weapon melee, special
+banks and status combinations retain guards. The unarmed typed catalog adds
+controlled-entry/target-query references; preserve source byte and reward quirks.
+
+The supplied verified Ghidra working copy provided targeted routine exports.
+Private evidence is `/workspace/work/party-unarmed`. Whole original comparisons
+pass 768 controlled entries and 768 companion decisions; damage coverage now
+includes party attackers (2,048 cases). Earlier 256 full attacks, 256 falls and
+256 zero-period FX clocks still match. Full combat and automatic-magic oracles
+also pass, including 3,033 full automatic decisions and 39 guarded prefixes.
+
+All 76 unit/pure + 123 ROM-backed tests pass (199 total, desktop enabled).
+Live tests cover all solo equipment/swing/save states, health/condition damage,
+Two Fists, exhausted Stark pursuit and failed-pose rollback. Low-defense fixtures
+isolate nonlethal damage for the low-Melee classes; no claim they win arbitrary
+untrained fights. The connected original development-roster route earns six jobs
+and the stash, rolls the real Stoker fight on visit 5, toggles Joshua's gun off,
+and executes 12 player swings/two damaging hits/zero player shots. NPCs make eight
+punches/seven shots. The party survives at tick 15750, rests, improves Body to 5
+and reloads a disk checkpoint at tick 15978 with 410 nuyen, three Karma, six jobs,
+story/DocWagon, fists and 100% stored ammo. No state or outcomes are injected
+after construction. This does not claim earned companion recruitment.
+
+Linux desktop and Windows release builds pass. Rendered combat, hotel and resumed
+frames were inspected. Actual Linux GUI launch failed to create a window;
+Windows GUI/input/filesystem playtesting remains pending. The verified Windows
+ZIP is 689,598 bytes, with CRC/all 22 hashes/exact membership, source
+README/EXE/DLL identity and x64 PE headers/imports verified. SHA-256:
+`8e581601385a985aaa2d237d1ebdb583ca0e232cf2f995f71809aec1ae55f165`.
+
+A useful next milestone is an earned solo-to-companion recruitment route through
+the existing bounded Trent flow, checking contract/archive/combat behavior and
+disk continuation. Further story/cyberspace, other services/job types, wilderness,
+original full menus/cinematics, special attacks and audio remain unfinished.
+
 ## Latest checkpoint (2026-11-09): Stoker encounter, rest and unarmed NPCs
 
 Read `docs/stoker-ambush-and-rest.md` first. The user explicitly requested a push

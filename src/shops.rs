@@ -366,7 +366,7 @@ pub fn inventory(rom: &[u8], actor: &Runner) -> Result<Dialogue, RomError> {
         0,
         0,
         format!(
-            "{}: select a firearm.\n{}  Clips: {}",
+            "{}: select a firearm.\nSelect it again for fists.\n{}  Clips: {}",
             actor.name(),
             ammunition,
             actor.raw[0x4f]

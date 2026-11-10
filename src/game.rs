@@ -1938,6 +1938,11 @@ impl Game {
     }
     /// Independent, non-mutating diagnostic with cleared collision scratch.
     pub fn selected_fire_probe(&self, rom: &[u8]) -> Result<Option<combat::LineProbe>, RomError> {
+        let source = &self.party[self.selected];
+        // Fists use the original close-range gate, with no projectile path probe.
+        if source.raw[0x57] == 0 && (source.raw[0x56] as i8) >= 0 {
+            return Ok(None);
+        }
         if self.party_spell_selected()
             && combat::target(&self.party[self.selected])
                 .is_some_and(|id| u16::from(id.0) == self.party[self.selected].word(0x3e))

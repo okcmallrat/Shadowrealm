@@ -1,5 +1,10 @@
 # Stoker's encounter and motel rest
 
+The later [party unarmed milestone](party-unarmed-combat.md) connects ordinary
+player/companion fists and exhausted-firearm pursuit. Unarmed boundaries below
+record this earlier checkpoint. Weapon melee and special banks remain guarded.
+
+
 Stoker's Coffin Motel now rents its original 20-nuyen room, both before and after
 retrieving Michael's belongings. The shared hotel flow performs one original
 partial rest, permits per-runner Karma spending, and returns through checkout.

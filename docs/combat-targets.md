@@ -1,5 +1,10 @@
 # Player gunfire and combat reconstruction
 
+The later [party unarmed milestone](party-unarmed-combat.md) connects ordinary
+player/companion fists and exhausted-firearm pursuit. Unarmed boundaries below
+record this earlier checkpoint. Weapon melee and special banks remain guarded.
+
+
 ## Firing enabled
 
 Hold **F** outside dialogue to fire the selected runner's equipped firearm.

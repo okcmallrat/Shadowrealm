@@ -1,5 +1,10 @@
 # Automatic companion magic
 
+The later [party unarmed milestone](party-unarmed-combat.md) connects ordinary
+player/companion fists and exhausted-firearm pursuit. Unarmed boundaries below
+record this earlier checkpoint. Weapon melee and special banks remain guarded.
+
+
 Ricky and Freya now choose supported learned attack spells or Heal, convert
 their equipment, target and move, cast, and restore inventory firearms when the
 original drain estimate rejects magic. The normal companion scheduler makes
