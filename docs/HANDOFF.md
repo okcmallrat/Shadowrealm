@@ -1,5 +1,18 @@
 # Resume here
 
+## Separate project (2026-11-11): NEON / BREACH
+
+The user requested the new original arcade game be added under `neon-breach/`
+and pushed to GitHub. It is an independent Cargo package, with 23 Matrix combat
+rooms, power-ups that persist into ICE boss stages, six short story contracts,
+and a final CROWN boss. See `../neon-breach/README.md` for controls and scope.
+Source, locked dependencies, a native Windows build helper, and the verified
+Windows ZIP/checksum are kept together in that folder. No ROM, extracted assets,
+caches or generated frames are included. Three unit tests and a graphics-context
+campaign simulation passed; Windows cross-build/import inspection passed.
+Actual Windows gameplay testing remains pending. This is an original arcade
+prototype; it does not advance the Shadowrun reconstruction milestone below.
+
 ## Latest checkpoint (2026-11-10): player and companion fists
 
 Read `docs/party-unarmed-combat.md` first. The user requested publication to
