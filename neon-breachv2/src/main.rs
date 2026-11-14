@@ -1,6 +1,8 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 use macroquad::prelude::*;
 use serde::Deserialize;
+mod avatar;
+use avatar::{Avatar, DEATH_DURATION};
 const W: f32 = 1100.;
 const H: f32 = 760.;
 const CY: Color = Color::new(0.15, 0.95, 0.9, 1.);
@@ -22,6 +24,7 @@ enum Mode {
     Room,
     Boss,
     Debrief,
+    Dying,
     Dead,
     Won,
 }
@@ -55,6 +58,8 @@ struct Game {
     room: usize,
     p: Vec2,
     aim: Vec2,
+    avatar: Avatar,
+    death_in_boss: bool,
     hp: i32,
     shield: i32,
     weapon: i32,
@@ -120,45 +125,6 @@ fn light_disc(p: Vec2, radius: f32, phase: f32, c: Color) {
         );
     }
 }
-fn draw_decker(p: Vec2, aim: Vec2, time: f32, moving: bool) {
-    let ink = Color::from_rgba(12, 24, 39, 255);
-    let suit = Color::from_rgba(198, 225, 230, 255);
-    let step = if moving { (time * 18.).sin() * 4. } else { 0. };
-    draw_ellipse(p.x, p.y + 23., 17., 5., 0., Color::new(0., 0., 0., 0.6));
-    // White armoured suit, dark joints, luminous circuit paths and helmet visor.
-    for (side, stride) in [(-1., step), (1., -step)] {
-        let hip = p + vec2(side * 4., 5.);
-        let foot = p + vec2(side * 7., 20. + stride);
-        draw_line(hip.x, hip.y, foot.x, foot.y, 7., ink);
-        draw_line(hip.x, hip.y, foot.x, foot.y - 2., 4., suit);
-        draw_line(hip.x, hip.y, foot.x, foot.y - 2., 1.5, CY);
-        draw_line(foot.x - 3., foot.y, foot.x + 3., foot.y, 3., CY);
-    }
-    draw_rectangle(p.x - 9., p.y - 11., 18., 20., ink);
-    draw_rectangle_lines(p.x - 8., p.y - 10., 16., 18., 2., suit);
-    draw_line(p.x - 5., p.y - 9., p.x - 5., p.y + 6., 2., CY);
-    draw_line(p.x + 5., p.y - 9., p.x + 5., p.y + 6., 2., CY);
-    draw_line(p.x - 7., p.y + 4., p.x + 7., p.y + 4., 2., CY);
-    draw_circle_lines(p.x, p.y - 3., 3., 1.5, WHITE);
-    let hand = p + aim * 20. + vec2(0., -4.);
-    let shoulder = p + vec2(aim.x.signum() * 9., -8.);
-    draw_line(
-        p.x - aim.x.signum() * 9.,
-        p.y - 8.,
-        p.x - aim.x.signum() * 13.,
-        p.y + 5.,
-        5.,
-        suit,
-    );
-    draw_line(shoulder.x, shoulder.y, hand.x, hand.y, 6., ink);
-    draw_line(shoulder.x, shoulder.y, hand.x, hand.y, 3., suit);
-    draw_line(shoulder.x, shoulder.y, hand.x, hand.y, 1., CY);
-    light_disc(hand, 5., time * 8., CY);
-    draw_circle(p.x, p.y - 19., 9., ink);
-    draw_circle_lines(p.x, p.y - 19., 9., 2., suit);
-    draw_line(p.x - 6., p.y - 20., p.x + 6., p.y - 20., 3., CY);
-    draw_line(p.x, p.y - 27., p.x, p.y - 24., 2., CY);
-}
 impl Game {
     fn new() -> Self {
         Self {
@@ -168,6 +134,8 @@ impl Game {
             room: 0,
             p: vec2(90., 380.),
             aim: vec2(1., 0.),
+            avatar: Avatar::default(),
+            death_in_boss: false,
             hp: 6,
             shield: 0,
             weapon: 0,
@@ -215,6 +183,7 @@ impl Game {
     }
     fn room(&mut self) {
         self.mode = Mode::Room;
+        self.avatar.motion = Vec2::ZERO;
         self.p = vec2(80., 380.);
         self.bullets.clear();
         self.enemies.clear();
@@ -251,6 +220,7 @@ impl Game {
     }
     fn boss(&mut self) {
         self.mode = Mode::Boss;
+        self.avatar.motion = Vec2::ZERO;
         self.p = vec2(130., 380.);
         self.bullets.clear();
         self.enemies.clear();
@@ -274,7 +244,7 @@ impl Game {
         self.tell("SHOOT OR CHEW ICE // CHARGE 12 // FIRE PAYLOAD [X]");
     }
     fn hit(&mut self) {
-        if self.inv > 0. {
+        if self.inv > 0. || !matches!(self.mode, Mode::Room | Mode::Boss) {
             return;
         }
         if self.shield > 0 {
@@ -285,7 +255,10 @@ impl Game {
         self.inv = 1.2;
         self.burst(self.p, PINK);
         if self.hp <= 0 {
-            self.mode = Mode::Dead;
+            self.death_in_boss = self.mode == Mode::Boss;
+            self.avatar.death = 0.;
+            self.paused = false;
+            self.mode = Mode::Dying;
             self.save();
         }
     }
@@ -304,8 +277,24 @@ impl Game {
             life: 3.,
         });
     }
+    fn tick_death(&mut self, dt: f32) {
+        self.avatar.death += dt;
+        self.shake = (self.shake - dt).max(0.);
+        for spark in &mut self.sparks {
+            spark.p += spark.v * dt;
+            spark.t -= dt;
+        }
+        self.sparks.retain(|spark| spark.t > 0.);
+        if self.avatar.death >= DEATH_DURATION {
+            self.mode = Mode::Dead;
+        }
+    }
     fn update(&mut self, dt: f32) {
         self.time += dt;
+        if self.mode == Mode::Dying {
+            self.tick_death(dt);
+            return;
+        }
         if is_key_pressed(KeyCode::Enter) {
             match self.mode {
                 Mode::Title | Mode::Dead | Mode::Won => {
@@ -377,6 +366,7 @@ impl Game {
             self.dash = 1.8;
             self.inv = self.inv.max(0.23);
         }
+        let previous = self.p;
         let delta = d.normalize_or_zero() * if boost { 135. } else { 280. * dt };
         for axis in [vec2(delta.x, 0.), vec2(0., delta.y)] {
             let q = self.p + axis;
@@ -386,11 +376,23 @@ impl Game {
         }
         self.p.x = self.p.x.clamp(28., 1070.);
         self.p.y = self.p.y.clamp(115., 670.);
+        let firing = a.length_squared() > 0.
+            || is_mouse_button_down(MouseButton::Left)
+            || is_key_down(KeyCode::Space);
+        self.avatar.advance(
+            self.p - previous,
+            if firing { Some(self.aim) } else { None },
+            dt,
+        );
+        if boost {
+            self.avatar.dash = 0.22;
+        }
         if (a.length() > 0.
             || is_mouse_button_down(MouseButton::Left)
             || is_key_down(KeyCode::Space))
             && self.fire <= 0.
         {
+            self.avatar.attack = 0.16;
             self.fire = if self.weapon >= 1 { 0.105 } else { 0.17 };
             let dirs = if self.weapon >= 2 {
                 vec![-0.14_f32, 0., 0.14]
@@ -409,6 +411,9 @@ impl Game {
             self.update_room(dt);
         } else {
             self.update_boss(dt);
+        }
+        if self.mode == Mode::Dying {
+            return;
         }
         let mut hits = 0;
         let mut explosions = vec![];
@@ -466,6 +471,9 @@ impl Game {
         self.bullets.retain(|b| b.life > 0.);
         for _ in 0..hits {
             self.hit();
+        }
+        if self.mode == Mode::Dying {
+            return;
         }
         for p in explosions {
             self.burst(p, PINK);
@@ -531,6 +539,9 @@ impl Game {
         if contact {
             self.hit();
         }
+        if self.mode == Mode::Dying {
+            return;
+        }
         let mut take = vec![];
         for (i, p) in self.pickups.iter().enumerate() {
             if p.p.distance(self.p) < 27. {
@@ -576,6 +587,9 @@ impl Game {
             * dt;
         if self.hunter.distance(self.p) < 27. || self.p.distance(vec2(972., self.boss_y)) < 58. {
             self.hit();
+        }
+        if self.mode == Mode::Dying {
+            return;
         }
         if self.shot <= 0. {
             self.shot = if rage { 0.68 } else { 1.05 };
@@ -684,7 +698,7 @@ impl Game {
             CY,
         );
         text(
-            if self.mode == Mode::Boss {
+            if self.mode == Mode::Boss || (self.mode == Mode::Dying && self.death_in_boss) {
                 "ICE CORE"
             } else {
                 "MATRIX RUN"
@@ -719,7 +733,7 @@ impl Game {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(15, 32, 48, 255));
             draw_rectangle_lines(r.x, r.y, r.w, r.h, 1., CY);
         }
-        if self.mode == Mode::Room {
+        if self.mode == Mode::Room || (self.mode == Mode::Dying && !self.death_in_boss) {
             let open = self.enemies.is_empty();
             draw_rectangle(
                 1048.,
@@ -843,11 +857,10 @@ impl Game {
                 light_disc(b.p, r, self.time * 16. + b.life * 3., c);
             }
         }
-        if self.inv <= 0. || (self.time * 18.) as i32 % 2 == 0 {
-            let moving = [KeyCode::W, KeyCode::A, KeyCode::S, KeyCode::D]
-                .into_iter()
-                .any(is_key_down);
-            draw_decker(self.p, self.aim, self.time, moving);
+        if self.mode == Mode::Dying {
+            self.avatar.draw_death(self.p, self.time);
+        } else if self.inv <= 0. || (self.time * 18.) as i32 % 2 == 0 {
+            self.avatar.draw(self.p, self.time);
             if self.shield > 0 {
                 draw_circle_lines(self.p.x, self.p.y - 3., 31., 1.5, SKYBLUE);
             }
@@ -1016,11 +1029,90 @@ async fn verify_game() {
     g.draw();
     println!("VERIFIED: 23 Matrix rooms, 6 boss transitions, power-up persistence, ICE blocking, core weapon rules, campaign ending.");
 }
+async fn animation_check() {
+    std::fs::create_dir_all("verification").unwrap();
+    for frame in 0..3 {
+        clear_background(Color::from_rgba(5, 9, 22, 255));
+        text(
+            "DECKER / EIGHT DIRECTIONS / RESOLVED MOVEMENT",
+            30.,
+            32.,
+            24.,
+            CY,
+        );
+        let names = ["E", "SE", "S", "SW", "W", "NW", "N", "NE"];
+        for (i, name) in names.iter().enumerate() {
+            let angle = i as f32 * std::f32::consts::FRAC_PI_4;
+            let dir = vec2(angle.cos(), angle.sin());
+            text(name, 115. + i as f32 * 125., 68., 20., WHITE);
+            for row in 0..4 {
+                let a = Avatar {
+                    facing: dir,
+                    motion: dir,
+                    phase: row as f32 * std::f32::consts::FRAC_PI_2,
+                    attack: if row == 2 { 0.08 } else { 0. },
+                    dash: if row == 3 { 0.15 } else { 0. },
+                    ..Avatar::default()
+                };
+                a.draw(vec2(120. + i as f32 * 125., 130. + row as f32 * 115.), 0.);
+            }
+        }
+        text(
+            "WALK / WALK / THROW / DASH  //  DEATH SEQUENCE BELOW",
+            30.,
+            555.,
+            19.,
+            CY,
+        );
+        for (i, t) in [0., 0.2, 0.4, 0.7, 1.1, 1.6].iter().enumerate() {
+            let a = Avatar {
+                death: *t,
+                ..Avatar::default()
+            };
+            let p = vec2(100. + i as f32 * 175., 655.);
+            a.draw_death(p, 0.);
+            text(&format!("{:.1}s", t), p.x - 20., 725., 18., GRAY);
+        }
+        if frame == 2 {
+            get_screen_data().export_png("verification/animation-sheet.png");
+        }
+        next_frame().await;
+    }
+    // Exercise the real fatal-hit path in both arenas; gameplay must remain frozen.
+    for boss in [false, true] {
+        let mut g = Game::new();
+        if boss {
+            g.boss();
+        } else {
+            g.room();
+        }
+        g.hp = 1;
+        g.shield = 0;
+        g.inv = 0.;
+        g.hit();
+        assert!(g.mode == Mode::Dying);
+        let p = g.p;
+        let bullets = g.bullets.len();
+        for _ in 0..110 {
+            g.update(1. / 60.);
+            g.draw();
+            next_frame().await;
+        }
+        assert!(g.mode == Mode::Dead);
+        assert_eq!(g.p, p);
+        assert_eq!(g.bullets.len(), bullets);
+    }
+    println!("VERIFIED: eight-direction animation sheet and room/boss death lifecycle.");
+}
 #[macroquad::main(config)]
 async fn main() {
     rand::srand(miniquad::date::now() as u64);
     if std::env::args().any(|a| a == "--verify") {
         verify_game().await;
+        return;
+    }
+    if std::env::args().any(|a| a == "--animation-check") {
+        animation_check().await;
         return;
     }
     let mut g = Game::new();
@@ -1103,5 +1195,39 @@ mod tests {
         assert_eq!((g.shield, g.weapon, g.energy), (4, 2, 24));
         assert_eq!(g.ice.len(), 75);
         assert_eq!(g.boss_hp, 3);
+    }
+    #[test]
+    fn fatal_hit_waits_for_complete_animation() {
+        let mut g = Game::new();
+        g.room();
+        g.hp = 1;
+        g.inv = 0.;
+        g.hit();
+        assert!(g.mode == Mode::Dying);
+        assert!(!g.death_in_boss);
+        g.hit();
+        assert_eq!(g.hp, 0);
+        g.tick_death(DEATH_DURATION - 0.01);
+        assert!(g.mode == Mode::Dying);
+        g.tick_death(0.02);
+        assert!(g.mode == Mode::Dead);
+    }
+    #[test]
+    fn shields_and_invulnerability_do_not_trigger_death() {
+        let mut g = Game::new();
+        g.boss();
+        g.hp = 1;
+        g.shield = 1;
+        g.inv = 0.;
+        g.hit();
+        assert!(g.mode == Mode::Boss);
+        assert_eq!(g.hp, 1);
+        assert_eq!(g.shield, 0);
+        g.hit();
+        assert_eq!(g.hp, 1);
+        g.inv = 0.;
+        g.hit();
+        assert!(g.mode == Mode::Dying);
+        assert!(g.death_in_boss);
     }
 }

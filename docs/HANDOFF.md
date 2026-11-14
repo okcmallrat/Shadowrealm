@@ -1,5 +1,19 @@
 # Resume here
 
+## NEON / BREACH V2 animation update (2026-11-14)
+
+The user requested eight-direction Decker animation and a death sequence, then
+publication. `neon-breachv2` v0.2.1 adds `src/avatar.rs`: octant-facing front/
+side/rear poses, distance-driven walking, aim/travel separation for strafing,
+idle facing retention, disc-throw recovery and directional dash afterimages.
+Fatal damage enters a frozen-combat 1.8-second Dying state with suit flash,
+shock ring and deterministic fading light fragments before the retry card.
+Extra hits/restart input cannot interrupt it; room/boss scenery is retained.
+Seven unit tests, all-direction graphical pose inspection, real fatal-hit
+lifecycle simulation in both arenas, and the full campaign simulation pass.
+The Windows ZIP is rebuilt and checked with its checksum and PE imports;
+Windows PC playtesting remains pending. Generated pose sheets stay outside Git.
+
 ## Separate project update (2026-11-14): NEON / BREACH V2
 
 The user requested a Flynn/Tron-inspired Decker and light-disc ammunition,

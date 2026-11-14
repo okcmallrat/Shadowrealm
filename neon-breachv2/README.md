@@ -1,10 +1,18 @@
-# NEON / BREACH — v0.2
+# NEON / BREACH — v0.2.1
 
 A Rust arcade prototype for Windows PCs: fast Matrix arena combat leading into ICE-breaking boss battles. You are a freelance Decker uncovering HELIX's captive-mind project through six short contracts.
 
 ## V2 visual direction
 
 The Decker now wears a pale armoured circuit suit with a luminous visor, animated legs, and a held light disc. Standard ammunition uses spinning cyan rings with segmented highlights and trails; charged boss payloads are larger gold discs. Enemy shots remain magenta for readability. All artwork is procedural and original, inspired by luminous digital-world cinema and street-level cyberpunk. The Berzerk-style arena / Yar’s Revenge-style ICE gameplay, damage and collision rules are retained.
+
+## Directional animation update
+
+Eight facing directions have distinct front, profile and rear poses. A distance-driven walk cycle animates feet and arms only when movement succeeds; legs follow travel while the torso follows aim for strafing. Idle retains the last facing. Disc throws have a short arm extension and recovery, and dashes leave directional afterimages.
+
+Fatal damage triggers a 1.8-second circuit-collapse sequence: a brief suit flash, an expanding shock ring, then stable drifting light fragments that fade before the retry screen. Combat freezes during this sequence; further hits and Enter cannot cut it short. Shields and temporary invulnerability still protect normally.
+
+`cargo run --locked -- --animation-check` renders an eight-direction pose sheet under `verification/` and exercises the actual death lifecycle in both room and boss arenas. Graphical checks ran on Linux; Windows gameplay/input testing remains pending.
 
 ## Play on Windows
 
@@ -59,7 +67,7 @@ Dependencies: Macroquad (graphics/input), Serde and serde_json (campaign data). 
 
 ## Verification
 
-Three Rust unit tests cover campaign structure, collision geometry and power-up persistence. `cargo run -- --verify` opens a graphics context and simulates all 23 rooms and six bosses, checks ICE blocking and core immunity to normal bullets, and reaches the ending. This test deliberately clears enemies and places payloads for deterministic transition checks; it is not a full player playthrough or a difficulty assessment.
+Seven Rust unit tests cover campaign structure, collisions, power-up persistence, all eight facing directions, strafing, idle retention, fatal-hit timing, shields and invulnerability. `cargo run -- --verify` opens a graphics context and simulates all 23 rooms and six bosses, checks ICE blocking and core immunity to normal bullets, and reaches the ending. This test deliberately clears enemies and places payloads for deterministic transition checks; it is not a full player playthrough or a difficulty assessment.
 
 The executable was cross-compiled for Windows x86-64 and inspected for imports: only Windows system DLLs are required. Graphical checks and campaign simulation ran on Linux with software OpenGL. Execution on a real Windows PC remains to be confirmed.
 
