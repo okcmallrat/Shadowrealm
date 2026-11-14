@@ -1,5 +1,18 @@
 # Resume here
 
+## Separate project update (2026-11-14): NEON / BREACH V2
+
+The user requested a Flynn/Tron-inspired Decker and light-disc ammunition,
+published separately as `neon-breachv2/`. V1 remains in `neon-breach/`.
+V2 uses original procedural artwork: pale armoured humanoid, cyan suit circuits,
+visor, walking legs and held disc; spinning cyan projectile rings and larger
+gold payload discs with trails. Berzerk/ICE combat and collision rules persist.
+The independent v0.2.0 Cargo package includes source, JSON story, build helper,
+and Windows ZIP/checksum. Three unit tests, Linux graphical previews and the
+23-room/six-boss simulation passed. Windows cross-build and package/import
+checks passed; actual Windows gameplay testing remains pending.
+No generated frames or third-party franchise assets are committed.
+
 ## Separate project (2026-11-11): NEON / BREACH
 
 The user requested the new original arcade game be added under `neon-breach/`
