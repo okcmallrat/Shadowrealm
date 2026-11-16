@@ -1,5 +1,32 @@
 # Resume here
 
+## Shadowrealm checkpoint (2026-11-16): earned Trent recruitment
+
+The ROM-backed `tests/jobs.rs` route now starts a solo Samurai from the title
+screen, completes six Gunderson courier jobs, recovers Michael's belongings,
+takes a taxi Downtown, and walks into the Space Needle. Joshua hires Trent
+on the 285-nuyen contract and walks back outside with him. A new title-screen
+session loads the disk save with both runners, 220 nuyen, seven Karma for Joshua,
+six completed jobs, Michael's recovery flag, and Trent's full compact record.
+The route reaches the save at tick 16192 without injecting money, positions,
+party members or job outcomes after starting the game.
+
+The full locked desktop-enabled Rust suite passed in Ubuntu under WSL with
+the supplied ROM. The hiring oracle matched 54 original fee quotes and 24
+purchase cases covering balances, party capacity, contracts, NPC removal,
+and compact runner state.
+
+This is a local integration milestone for the existing native systems. The
+route had zero encounters. Windows GUI/input playtesting and a combat route
+with an earned companion remain open. The versioned Windows ZIP still
+represents the existing release.
+
+Run the route with the verified ROM:
+
+```sh
+SHADOWREALM_TEST_ROM=/path/to/Shadowrun.bin cargo test --locked --release --test jobs fresh_solo_new_game_earns_trents -- --ignored --nocapture
+```
+
 ## NEON / BREACH V2 animation update (2026-11-14)
 
 The user requested eight-direction Decker animation and a death sequence, then

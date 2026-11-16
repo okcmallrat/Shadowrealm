@@ -877,7 +877,7 @@ fn hotel_refusal_cancellation_and_failed_assets_preserve_transactions() {
 
 #[test]
 #[ignore = "requires the user-supplied ROM"]
-fn fresh_solo_new_game_earns_michaels_belongings_and_resumes_from_the_opening_menu() {
+fn fresh_solo_new_game_earns_trents_hire_and_resumes_from_the_opening_menu() {
     use shadowrealm::session::Session;
     let rom = rom();
     let directory =
@@ -907,10 +907,42 @@ fn fresh_solo_new_game_earns_michaels_belongings_and_resumes_from_the_opening_me
     assert_eq!(game.party.len(), 1);
     assert_eq!(game.recovery_flags, 1);
     capture(&mut game, &rom, "newgame-solo-earned-stash");
+    game.call_taxi(&rom).unwrap();
+    choose_destination(&mut game, &rom, 4);
+    choose_destination(&mut game, &rom, 15);
+    finish_transition(&mut game, &rom, 0);
+
+    let space_needle = door(&game, 6);
+    walk(&mut game, &rom, space_needle, true);
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0x110b5e);
+    finish_transition(&mut game, &rom, 10);
+    walk(&mut game, &rom, (112, 96), false);
+    for _ in 0..20 {
+        game.update(&rom, input::UP).unwrap();
+        if game.dialogue.is_some() {
+            break;
+        }
+    }
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xfeb4c);
+    choose_destination(&mut game, &rom, 0xfecfc);
+    press(&mut game, &rom, input::A);
+    assert_eq!(game.dialogue.as_ref().unwrap().node, 0xff958);
+    let before_hire = game.nuyen;
+    press(&mut game, &rom, input::A);
+    assert_eq!(game.nuyen, before_hire - 285);
+    assert_eq!(game.party.len(), 2);
+    assert_eq!(game.party[1].name(), "Trent");
+    assert_eq!(game.party[1].raw[0x8f], 0);
+    assert!(game.npcs.is_empty());
+    press(&mut game, &rom, input::A);
+    walk(&mut game, &rom, (240, 240), true);
+    finish_transition(&mut game, &rom, 0);
+
     for _ in 0..100 {
         game.update(&rom, 0).unwrap();
     }
     assert!(game.save_ready());
+    let trent = shadowrealm::archives::pack(&game.party[1]);
     game.write_save_slot(&rom, &directory, 1).unwrap();
     let balance = game.nuyen;
     let jobs = game.jobs.completed;
@@ -937,12 +969,16 @@ fn fresh_solo_new_game_earns_michaels_belongings_and_resumes_from_the_opening_me
             game.jobs.completed,
             game.party[0].raw[0x8d]
         ),
-        (1, 0, balance, jobs, karma)
+        (2, 0, balance, jobs, karma)
     );
+    assert_eq!(game.party[1].name(), "Trent");
+    assert_eq!(game.party[1].raw[0x8f], 0);
+    assert_eq!(shadowrealm::archives::pack(&game.party[1]), trent);
+    assert_eq!(game.map_id(), 0);
     assert_eq!(game.recovery_flags, 1);
     assert_ne!(game.party[0].raw[0x8f] & 1, 0);
-    capture(game, &rom, "newgame-solo-title-load");
-    eprintln!("Opening-menu solo Samurai -> {jobs} courier jobs -> Michael's belongings -> disk save -> fresh opening-menu load: {balance} nuyen, {karma} Karma, tick {tick}, encounters {encounters}");
+    capture(game, &rom, "newgame-trent-title-load");
+    eprintln!("Opening-menu solo Samurai -> {jobs} courier jobs -> Michael's belongings -> Trent -> disk save -> fresh opening-menu load: {balance} nuyen, {karma} Karma, tick {tick}, encounters {encounters}");
     std::fs::remove_dir_all(directory).unwrap();
 }
 
